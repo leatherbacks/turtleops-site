@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TurtleOps - Sea Turtle Conservation Tracker</title>
+  <meta name="description" content="A mobile app for tracking sea turtle observations during beach surveys. Optimized for nighttime fieldwork.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --background: #0a0a0a;
+      --surface: #1a1a1a;
+      --surface-elevated: #242424;
+      --primary: #ff5757;
+      --primary-dim: #cc4545;
+      --success: #10b981;
+      --text: #e5e5e5;
+      --text-secondary: #a0a0a0;
+      --text-muted: #666666;
+      --border: #333333;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background-color: var(--background);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    header {
+      padding: 24px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .header-content {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: var(--text);
+    }
+
+    .logo-icon { font-size: 32px; }
+    .logo-text { font-size: 24px; font-weight: 700; }
+    .logo-text span { color: var(--primary); }
+
+    nav a {
+      color: var(--text-secondary);
+      text-decoration: none;
+      margin-left: 32px;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+    nav a:hover { color: var(--primary); }
+
+    .hero {
+      padding: 80px 0;
+      text-align: center;
+    }
+
+    .hero h1 {
+      font-size: 48px;
+      font-weight: 700;
+      margin-bottom: 24px;
+      line-height: 1.2;
+    }
+    .hero h1 span { color: var(--primary); }
+
+    .hero p {
+      font-size: 20px;
+      color: var(--text-secondary);
+      max-width: 600px;
+      margin: 0 auto 40px;
+    }
+
+    .hero-buttons {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 14px 28px;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background-color: var(--primary);
+      color: white;
+    }
+    .btn-primary:hover {
+      background-color: var(--primary-dim);
+      transform: translateY(-2px);
+    }
+
+    .btn-secondary {
+      background-color: var(--surface-elevated);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover {
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+
+    .features {
+      padding: 80px 0;
+      border-top: 1px solid var(--border);
+    }
+
+    .features h2 {
+      text-align: center;
+      font-size: 36px;
+      margin-bottom: 16px;
+    }
+
+    .features-subtitle {
+      text-align: center;
+      color: var(--text-secondary);
+      margin-bottom: 60px;
+      font-size: 18px;
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 32px;
+    }
+
+    .feature-card {
+      background-color: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 32px;
+      transition: border-color 0.2s;
+    }
+    .feature-card:hover { border-color: var(--primary); }
+
+    .feature-icon {
+      font-size: 40px;
+      margin-bottom: 20px;
+    }
+
+    .feature-card h3 {
+      font-size: 20px;
+      margin-bottom: 12px;
+    }
+
+    .feature-card p {
+      color: var(--text-secondary);
+      font-size: 15px;
+    }
+
+    .stats {
+      padding: 60px 0;
+      border-top: 1px solid var(--border);
+      background-color: var(--surface);
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 40px;
+      text-align: center;
+    }
+
+    .stat-item h3 {
+      font-size: 48px;
+      color: var(--primary);
+      margin-bottom: 8px;
+    }
+
+    .stat-item p {
+      color: var(--text-secondary);
+      font-size: 16px;
+    }
+
+    footer {
+      padding: 40px 0;
+      border-top: 1px solid var(--border);
+      text-align: center;
+    }
+
+    footer p {
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    footer a {
+      color: var(--text-secondary);
+      text-decoration: none;
+    }
+    footer a:hover { color: var(--primary); }
+
+    @media (max-width: 768px) {
+      .hero h1 { font-size: 32px; }
+      .hero p { font-size: 16px; }
+      .features h2 { font-size: 28px; }
+      .header-content {
+        flex-direction: column;
+        gap: 16px;
+      }
+      nav a { margin: 0 16px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container">
+      <div class="header-content">
+        <a href="/" class="logo">
+          <span class="logo-icon">🐢</span>
+          <span class="logo-text">Turtle<span>Ops</span></span>
+        </a>
+        <nav>
+          <a href="#features">Features</a>
+          <a href="https://github.com/leatherbacks/turtle-tracker" target="_blank">GitHub</a>
+        </nav>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="container">
+        <h1>Track Sea Turtles<br><span>Under the Stars</span></h1>
+        <p>A mobile app designed for nighttime beach surveys. Record observations, identify turtles by their tags, and contribute to leatherback conservation.</p>
+        <div class="hero-buttons">
+          <a href="#" class="btn btn-primary">Coming Soon</a>
+          <a href="https://github.com/leatherbacks/turtle-tracker" class="btn btn-secondary" target="_blank">View on GitHub</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="features" id="features">
+      <div class="container">
+        <h2>Built for the Field</h2>
+        <p class="features-subtitle">Everything you need for nighttime turtle surveys</p>
+        <div class="features-grid">
+          <div class="feature-card">
+            <div class="feature-icon">🏷️</div>
+            <h3>Tag Recognition</h3>
+            <p>Quickly identify turtles by their flipper tags. Search across current tags, historical tags, and additional PIT tags.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">📍</div>
+            <h3>GPS Location</h3>
+            <p>Automatically capture GPS coordinates for each observation. Track nesting locations across seasons.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">📷</div>
+            <h3>Photo Documentation</h3>
+            <p>Take and categorize photos - carapace, injuries, nest markers. All synced to the cloud when you're back online.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">🌊</div>
+            <h3>Beach Conditions</h3>
+            <p>Auto-fetch weather, tide, and moon phase data. Check-in captures conditions at the start of your survey.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">📊</div>
+            <h3>Turtle Profiles</h3>
+            <p>View complete history for each turtle - measurements, nesting records, injury history, and encounter timeline.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">🌙</div>
+            <h3>Night Vision Mode</h3>
+            <p>Dark theme with red accents preserves your night-adapted vision during beach patrols.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="stats">
+      <div class="container">
+        <div class="stats-grid">
+          <div class="stat-item">
+            <h3>854</h3>
+            <p>Turtles Tracked</p>
+          </div>
+          <div class="stat-item">
+            <h3>4,717</h3>
+            <p>Observations Recorded</p>
+          </div>
+          <div class="stat-item">
+            <h3>25+</h3>
+            <p>Years of Data</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Built with care for sea turtle conservation.</p>
+    </div>
+  </footer>
+</body>
+</html>
