@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TurtleOps - Sea Turtle Conservation Tracker</title>
-  <meta name="description" content="A mobile app for tracking sea turtle observations during beach surveys. Optimized for nighttime fieldwork.">
+  <title>TurtleOps - Sea Turtle Conservation Platform</title>
+  <meta name="description" content="One app for your entire sea turtle conservation team. Streamline beach surveys, track turtles, and coordinate teams - built for nighttime fieldwork.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -41,6 +41,7 @@
       padding: 0 24px;
     }
 
+    /* Header */
     header {
       padding: 24px 0;
       border-bottom: 1px solid var(--border);
@@ -73,8 +74,9 @@
     }
     nav a:hover { color: var(--primary); }
 
+    /* Hero */
     .hero {
-      padding: 80px 0;
+      padding: 80px 0 60px;
       text-align: center;
     }
 
@@ -89,15 +91,8 @@
     .hero p {
       font-size: 20px;
       color: var(--text-secondary);
-      max-width: 600px;
+      max-width: 650px;
       margin: 0 auto 40px;
-    }
-
-    .hero-buttons {
-      display: flex;
-      gap: 16px;
-      justify-content: center;
-      flex-wrap: wrap;
     }
 
     .btn {
@@ -121,16 +116,37 @@
       transform: translateY(-2px);
     }
 
-    .btn-secondary {
-      background-color: var(--surface-elevated);
-      color: var(--text);
-      border: 1px solid var(--border);
-    }
-    .btn-secondary:hover {
-      border-color: var(--primary);
-      color: var(--primary);
+    /* Value Proposition */
+    .value-prop {
+      padding: 60px 0;
+      border-top: 1px solid var(--border);
+      background-color: var(--surface);
     }
 
+    .value-prop-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 40px;
+      text-align: center;
+    }
+
+    .value-item h3 {
+      font-size: 18px;
+      margin-bottom: 8px;
+      color: var(--text);
+    }
+
+    .value-item p {
+      color: var(--text-secondary);
+      font-size: 15px;
+    }
+
+    .value-icon {
+      font-size: 36px;
+      margin-bottom: 16px;
+    }
+
+    /* Features */
     .features {
       padding: 80px 0;
       border-top: 1px solid var(--border);
@@ -149,60 +165,141 @@
       font-size: 18px;
     }
 
+    .feature-group {
+      margin-bottom: 48px;
+    }
+
+    .feature-group h3 {
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--primary);
+      margin-bottom: 20px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
     .features-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-      gap: 32px;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 24px;
     }
 
     .feature-card {
       background-color: var(--surface);
       border: 1px solid var(--border);
       border-radius: 12px;
-      padding: 32px;
+      padding: 28px;
       transition: border-color 0.2s;
     }
     .feature-card:hover { border-color: var(--primary); }
 
     .feature-icon {
-      font-size: 40px;
-      margin-bottom: 20px;
+      font-size: 32px;
+      margin-bottom: 16px;
     }
 
-    .feature-card h3 {
-      font-size: 20px;
-      margin-bottom: 12px;
+    .feature-card h4 {
+      font-size: 18px;
+      margin-bottom: 8px;
     }
 
     .feature-card p {
       color: var(--text-secondary);
-      font-size: 15px;
+      font-size: 14px;
+      line-height: 1.5;
     }
 
-    .stats {
-      padding: 60px 0;
+    /* Customization Section */
+    .customization {
+      padding: 80px 0;
       border-top: 1px solid var(--border);
       background-color: var(--surface);
     }
 
-    .stats-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 40px;
+    .customization h2 {
       text-align: center;
+      font-size: 36px;
+      margin-bottom: 16px;
     }
 
-    .stat-item h3 {
-      font-size: 48px;
-      color: var(--primary);
+    .customization-subtitle {
+      text-align: center;
+      color: var(--text-secondary);
+      margin-bottom: 60px;
+      font-size: 18px;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .customization-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 32px;
+    }
+
+    .customization-item {
+      text-align: center;
+      padding: 24px;
+    }
+
+    .customization-item h4 {
+      font-size: 18px;
       margin-bottom: 8px;
     }
 
-    .stat-item p {
+    .customization-item p {
       color: var(--text-secondary);
-      font-size: 16px;
+      font-size: 14px;
     }
 
+    .customization-icon {
+      font-size: 40px;
+      margin-bottom: 16px;
+    }
+
+    /* Screenshots placeholder */
+    .screenshots {
+      padding: 80px 0;
+      border-top: 1px solid var(--border);
+    }
+
+    .screenshots h2 {
+      text-align: center;
+      font-size: 36px;
+      margin-bottom: 16px;
+    }
+
+    .screenshots-subtitle {
+      text-align: center;
+      color: var(--text-secondary);
+      margin-bottom: 60px;
+      font-size: 18px;
+    }
+
+    .screenshots-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 32px;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .screenshot-placeholder {
+      background-color: var(--surface);
+      border: 2px dashed var(--border);
+      border-radius: 16px;
+      aspect-ratio: 9/16;
+      max-height: 400px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    /* Footer */
     footer {
       padding: 40px 0;
       border-top: 1px solid var(--border);
@@ -214,16 +311,11 @@
       font-size: 14px;
     }
 
-    footer a {
-      color: var(--text-secondary);
-      text-decoration: none;
-    }
-    footer a:hover { color: var(--primary); }
-
+    /* Responsive */
     @media (max-width: 768px) {
       .hero h1 { font-size: 32px; }
       .hero p { font-size: 16px; }
-      .features h2 { font-size: 28px; }
+      .features h2, .customization h2, .screenshots h2 { font-size: 28px; }
       .header-content {
         flex-direction: column;
         gap: 16px;
@@ -237,83 +329,190 @@
     <div class="container">
       <div class="header-content">
         <a href="/" class="logo">
-          <span class="logo-icon">🐢</span>
+          <span class="logo-icon">&#x1F422;</span>
           <span class="logo-text">Turtle<span>Ops</span></span>
         </a>
         <nav>
           <a href="#features">Features</a>
-          <a href="https://github.com/leatherbacks/turtle-tracker" target="_blank">GitHub</a>
+          <a href="#customization">For Teams</a>
         </nav>
       </div>
     </div>
   </header>
 
   <main>
+    <!-- Hero -->
     <section class="hero">
       <div class="container">
-        <h1>Track Sea Turtles<br><span>Under the Stars</span></h1>
-        <p>A mobile app designed for nighttime beach surveys. Record observations, identify turtles by their tags, and contribute to leatherback conservation.</p>
-        <div class="hero-buttons">
-          <a href="#" class="btn btn-primary">Coming Soon</a>
-          <a href="https://github.com/leatherbacks/turtle-tracker" class="btn btn-secondary" target="_blank">View on GitHub</a>
+        <h1>One App for Your Entire<br><span>Conservation Team</span></h1>
+        <p>Streamline beach surveys, track turtles across seasons, and coordinate your team - all in one place. Built for nighttime fieldwork, designed for any species and any beach.</p>
+        <a href="#features" class="btn btn-primary">Coming Soon</a>
+      </div>
+    </section>
+
+    <!-- Value Proposition -->
+    <section class="value-prop">
+      <div class="container">
+        <div class="value-prop-grid">
+          <div class="value-item">
+            <div class="value-icon">&#x1F4CB;</div>
+            <h3>Replace Multiple Tools</h3>
+            <p>Stop juggling spreadsheets, group chats, weather apps, and paper forms. One app handles it all.</p>
+          </div>
+          <div class="value-item">
+            <div class="value-icon">&#x1F4F4;</div>
+            <h3>Works Offline</h3>
+            <p>No cell service on the beach? No problem. Data syncs automatically when you're back online.</p>
+          </div>
+          <div class="value-item">
+            <div class="value-icon">&#x1F319;</div>
+            <h3>Night Vision Friendly</h3>
+            <p>Dark theme with red accents preserves your night-adapted vision during patrols.</p>
+          </div>
         </div>
       </div>
     </section>
 
+    <!-- Features -->
     <section class="features" id="features">
       <div class="container">
         <h2>Built for the Field</h2>
-        <p class="features-subtitle">Everything you need for nighttime turtle surveys</p>
-        <div class="features-grid">
-          <div class="feature-card">
-            <div class="feature-icon">🏷️</div>
-            <h3>Tag Recognition</h3>
-            <p>Quickly identify turtles by their flipper tags. Search across current tags, historical tags, and additional PIT tags.</p>
+        <p class="features-subtitle">Everything your team needs, from check-in to data export</p>
+
+        <!-- Before You Go Out -->
+        <div class="feature-group">
+          <h3>Before You Go Out</h3>
+          <div class="features-grid">
+            <div class="feature-card">
+              <div class="feature-icon">&#x1F30A;</div>
+              <h4>Beach Conditions</h4>
+              <p>Weather, tide, and moon phase data fetched automatically. Know what to expect before you hit the sand.</p>
+            </div>
+            <div class="feature-card">
+              <div class="feature-icon">&#x1F514;</div>
+              <h4>Team Alerts</h4>
+              <p>Important notices, turtle-specific alerts, and survey updates shared with your whole team.</p>
+            </div>
+            <div class="feature-card">
+              <div class="feature-icon">&#x2705;</div>
+              <h4>Survey Check-In</h4>
+              <p>One tap to start your survey. Captures time, location, and conditions automatically.</p>
+            </div>
           </div>
-          <div class="feature-card">
-            <div class="feature-icon">📍</div>
-            <h3>GPS Location</h3>
-            <p>Automatically capture GPS coordinates for each observation. Track nesting locations across seasons.</p>
+        </div>
+
+        <!-- In the Field -->
+        <div class="feature-group">
+          <h3>In the Field</h3>
+          <div class="features-grid">
+            <div class="feature-card">
+              <div class="feature-icon">&#x1F3F7;</div>
+              <h4>Tag Lookup</h4>
+              <p>Identify turtles by flipper tags or PIT tags. Search current tags, historical tags, and replacements.</p>
+            </div>
+            <div class="feature-card">
+              <div class="feature-icon">&#x1F4CD;</div>
+              <h4>GPS Location</h4>
+              <p>Automatic coordinates for every observation. Track nesting locations across seasons.</p>
+            </div>
+            <div class="feature-card">
+              <div class="feature-icon">&#x1F4F7;</div>
+              <h4>Photo Documentation</h4>
+              <p>Capture and categorize photos - carapace, injuries, nest markers. Stored locally until sync.</p>
+            </div>
+            <div class="feature-card">
+              <div class="feature-icon">&#x1F4DD;</div>
+              <h4>Quick Data Entry</h4>
+              <p>Streamlined forms for nesting status, measurements, samples, and more. Auto-saves as you go.</p>
+            </div>
           </div>
-          <div class="feature-card">
-            <div class="feature-icon">📷</div>
-            <h3>Photo Documentation</h3>
-            <p>Take and categorize photos - carapace, injuries, nest markers. All synced to the cloud when you're back online.</p>
+        </div>
+
+        <!-- Turtle Profiles -->
+        <div class="feature-group">
+          <h3>Turtle Profiles</h3>
+          <div class="features-grid">
+            <div class="feature-card">
+              <div class="feature-icon">&#x1F4C5;</div>
+              <h4>Encounter Timeline</h4>
+              <p>Complete history for every turtle - when and where they were seen, across all seasons.</p>
+            </div>
+            <div class="feature-card">
+              <div class="feature-icon">&#x1FA79;</div>
+              <h4>Injury Tracking</h4>
+              <p>Document injuries and monitor healing over time. Visual body map for marking affected areas.</p>
+            </div>
+            <div class="feature-card">
+              <div class="feature-icon">&#x1F504;</div>
+              <h4>Tag History</h4>
+              <p>Track original tags, replacements, and additional PIT tags. Never lose a turtle's identity.</p>
+            </div>
+            <div class="feature-card">
+              <div class="feature-icon">&#x1F4C8;</div>
+              <h4>Growth & Nesting</h4>
+              <p>Carapace measurements over time, nesting records, and reproductive patterns all in one place.</p>
+            </div>
           </div>
-          <div class="feature-card">
-            <div class="feature-icon">🌊</div>
-            <h3>Beach Conditions</h3>
-            <p>Auto-fetch weather, tide, and moon phase data. Check-in captures conditions at the start of your survey.</p>
-          </div>
-          <div class="feature-card">
-            <div class="feature-icon">📊</div>
-            <h3>Turtle Profiles</h3>
-            <p>View complete history for each turtle - measurements, nesting records, injury history, and encounter timeline.</p>
-          </div>
-          <div class="feature-card">
-            <div class="feature-icon">🌙</div>
-            <h3>Night Vision Mode</h3>
-            <p>Dark theme with red accents preserves your night-adapted vision during beach patrols.</p>
+        </div>
+
+        <!-- Back at Base -->
+        <div class="feature-group">
+          <h3>Back at Base</h3>
+          <div class="features-grid">
+            <div class="feature-card">
+              <div class="feature-icon">&#x2601;</div>
+              <h4>Cloud Sync</h4>
+              <p>Data syncs to the cloud when connected. Access from any device, share with researchers.</p>
+            </div>
+            <div class="feature-card">
+              <div class="feature-icon">&#x1F4CA;</div>
+              <h4>Season Statistics</h4>
+              <p>Track nesting counts, recaptures, new turtles, and team activity throughout the season.</p>
+            </div>
           </div>
         </div>
       </div>
     </section>
 
-    <section class="stats">
+    <!-- Customization -->
+    <section class="customization" id="customization">
       <div class="container">
-        <div class="stats-grid">
-          <div class="stat-item">
-            <h3>854</h3>
-            <p>Turtles Tracked</p>
+        <h2>Works for Any Team</h2>
+        <p class="customization-subtitle">Whether you're tracking leatherbacks in Trinidad or greens in Hawaii, TurtleOps adapts to your program.</p>
+        <div class="customization-grid">
+          <div class="customization-item">
+            <div class="customization-icon">&#x1F422;</div>
+            <h4>Any Species</h4>
+            <p>Leatherbacks, greens, loggerheads, hawksbills, olive ridleys - configure the species you monitor.</p>
           </div>
-          <div class="stat-item">
-            <h3>4,717</h3>
-            <p>Observations Recorded</p>
+          <div class="customization-item">
+            <div class="customization-icon">&#x1F3D6;</div>
+            <h4>Any Beach</h4>
+            <p>Set up your beach zones, landmarks, and survey routes. Works anywhere in the world.</p>
           </div>
-          <div class="stat-item">
-            <h3>25+</h3>
-            <p>Years of Data</p>
+          <div class="customization-item">
+            <div class="customization-icon">&#x1F527;</div>
+            <h4>Flexible Data Fields</h4>
+            <p>Configure required photos, measurements, and data points for your research protocols.</p>
           </div>
+          <div class="customization-item">
+            <div class="customization-icon">&#x1F465;</div>
+            <h4>Team Roles</h4>
+            <p>Admins manage settings and review data. Surveyors focus on fieldwork. Everyone stays in sync.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Screenshots -->
+    <section class="screenshots">
+      <div class="container">
+        <h2>See It in Action</h2>
+        <p class="screenshots-subtitle">Designed for the dark, built for the field</p>
+        <div class="screenshots-grid">
+          <div class="screenshot-placeholder">Dashboard Screenshot</div>
+          <div class="screenshot-placeholder">Observation Form</div>
+          <div class="screenshot-placeholder">Turtle Profile</div>
         </div>
       </div>
     </section>
@@ -321,7 +520,7 @@
 
   <footer>
     <div class="container">
-      <p>Built with care for sea turtle conservation.</p>
+      <p>Built by conservationists, for conservationists.</p>
     </div>
   </footer>
 </body>
