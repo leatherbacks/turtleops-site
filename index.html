@@ -259,7 +259,7 @@
       margin-bottom: 16px;
     }
 
-    /* Screenshots placeholder */
+    /* Screenshots */
     .screenshots {
       padding: 80px 0;
       border-top: 1px solid var(--border);
@@ -281,22 +281,35 @@
     .screenshots-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 32px;
-      max-width: 900px;
+      gap: 40px;
+      max-width: 1100px;
       margin: 0 auto;
     }
 
-    .screenshot-placeholder {
-      background-color: var(--surface);
-      border: 2px dashed var(--border);
+    .screenshot-item {
+      text-align: center;
+    }
+
+    .screenshot-item img {
+      width: 100%;
+      max-width: 280px;
       border-radius: 16px;
-      aspect-ratio: 9/16;
-      max-height: 400px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: var(--text-muted);
+      border: 1px solid var(--border);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+      margin-bottom: 16px;
+    }
+
+    .screenshot-item h4 {
+      font-size: 16px;
+      margin-bottom: 6px;
+      color: var(--text);
+    }
+
+    .screenshot-item p {
       font-size: 14px;
+      color: var(--text-secondary);
+      max-width: 280px;
+      margin: 0 auto;
     }
 
     /* Footer */
@@ -510,9 +523,36 @@
         <h2>See It in Action</h2>
         <p class="screenshots-subtitle">Designed for the dark, built for the field</p>
         <div class="screenshots-grid">
-          <div class="screenshot-placeholder">Dashboard Screenshot</div>
-          <div class="screenshot-placeholder">Observation Form</div>
-          <div class="screenshot-placeholder">Turtle Profile</div>
+          <div class="screenshot-item">
+            <img src="assets/home.png" alt="Dashboard screen">
+            <h4>Dashboard</h4>
+            <p>Check in to your survey, see current conditions, and get team updates at a glance.</p>
+          </div>
+          <div class="screenshot-item">
+            <img src="assets/new_encounter.png" alt="New encounter form">
+            <h4>New Encounter</h4>
+            <p>Quick data entry with turtle lookup, GPS capture, and photo documentation.</p>
+          </div>
+          <div class="screenshot-item">
+            <img src="assets/observations.png" alt="Observations list">
+            <h4>Observations</h4>
+            <p>Browse all encounters with filtering and search. Tap any entry for full details.</p>
+          </div>
+          <div class="screenshot-item">
+            <img src="assets/injuru_tracking.png" alt="Injury tracking">
+            <h4>Injury Tracking</h4>
+            <p>Document injuries on a visual body map and monitor healing across seasons.</p>
+          </div>
+          <div class="screenshot-item">
+            <img src="assets/note_issue_tracking.png" alt="Notes and issue tracking">
+            <h4>Notes &amp; Issues</h4>
+            <p>Log beach conditions, equipment problems, or anything the team needs to know.</p>
+          </div>
+          <div class="screenshot-item">
+            <img src="assets/admin_operations.png" alt="Admin operations">
+            <h4>Admin Operations</h4>
+            <p>Manage turtle records, review data quality, and configure team settings.</p>
+          </div>
         </div>
       </div>
     </section>
