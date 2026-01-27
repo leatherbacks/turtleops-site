@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TurtleOps - Email Confirmation</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%);
+            color: #e5e5e5;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 500px;
+            background: #1a1a1a;
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            text-align: center;
+        }
+
+        .logo {
+            width: 120px;
+            height: 120px;
+            margin: 0 auto 24px;
+        }
+
+        h1 {
+            color: #ff5757;
+            font-size: 32px;
+            margin-bottom: 16px;
+        }
+
+        .status {
+            font-size: 18px;
+            color: #a0a0a0;
+            margin-bottom: 32px;
+            line-height: 1.6;
+        }
+
+        .status.success {
+            color: #10b981;
+        }
+
+        .status.error {
+            color: #ff5757;
+        }
+
+        .button {
+            display: inline-block;
+            background: #ff5757;
+            color: white;
+            padding: 16px 32px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 16px;
+            transition: opacity 0.2s;
+            cursor: pointer;
+            border: none;
+        }
+
+        .button:hover {
+            opacity: 0.9;
+        }
+
+        .button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .instructions {
+            margin-top: 24px;
+            padding: 20px;
+            background: rgba(255, 87, 87, 0.1);
+            border-radius: 8px;
+            border: 1px solid rgba(255, 87, 87, 0.3);
+        }
+
+        .instructions p {
+            font-size: 14px;
+            color: #a0a0a0;
+            line-height: 1.6;
+            margin-bottom: 12px;
+        }
+
+        .instructions p:last-child {
+            margin-bottom: 0;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .footer {
+            margin-top: 32px;
+            font-size: 14px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <img src="assets/turtleoops_notext.png" class="logo" alt="TurtleOps Logo">
+
+        <h1>TurtleOps</h1>
+
+        <div id="status" class="status">
+            <div class="spinner"></div>
+            Confirming your email...
+        </div>
+
+        <button id="openAppBtn" class="button" style="display: none;" onclick="openApp()">
+            Open TurtleOps App
+        </button>
+
+        <div id="instructions" class="instructions" style="display: none;">
+            <p><strong>If the app didn't open automatically:</strong></p>
+            <p>1. Make sure TurtleOps is installed on your device</p>
+            <p>2. Tap the "Open TurtleOps App" button above</p>
+            <p>3. If you're on a computer, open the app on your mobile device</p>
+        </div>
+
+        <div class="footer">
+            © 2025 TurtleOps - Sea Turtle Research
+        </div>
+    </div>
+
+    <script>
+        // Extract tokens from URL
+        const params = new URLSearchParams(window.location.hash.substring(1));
+        const accessToken = params.get('access_token');
+        const refreshToken = params.get('refresh_token');
+        const type = params.get('type');
+        const error = params.get('error');
+        const errorDescription = params.get('error_description');
+
+        const statusEl = document.getElementById('status');
+        const openAppBtn = document.getElementById('openAppBtn');
+        const instructionsEl = document.getElementById('instructions');
+
+        function openApp() {
+            if (accessToken && refreshToken) {
+                const deepLink = `turtleops://?access_token=${accessToken}&refresh_token=${refreshToken}&type=${type || 'signup'}`;
+                window.location.href = deepLink;
+            }
+        }
+
+        function showSuccess() {
+            statusEl.className = 'status success';
+            statusEl.innerHTML = '✓ Email confirmed successfully!';
+            openAppBtn.style.display = 'inline-block';
+            instructionsEl.style.display = 'block';
+
+            // Auto-open app after 2 seconds
+            setTimeout(() => {
+                openApp();
+            }, 2000);
+        }
+
+        function showError(message) {
+            statusEl.className = 'status error';
+            statusEl.innerHTML = `✗ ${message}`;
+        }
+
+        // Handle the confirmation
+        if (error) {
+            showError(errorDescription || error);
+        } else if (accessToken && refreshToken) {
+            showSuccess();
+        } else if (type === 'recovery') {
+            // Password reset
+            statusEl.className = 'status success';
+            statusEl.innerHTML = '✓ Password reset link is valid!';
+            openAppBtn.style.display = 'inline-block';
+            openAppBtn.textContent = 'Reset Password in App';
+            instructionsEl.style.display = 'block';
+            setTimeout(() => {
+                openApp();
+            }, 2000);
+        } else {
+            showError('Invalid confirmation link. Please try again or contact support.');
+        }
+    </script>
+</body>
+</html>
