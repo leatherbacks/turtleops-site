@@ -329,6 +329,119 @@
       font-size: 14px;
     }
 
+    /* Store Badges */
+    .store-badges {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      align-items: center;
+      margin-top: 40px;
+      flex-wrap: wrap;
+    }
+
+    .badge-link {
+      display: inline-block;
+      transition: transform 0.2s ease, opacity 0.2s ease;
+    }
+
+    .badge-link:hover {
+      transform: translateY(-2px);
+      opacity: 0.9;
+    }
+
+    .store-badge {
+      height: 54px;
+      width: auto;
+    }
+
+    /* Workflow Section */
+    .workflow {
+      padding: 80px 0;
+      border-top: 1px solid var(--border);
+      background-color: var(--surface);
+    }
+
+    .workflow h2 {
+      text-align: center;
+      font-size: 36px;
+      margin-bottom: 16px;
+    }
+
+    .workflow-subtitle {
+      text-align: center;
+      color: var(--text-secondary);
+      margin-bottom: 60px;
+      font-size: 18px;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .workflow-steps {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr auto 1fr auto 1fr;
+      gap: 24px;
+      align-items: center;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .workflow-step {
+      text-align: center;
+      padding: 32px 24px;
+      background-color: var(--surface-elevated);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      transition: all 0.3s ease;
+    }
+
+    .workflow-step:hover {
+      border-color: var(--primary);
+      transform: translateY(-4px);
+      box-shadow: 0 8px 24px rgba(255, 87, 87, 0.15);
+    }
+
+    .workflow-emoji {
+      font-size: 40px;
+      margin-bottom: 16px;
+      line-height: 1;
+    }
+
+    .workflow-number {
+      width: 48px;
+      height: 48px;
+      margin: 0 auto 16px;
+      background-color: var(--primary);
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      font-weight: 700;
+    }
+
+    .workflow-step h3 {
+      font-size: 18px;
+      margin-bottom: 8px;
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    .workflow-step p {
+      font-size: 14px;
+      color: var(--text-secondary);
+      line-height: 1.4;
+    }
+
+    .workflow-arrow {
+      color: var(--primary);
+      font-size: 28px;
+      font-weight: 300;
+      opacity: 0.6;
+      user-select: none;
+    }
+
     /* Responsive */
     @media (max-width: 768px) {
       .hero h1 { font-size: 32px; }
@@ -339,6 +452,33 @@
         gap: 16px;
       }
       nav a { margin: 0 16px; }
+      .store-badges {
+        gap: 12px;
+        margin-top: 32px;
+      }
+      .store-badge {
+        height: 48px;
+      }
+      .workflow h2 { font-size: 28px; }
+      .workflow-subtitle { font-size: 16px; margin-bottom: 40px; }
+      .workflow-steps {
+        grid-template-columns: 1fr;
+        gap: 16px;
+      }
+      .workflow-arrow {
+        display: none;
+      }
+      .workflow-step {
+        padding: 28px 20px;
+      }
+      .workflow-emoji {
+        font-size: 36px;
+      }
+      .workflow-number {
+        width: 42px;
+        height: 42px;
+        font-size: 18px;
+      }
     }
   </style>
 </head>
@@ -364,7 +504,57 @@
       <div class="container">
         <h1>One App for Your Entire<br><span>Conservation Team</span></h1>
         <p>Streamline beach surveys, track turtles across seasons, and coordinate your team - all in one place. Built for nighttime fieldwork, designed for any species and any beach.</p>
-        <a href="#features" class="btn btn-primary">Coming Soon</a>
+        <div class="store-badges">
+          <a href="#features" class="badge-link">
+            <img src="https://tools.applemediaservices.com/api/badges/download-on-the-app-store/black/en-us" alt="Download on the App Store" class="store-badge">
+          </a>
+          <a href="#features" class="badge-link">
+            <img src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" alt="Get it on Google Play" class="store-badge">
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- How Teams Use It -->
+    <section class="workflow" id="workflow">
+      <div class="container">
+        <h2>How Teams Use It</h2>
+        <p class="workflow-subtitle">Your team's workflow from beach to database - simplified</p>
+        <div class="workflow-steps">
+          <div class="workflow-step">
+            <div class="workflow-emoji">🌊</div>
+            <div class="workflow-number">1</div>
+            <h3>Check conditions + alerts</h3>
+            <p>Is it safe to survey</p>
+          </div>
+
+          <div class="workflow-arrow">→</div>
+
+          <div class="workflow-step">
+            <div class="workflow-emoji">✓</div>
+            <div class="workflow-number">2</div>
+            <h3>Start survey</h3>
+            <p>Auto time/GPS</p>
+          </div>
+
+          <div class="workflow-arrow">→</div>
+
+          <div class="workflow-step">
+            <div class="workflow-emoji">🐢</div>
+            <div class="workflow-number">3</div>
+            <h3>Log encounter</h3>
+            <p>Tags/photos/measures</p>
+          </div>
+
+          <div class="workflow-arrow">→</div>
+
+          <div class="workflow-step">
+            <div class="workflow-emoji">📊</div>
+            <div class="workflow-number">4</div>
+            <h3>Sync + export + stats</h3>
+            <p>Complete the mission</p>
+          </div>
+        </div>
       </div>
     </section>
 
