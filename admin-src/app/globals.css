@@ -1,0 +1,158 @@
+/* Dark theme optimized for nighttime beach work */
+:root {
+  /* Background colors - very dark to preserve night vision */
+  --color-background: #0a0a0a;
+  --color-surface: #1a1a1a;
+  --color-surface-elevated: #242424;
+  --color-card: #1a1a1a;
+
+  /* Form input backgrounds */
+  --color-input: #262626;
+  --color-input-focused: #2a2a2a;
+
+  /* Disabled state */
+  --color-disabled: #3a3a3a;
+
+  /* Text colors - optimized for readability on dark backgrounds */
+  --color-text: #e5e5e5;
+  --color-text-secondary: #a0a0a0;
+  --color-text-muted: #666666;
+
+  /* Primary - warm red tones to preserve night vision */
+  --color-primary: #ff5757;
+  --color-primary-dark: #d93636;
+  --color-primary-light: #ff8080;
+  --color-primary-glow: rgba(255, 87, 87, 0.15);
+
+  /* Status colors - dimmed for night use */
+  --color-success: #10b981;
+  --color-success-light: #34d399;
+  --color-warning: #f59e0b;
+  --color-warning-light: #fbbf24;
+  --color-error: #ef4444;
+  --color-info: #3b82f6;
+  --color-info-light: #60a5fa;
+
+  /* Borders and dividers */
+  --color-border: #2a2a2a;
+  --color-border-light: #333333;
+  --color-divider: #242424;
+
+  /* Shadows and overlays */
+  --color-shadow: rgba(0, 0, 0, 0.5);
+  --color-overlay: rgba(0, 0, 0, 0.7);
+
+  /* Console aesthetic */
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', 'Monaco', 'Courier New', monospace;
+  --shadow-glow: 0 0 20px var(--color-primary-glow);
+  --shadow-card: 0 4px 6px rgba(0, 0, 0, 0.5);
+}
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+html,
+body {
+  max-width: 100vw;
+  overflow-x: hidden;
+  background-color: var(--color-background);
+  color: var(--color-text);
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Console-style scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-surface);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border-light);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}
+
+/* Links */
+a {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--color-primary-light);
+  text-decoration: underline;
+}
+
+/* Buttons */
+button {
+  cursor: pointer;
+  font-family: inherit;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* Inputs */
+input,
+textarea,
+select {
+  font-family: inherit;
+  color: var(--color-text);
+  background-color: var(--color-input);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  background-color: var(--color-input-focused);
+  border-color: var(--color-primary);
+}
+
+/* Tables */
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+th {
+  background-color: var(--color-surface-elevated);
+  font-weight: 600;
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-text-secondary);
+}
+
+tr:hover {
+  background-color: var(--color-surface);
+}
