@@ -269,13 +269,27 @@
         const { createClient } = supabase;
         const supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
 
-        // Extract tokens from URL
-        const params = new URLSearchParams(window.location.hash.substring(1));
+        // Extract tokens from URL (try both hash and query params)
+        let params;
+        if (window.location.hash) {
+            // Try hash parameters first (e.g., #access_token=xxx)
+            params = new URLSearchParams(window.location.hash.substring(1));
+        } else {
+            // Fallback to query parameters (e.g., ?access_token=xxx)
+            params = new URLSearchParams(window.location.search);
+        }
+
         const accessToken = params.get('access_token');
         const refreshToken = params.get('refresh_token');
         const type = params.get('type');
         const error = params.get('error');
         const errorDescription = params.get('error_description');
+
+        // Debug logging
+        console.log('URL:', window.location.href);
+        console.log('Hash:', window.location.hash);
+        console.log('Search:', window.location.search);
+        console.log('Parsed params:', { accessToken: accessToken ? 'present' : 'missing', refreshToken: refreshToken ? 'present' : 'missing', type, error });
 
         const statusEl = document.getElementById('status');
         const openAppBtn = document.getElementById('openAppBtn');
