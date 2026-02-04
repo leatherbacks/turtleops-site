@@ -258,7 +258,7 @@
         </div>
 
         <div class="footer">
-            © 2025 TurtleOps - Sea Turtle Research
+            © 2025 TurtleOps - Sea Turtle Research Tools
         </div>
     </div>
 
@@ -427,7 +427,15 @@
 
         // Handle the confirmation flow
         if (error) {
-            showError(errorDescription || error);
+            const errorCode = params.get('error_code');
+
+            // Show user-friendly error messages
+            if (errorCode === 'otp_expired') {
+                statusEl.className = 'status error';
+                statusEl.innerHTML = '✗ This password reset link has expired<br><small style="font-size: 14px; margin-top: 12px; display: block; color: #a0a0a0;">Password reset links are valid for 1 hour. Please request a new one from the app.</small>';
+            } else {
+                showError(errorDescription || error);
+            }
         } else if (type === 'recovery' && accessToken) {
             // Password reset flow
             statusEl.className = 'status';
