@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TurtleOps - Email Confirmation</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         * {
             margin: 0;
@@ -121,6 +122,79 @@
             font-size: 14px;
             color: #666;
         }
+
+        .reset-form {
+            margin-top: 24px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #e5e5e5;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px 16px;
+            background: #0a0a0a;
+            border: 2px solid #2a2a2a;
+            border-radius: 8px;
+            color: #e5e5e5;
+            font-size: 16px;
+            transition: border-color 0.2s;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #ff5757;
+        }
+
+        .form-group input::placeholder {
+            color: #666;
+        }
+
+        .error-message {
+            color: #ff5757;
+            font-size: 14px;
+            margin-top: 8px;
+            display: none;
+        }
+
+        .error-message.show {
+            display: block;
+        }
+
+        .password-requirements {
+            font-size: 12px;
+            color: #888;
+            margin-top: 8px;
+            line-height: 1.5;
+        }
+
+        .requirement {
+            display: block;
+            margin: 4px 0;
+        }
+
+        .requirement.met {
+            color: #10b981;
+        }
+
+        .requirement::before {
+            content: "○ ";
+            margin-right: 4px;
+        }
+
+        .requirement.met::before {
+            content: "✓ ";
+        }
     </style>
 </head>
 <body>
@@ -133,6 +207,44 @@
             <div class="spinner"></div>
             Confirming your email...
         </div>
+
+        <form id="resetForm" class="reset-form" style="display: none;" onsubmit="handlePasswordReset(event)">
+            <div class="form-group">
+                <label for="newPassword">New Password</label>
+                <input
+                    type="password"
+                    id="newPassword"
+                    name="newPassword"
+                    placeholder="Enter your new password"
+                    required
+                    minlength="8"
+                >
+                <div class="password-requirements">
+                    <span class="requirement" id="req-length">At least 8 characters</span>
+                    <span class="requirement" id="req-uppercase">One uppercase letter</span>
+                    <span class="requirement" id="req-lowercase">One lowercase letter</span>
+                    <span class="requirement" id="req-number">One number</span>
+                </div>
+                <div id="passwordError" class="error-message"></div>
+            </div>
+
+            <div class="form-group">
+                <label for="confirmPassword">Confirm Password</label>
+                <input
+                    type="password"
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    placeholder="Confirm your new password"
+                    required
+                    minlength="8"
+                >
+                <div id="confirmError" class="error-message"></div>
+            </div>
+
+            <button type="submit" class="button" id="submitBtn">
+                Reset Password
+            </button>
+        </form>
 
         <button id="openAppBtn" class="button" style="display: none;" onclick="openApp()">
             Open TurtleOps App
@@ -151,6 +263,12 @@
     </div>
 
     <script>
+        // Initialize Supabase client
+        const supabaseUrl = 'https://spdcvvarqyyfhbhpqare.supabase.co';
+        const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNwZGN2dmFycXl5ZmhiaHBxYXJlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg5NDE4NDAsImV4cCI6MjA4NDUxNzg0MH0.X_270EyGgX-nWI3Gaa62aKB5IfxVM-XYkJoZoA8f3FM';
+        const { createClient } = supabase;
+        const supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
+
         // Extract tokens from URL
         const params = new URLSearchParams(window.location.hash.substring(1));
         const accessToken = params.get('access_token');
@@ -162,17 +280,55 @@
         const statusEl = document.getElementById('status');
         const openAppBtn = document.getElementById('openAppBtn');
         const instructionsEl = document.getElementById('instructions');
+        const resetForm = document.getElementById('resetForm');
+        const newPasswordInput = document.getElementById('newPassword');
+        const confirmPasswordInput = document.getElementById('confirmPassword');
+        const submitBtn = document.getElementById('submitBtn');
+
+        // Password validation requirements
+        const requirements = {
+            length: { element: document.getElementById('req-length'), test: (pwd) => pwd.length >= 8 },
+            uppercase: { element: document.getElementById('req-uppercase'), test: (pwd) => /[A-Z]/.test(pwd) },
+            lowercase: { element: document.getElementById('req-lowercase'), test: (pwd) => /[a-z]/.test(pwd) },
+            number: { element: document.getElementById('req-number'), test: (pwd) => /[0-9]/.test(pwd) }
+        };
+
+        function validatePassword(password) {
+            let allMet = true;
+            Object.values(requirements).forEach(req => {
+                const met = req.test(password);
+                req.element.classList.toggle('met', met);
+                if (!met) allMet = false;
+            });
+            return allMet;
+        }
+
+        // Real-time password validation
+        if (newPasswordInput) {
+            newPasswordInput.addEventListener('input', (e) => {
+                validatePassword(e.target.value);
+                document.getElementById('passwordError').classList.remove('show');
+            });
+        }
+
+        if (confirmPasswordInput) {
+            confirmPasswordInput.addEventListener('input', () => {
+                document.getElementById('confirmError').classList.remove('show');
+            });
+        }
 
         function openApp() {
             if (accessToken && refreshToken) {
-                const deepLink = `turtleops://?access_token=${accessToken}&refresh_token=${refreshToken}&type=${type || 'signup'}`;
+                const typeParam = type || 'signup';
+                const deepLink = `turtleops://?access_token=${accessToken}&refresh_token=${refreshToken}&type=${typeParam}`;
+                console.log('Opening app with type:', typeParam);
                 window.location.href = deepLink;
             }
         }
 
-        function showSuccess() {
+        function showSuccess(message = '✓ Email confirmed successfully!') {
             statusEl.className = 'status success';
-            statusEl.innerHTML = '✓ Email confirmed successfully!';
+            statusEl.innerHTML = message;
             openAppBtn.style.display = 'inline-block';
             instructionsEl.style.display = 'block';
 
@@ -187,21 +343,85 @@
             statusEl.innerHTML = `✗ ${message}`;
         }
 
-        // Handle the confirmation
+        async function handlePasswordReset(event) {
+            event.preventDefault();
+
+            const newPassword = newPasswordInput.value;
+            const confirmPassword = confirmPasswordInput.value;
+            const passwordError = document.getElementById('passwordError');
+            const confirmError = document.getElementById('confirmError');
+
+            // Reset errors
+            passwordError.classList.remove('show');
+            confirmError.classList.remove('show');
+
+            // Validate password requirements
+            if (!validatePassword(newPassword)) {
+                passwordError.textContent = 'Please meet all password requirements';
+                passwordError.classList.add('show');
+                return;
+            }
+
+            // Check if passwords match
+            if (newPassword !== confirmPassword) {
+                confirmError.textContent = 'Passwords do not match';
+                confirmError.classList.add('show');
+                return;
+            }
+
+            // Disable submit button
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner"></span> Resetting password...';
+
+            try {
+                // Set the session using the access token from the URL
+                if (accessToken) {
+                    await supabaseClient.auth.setSession({
+                        access_token: accessToken,
+                        refresh_token: refreshToken
+                    });
+                }
+
+                // Update the password
+                const { data, error } = await supabaseClient.auth.updateUser({
+                    password: newPassword
+                });
+
+                if (error) throw error;
+
+                // Success!
+                resetForm.style.display = 'none';
+                statusEl.className = 'status success';
+                statusEl.innerHTML = '✓ Password reset successfully!<br><small style="font-size: 16px; margin-top: 8px; display: block;">You can now log in with your new password.</small>';
+
+                // Redirect to app or show message after 3 seconds
+                setTimeout(() => {
+                    if (confirm('Password reset successful! Open the TurtleOps app to log in?')) {
+                        window.location.href = 'turtleops://';
+                    }
+                }, 2000);
+
+            } catch (err) {
+                console.error('Password reset error:', err);
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Reset Password';
+
+                passwordError.textContent = err.message || 'Failed to reset password. Please try again.';
+                passwordError.classList.add('show');
+            }
+        }
+
+        // Handle the confirmation flow
         if (error) {
             showError(errorDescription || error);
-        } else if (accessToken && refreshToken) {
+        } else if (type === 'recovery' && accessToken) {
+            // Password reset flow
+            statusEl.className = 'status';
+            statusEl.innerHTML = 'Reset Your Password';
+            resetForm.style.display = 'block';
+        } else if (accessToken && refreshToken && type !== 'recovery') {
+            // Email confirmation flow
             showSuccess();
-        } else if (type === 'recovery') {
-            // Password reset
-            statusEl.className = 'status success';
-            statusEl.innerHTML = '✓ Password reset link is valid!';
-            openAppBtn.style.display = 'inline-block';
-            openAppBtn.textContent = 'Reset Password in App';
-            instructionsEl.style.display = 'block';
-            setTimeout(() => {
-                openApp();
-            }, 2000);
         } else {
             showError('Invalid confirmation link. Please try again or contact support.');
         }
