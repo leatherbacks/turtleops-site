@@ -8,6 +8,7 @@ const navItems = [
   { href: '/dashboard/observations', label: 'Observations', icon: '📋' },
   { href: '/dashboard/volunteers', label: 'Active Volunteers', icon: '👥' },
   { href: '/dashboard/turtles', label: 'Turtle Management', icon: '🐢' },
+  { href: '/dashboard/tags', label: 'Tag History', icon: '🏷️' },
   { href: '/dashboard/alerts', label: 'Turtle Alerts', icon: '⚠️' },
   { href: '/dashboard/config', label: 'Project Config', icon: '⚙️' },
   { href: '/dashboard/team', label: 'Team Management', icon: '🔑' },
