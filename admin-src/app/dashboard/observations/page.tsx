@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getObservations, getObservationsCount, exportObservationsToCSV, type ObservationFilters, type ObservationWithTurtle } from '@/lib/database/observations';
 import { useAuth } from '@/components/auth/AuthProvider';
+import { supabase } from '@/lib/supabase';
+import { formatDateWithTimezone, formatTimeWithTimezone, getTimezoneAbbreviation } from '@/lib/utils/datetime';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
@@ -14,6 +16,7 @@ export default function ObservationsPage() {
   const [observations, setObservations] = useState<ObservationWithTurtle[]>([]);
   const [loading, setLoading] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
+  const [timezone, setTimezone] = useState('America/New_York');
 
   // Admin check
   const isAdmin = profile?.role === 'admin';
@@ -28,6 +31,25 @@ export default function ObservationsPage() {
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 25;
+
+  // Load project timezone
+  useEffect(() => {
+    const loadTimezone = async () => {
+      if (!profile?.org_id) return;
+
+      const { data } = await supabase
+        .from('project_config')
+        .select('timezone')
+        .eq('org_id', profile.org_id)
+        .maybeSingle();
+
+      if (data?.timezone) {
+        setTimezone(data.timezone);
+      }
+    };
+
+    loadTimezone();
+  }, [profile?.org_id]);
 
   useEffect(() => {
     loadObservations();
@@ -97,20 +119,11 @@ export default function ObservationsPage() {
   }, [searchQuery, dateFrom, dateTo, nestingFilter, speciesFilter]);
 
   const formatDate = (date: Date | string) => {
-    const d = typeof date === 'string' ? new Date(date) : date;
-    return d.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
+    return formatDateWithTimezone(date, timezone);
   };
 
   const formatTime = (date: Date | string) => {
-    const d = typeof date === 'string' ? new Date(date) : date;
-    return d.toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-    });
+    return formatTimeWithTimezone(date, timezone);
   };
 
   // Pagination - now using server-side pagination, so no need to slice
@@ -141,6 +154,13 @@ export default function ObservationsPage() {
             color: 'var(--color-text-secondary)',
           }}>
             {totalCount} observation{totalCount !== 1 ? 's' : ''} recorded
+          </p>
+          <p style={{
+            color: 'var(--color-text-muted)',
+            fontSize: '13px',
+            marginTop: '4px',
+          }}>
+            All times shown in {getTimezoneAbbreviation(timezone)}
           </p>
         </div>
         <div style={{ display: 'flex', gap: '12px' }}>

@@ -259,11 +259,12 @@ export default function NewHistoricalObservationPage() {
 
       // Parse datetime for database
       // datetime-local returns "YYYY-MM-DDTHH:mm" format, convert to ISO string
-      // Add seconds if not present, then treat as UTC for consistency
+      // Add seconds if not present, then parse as local time (browser timezone)
+      // JavaScript will automatically convert to UTC when calling toISOString()
       const dateTimeWithSeconds = encounterDateTime.includes(':00', encounterDateTime.length - 3)
         ? encounterDateTime
         : encounterDateTime + ':00';
-      const encounterDateISO = new Date(dateTimeWithSeconds + 'Z').toISOString();
+      const encounterDateISO = new Date(dateTimeWithSeconds).toISOString();
       const observerId = observerSelection !== 'other' ? observerSelection : null;
       console.log('[Form Submit] Input datetime:', encounterDateTime);
       console.log('[Form Submit] Parsed encounter date:', encounterDateISO);
