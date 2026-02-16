@@ -50,6 +50,10 @@ export function useStats(options: UseStatsOptions = {}): UseStatsReturn {
       const data = await getEnhancedStats();
       setStats(data);
     } catch (err) {
+      // Ignore AbortError - happens when navigating away
+      if (err instanceof Error && err.name === 'AbortError') {
+        return;
+      }
       setError(err instanceof Error ? err : new Error('Failed to fetch stats'));
       console.error('Error fetching stats:', err);
     } finally {
@@ -59,18 +63,54 @@ export function useStats(options: UseStatsOptions = {}): UseStatsReturn {
 
   // Initial fetch
   useEffect(() => {
-    fetchStats();
-  }, [fetchStats]);
+    let isMounted = true;
+
+    const loadStats = async () => {
+      try {
+        setError(null);
+        const data = await getEnhancedStats();
+        if (isMounted) {
+          setStats(data);
+        }
+      } catch (err) {
+        // Ignore AbortError - happens when navigating away
+        if (err instanceof Error && err.name === 'AbortError') {
+          return;
+        }
+        if (isMounted) {
+          setError(err instanceof Error ? err : new Error('Failed to fetch stats'));
+          console.error('Error fetching stats:', err);
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadStats();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Auto-refresh
   useEffect(() => {
     if (!autoRefresh) return;
 
+    let isMounted = true;
+
     const interval = setInterval(() => {
-      fetchStats();
+      if (isMounted) {
+        fetchStats();
+      }
     }, refreshInterval);
 
-    return () => clearInterval(interval);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, [autoRefresh, refreshInterval, fetchStats]);
 
   return {
@@ -120,11 +160,18 @@ export function useRecentStats(options: UseStatsOptions = {}): UseRecentStatsRet
   useEffect(() => {
     if (!autoRefresh) return;
 
+    let isMounted = true;
+
     const interval = setInterval(() => {
-      fetchStats();
+      if (isMounted) {
+        fetchStats();
+      }
     }, refreshInterval);
 
-    return () => clearInterval(interval);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, [autoRefresh, refreshInterval, fetchStats]);
 
   return {

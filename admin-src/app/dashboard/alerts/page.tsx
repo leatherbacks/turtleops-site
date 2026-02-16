@@ -53,7 +53,7 @@ export default function TurtleAlertsPage() {
 
     const results = await searchTurtlesByTag(turtleSearch.trim());
     if (results.length > 0) {
-      setSelectedTurtle({ id: results[0].turtle.id, name: results[0].turtle.name });
+      setSelectedTurtle({ id: results[0].id, name: results[0].name });
     } else {
       alert('No turtle found with that tag or name');
     }

@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { getObservations, getObservationsCount, exportObservationsToCSV, type ObservationFilters, type ObservationWithTurtle } from '@/lib/database/observations';
+import { getObservationsWithCount, exportObservationsToCSV, type ObservationFilters, type ObservationWithTurtle } from '@/lib/database/observations';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { supabase } from '@/lib/supabase';
 import { formatDateWithTimezone, formatTimeWithTimezone, getTimezoneAbbreviation } from '@/lib/utils/datetime';
+import { downloadCMTTPExport } from '@/lib/utils/cmttp';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
@@ -79,10 +80,7 @@ export default function ObservationsPage() {
     filters.limit = itemsPerPage;
     filters.offset = (currentPage - 1) * itemsPerPage;
 
-    const [data, count] = await Promise.all([
-      getObservations(filters),
-      getObservationsCount(filters),
-    ]);
+    const { data, count } = await getObservationsWithCount(filters);
 
     setObservations(data);
     setTotalCount(count);
@@ -100,6 +98,17 @@ export default function ObservationsPage() {
     a.click();
     document.body.removeChild(a);
     window.URL.revokeObjectURL(url);
+  };
+
+  const handleExportCMTTP = () => {
+    // Default to FL/USA - could make this configurable later
+    const filename = `cmttp_export_${new Date().toISOString().split('T')[0]}.csv`;
+    downloadCMTTPExport(observations, filename, {
+      projectType: 'Monitoring',
+      county: '',  // Optional - could add to project config
+      state: 'FL',
+      country: 'USA',
+    });
   };
 
   const handleClearFilters = () => {
@@ -163,7 +172,7 @@ export default function ObservationsPage() {
             All times shown in {getTimezoneAbbreviation(timezone)}
           </p>
         </div>
-        <div style={{ display: 'flex', gap: '12px' }}>
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
           {isAdmin && (
             <Button
               onClick={() => router.push('/dashboard/observations/new-historical')}
@@ -172,6 +181,13 @@ export default function ObservationsPage() {
               📝 Enter Historical Data
             </Button>
           )}
+          <Button
+            onClick={handleExportCMTTP}
+            variant="secondary"
+            disabled={observations.length === 0}
+          >
+            📊 Export CMTTP
+          </Button>
           <Button
             onClick={handleExportCSV}
             variant="secondary"

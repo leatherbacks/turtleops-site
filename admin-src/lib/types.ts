@@ -23,9 +23,13 @@ export interface OrgInviteCode {
 
 export interface Profile {
   id: string;
+  email: string;
   full_name: string;
   role: 'volunteer' | 'coordinator' | 'admin';
   is_subscriber: boolean;
+  is_active: boolean;
+  disabled_at: string | null;
+  disabled_by: string | null;
   org_id: string | null;
   created_at: string;
   updated_at: string;
@@ -107,6 +111,7 @@ export interface Turtle {
   rrf: string | null;
   rff: string | null;
   lff: string | null;
+  archival_pdf_filename: string | null;
   suggested_name: string | null;
   suggested_by: string | null;
   suggested_by_name: string | null;
@@ -231,15 +236,16 @@ export interface TagHistory {
 export interface TurtleAlert {
   id: string;
   org_id: string;
-  turtle_id: string;
-  alert_type: 'named_by' | 'health_note' | 'custom';
+  turtleId: string;
+  turtleName: string;
+  type: 'named_by' | 'health_note' | 'custom';
   priority: 'low' | 'normal' | 'high';
   message: string;
-  is_active: boolean;
-  created_by: string | null;
-  created_by_name: string | null;
-  created_at: string;
-  updated_at: string;
+  isActive: boolean;
+  createdBy: string | null;
+  createdByName: string | null;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface ProjectConfig {
@@ -435,6 +441,47 @@ export interface Database {
           notes?: string | null;
         };
         Update: Partial<Omit<TagHistory, 'id' | 'created_at'>>;
+      };
+      project_config: {
+        Row: ProjectConfig;
+        Insert: Omit<ProjectConfig, 'id' | 'created_at' | 'updated_at'> & {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Omit<ProjectConfig, 'id'>>;
+      };
+      turtle_alerts: {
+        Row: {
+          id: string;
+          org_id: string;
+          turtle_id: string;
+          alert_type: 'named_by' | 'health_note' | 'custom';
+          priority: 'low' | 'normal' | 'high';
+          message: string;
+          is_active: boolean;
+          created_by: string | null;
+          created_by_name: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          org_id: string;
+          turtle_id: string;
+          alert_type: 'named_by' | 'health_note' | 'custom';
+          priority: 'low' | 'normal' | 'high';
+          message: string;
+          is_active?: boolean;
+          created_by?: string | null;
+          created_by_name?: string | null;
+        };
+        Update: {
+          alert_type?: 'named_by' | 'health_note' | 'custom';
+          priority?: 'low' | 'normal' | 'high';
+          message?: string;
+          is_active?: boolean;
+          updated_at?: string;
+        };
       };
     };
     Functions: {

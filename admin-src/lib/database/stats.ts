@@ -51,34 +51,30 @@ export async function getEnhancedStats(): Promise<EnhancedStats> {
   const yesterdayEnd = new Date(yesterday.getTime() + 24 * 60 * 60 * 1000).toISOString();
 
   try {
-    // Total turtles
-    const { count: totalTurtles } = await supabase
-      .from('turtles')
-      .select('*', { count: 'exact', head: true });
+    // Run all independent queries in parallel
+    const [
+      { count: totalTurtles },
+      { count: observationsThisYear },
+      { count: lastNightObservations },
+      { data: sessions },
+      { count: activeVolunteers },
+      { data: nestingObs },
+      { data: turtleObsCounts },
+    ] = await Promise.all([
+      supabase.from('turtles').select('*', { count: 'exact', head: true }),
+      supabase.from('observations').select('*', { count: 'exact', head: true }).gte('encounter_date', yearStart),
+      supabase.from('observations').select('*', { count: 'exact', head: true }).gte('encounter_date', yesterdayStart).lt('encounter_date', yesterdayEnd),
+      supabase.from('survey_sessions').select('check_in_time, check_out_time').not('check_out_time', 'is', null),
+      supabase.from('survey_sessions').select('*', { count: 'exact', head: true }).is('check_out_time', null),
+      supabase.from('observations').select('nesting_status').gte('encounter_date', yearStart).in('nesting_status', ['nested', 'attempted_nest']),
+      supabase.from('observations').select('turtle_id').gte('encounter_date', yearStart),
+    ]);
 
-    // Observations this year
-    const { count: observationsThisYear } = await supabase
-      .from('observations')
-      .select('*', { count: 'exact', head: true })
-      .gte('encounter_date', yearStart);
-
-    // Last night observations
-    const { count: lastNightObservations } = await supabase
-      .from('observations')
-      .select('*', { count: 'exact', head: true })
-      .gte('encounter_date', yesterdayStart)
-      .lt('encounter_date', yesterdayEnd);
-
-    // Volunteer hours and active volunteers
-    const { data: sessions } = await supabase
-      .from('survey_sessions')
-      .select('check_in_time, check_out_time')
-      .not('check_out_time', 'is', null);
-
+    // Calculate volunteer hours
     let totalHours = 0;
     let sessionCount = 0;
     if (sessions) {
-      sessions.forEach((session) => {
+      sessions.forEach((session: any) => {
         const checkIn = new Date(session.check_in_time);
         const checkOut = new Date(session.check_out_time!);
         const hours = (checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60);
@@ -87,31 +83,12 @@ export async function getEnhancedStats(): Promise<EnhancedStats> {
       });
     }
 
-    // Active volunteers (currently checked in)
-    const { count: activeVolunteers } = await supabase
-      .from('survey_sessions')
-      .select('*', { count: 'exact', head: true })
-      .is('check_out_time', null);
-
-    // Average session duration
     const avgSessionDuration = sessionCount > 0 ? totalHours / sessionCount : 0;
 
     // Nesting success rate
-    const { data: nestingObs } = await supabase
-      .from('observations')
-      .select('nesting_status')
-      .gte('encounter_date', yearStart)
-      .in('nesting_status', ['nested', 'attempted_nest']);
-
-    const nested = nestingObs?.filter((o) => o.nesting_status === 'nested').length || 0;
+    const nested = nestingObs?.filter((o: any) => o.nesting_status === 'nested').length || 0;
     const attempted = nestingObs?.length || 0;
     const nestingSuccessRate = attempted > 0 ? (nested / attempted) * 100 : 0;
-
-    // Recapture rate (turtles with multiple observations)
-    const { data: turtleObsCounts } = await supabase
-      .from('observations')
-      .select('turtle_id')
-      .gte('encounter_date', yearStart);
 
     const turtleCounts = new Map<string, number>();
     turtleObsCounts?.forEach((obs) => {
@@ -265,6 +242,90 @@ export async function getActiveSessionsAll(): Promise<ActiveSession[]> {
   } catch (error) {
     console.error('Error fetching active sessions:', error);
     return [];
+  }
+}
+
+/**
+ * Get recent observations for dashboard activity feed
+ */
+export async function getRecentActivity(limit: number = 10): Promise<{
+  id: string;
+  turtle_name: string | null;
+  encounter_date: string;
+  observer_name: string;
+  did_she_nest: boolean | null;
+  is_recapture: boolean;
+  beach_sector: string | null;
+}[]> {
+  try {
+    const { data, error } = await supabase
+      .from('observations')
+      .select('id, turtle_name, encounter_date, observer_name, did_she_nest, is_recapture, beach_sector')
+      .order('encounter_date', { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      console.error('Error fetching recent activity:', error);
+      return [];
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error('Error fetching recent activity:', error);
+    return [];
+  }
+}
+
+/**
+ * Get counts for action items (unnamed turtles, research flags, active alerts)
+ */
+export async function getActionItemCounts(): Promise<{
+  unnamedTurtles: number;
+  researchFlags: number;
+  activeAlerts: number;
+}> {
+  try {
+    const [unnamed, research, alerts] = await Promise.all([
+      supabase.from('turtles').select('id', { count: 'exact', head: true }).ilike('name', 'UNNAMED-%'),
+      supabase.from('turtles').select('id', { count: 'exact', head: true }).eq('needs_research', true),
+      supabase.from('turtle_alerts').select('id', { count: 'exact', head: true }).eq('is_active', true),
+    ]);
+
+    return {
+      unnamedTurtles: unnamed.count || 0,
+      researchFlags: research.count || 0,
+      activeAlerts: alerts.count || 0,
+    };
+  } catch (error) {
+    console.error('Error fetching action item counts:', error);
+    return { unnamedTurtles: 0, researchFlags: 0, activeAlerts: 0 };
+  }
+}
+
+/**
+ * Get last year's observation count for season comparison
+ */
+export async function getLastYearObservationCount(): Promise<number> {
+  try {
+    const lastYear = new Date().getFullYear() - 1;
+    const yearStart = new Date(lastYear, 0, 1).toISOString();
+    const yearEnd = new Date(lastYear + 1, 0, 1).toISOString();
+
+    const { count, error } = await supabase
+      .from('observations')
+      .select('id', { count: 'exact', head: true })
+      .gte('encounter_date', yearStart)
+      .lt('encounter_date', yearEnd);
+
+    if (error) {
+      console.error('Error fetching last year count:', error);
+      return 0;
+    }
+
+    return count || 0;
+  } catch (error) {
+    console.error('Error fetching last year count:', error);
+    return 0;
   }
 }
 

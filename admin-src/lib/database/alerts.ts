@@ -4,7 +4,7 @@ import type { TurtleAlert } from '../types';
 /**
  * Map Supabase snake_case columns to TurtleAlert interface
  */
-function mapSupabaseAlert(data: any): any {
+function mapSupabaseAlert(data: any): TurtleAlert {
   return {
     id: data.id,
     org_id: data.org_id,

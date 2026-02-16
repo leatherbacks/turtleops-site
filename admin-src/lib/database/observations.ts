@@ -31,64 +31,84 @@ function enhanceWithSpecies(data: any): ObservationWithTurtle {
 }
 
 /**
- * Get all observations with optional filters
+ * Apply common observation filters to a query
  */
-export async function getObservations(filters?: ObservationFilters): Promise<ObservationWithTurtle[]> {
+function applyObservationFilters(query: any, filters?: ObservationFilters) {
+  if (!filters) return query;
+  if (filters.turtleName) {
+    query = query.ilike('turtle_name', `%${filters.turtleName}%`);
+  }
+  if (filters.observerName) {
+    query = query.ilike('observer_name', `%${filters.observerName}%`);
+  }
+  if (filters.dateFrom) {
+    query = query.gte('encounter_date', filters.dateFrom.toISOString());
+  }
+  if (filters.dateTo) {
+    query = query.lte('encounter_date', filters.dateTo.toISOString());
+  }
+  if (filters.didNest !== undefined) {
+    query = query.eq('did_she_nest', filters.didNest);
+  }
+  if (filters.beachSector) {
+    query = query.eq('beach_sector', filters.beachSector);
+  }
+  if (filters.searchQuery) {
+    const sanitized = filters.searchQuery.replace(/[^a-zA-Z0-9\-\s\/]/g, '');
+    if (sanitized) {
+      query = query.or(
+        `turtle_name.ilike.%${sanitized}%,observer_name.ilike.%${sanitized}%,comments.ilike.%${sanitized}%`
+      );
+    }
+  }
+  return query;
+}
+
+/**
+ * Get observations with count in a single query (eliminates duplicate DB call)
+ */
+export async function getObservationsWithCount(filters?: ObservationFilters): Promise<{ data: ObservationWithTurtle[]; count: number }> {
   try {
     let query = supabase
       .from('observations')
       .select(`
         *,
         turtles!inner(species)
-      `)
+      `, { count: 'exact' })
       .order('encounter_date', { ascending: false });
 
-    // Apply filters
-    if (filters) {
-      if (filters.turtleName) {
-        query = query.ilike('turtle_name', `%${filters.turtleName}%`);
-      }
-      if (filters.observerName) {
-        query = query.ilike('observer_name', `%${filters.observerName}%`);
-      }
-      if (filters.dateFrom) {
-        query = query.gte('encounter_date', filters.dateFrom.toISOString());
-      }
-      if (filters.dateTo) {
-        query = query.lte('encounter_date', filters.dateTo.toISOString());
-      }
-      if (filters.didNest !== undefined) {
-        query = query.eq('did_she_nest', filters.didNest);
-      }
-      if (filters.beachSector) {
-        query = query.eq('beach_sector', filters.beachSector);
-      }
-      if (filters.searchQuery) {
-        query = query.or(
-          `turtle_name.ilike.%${filters.searchQuery}%,observer_name.ilike.%${filters.searchQuery}%,comments.ilike.%${filters.searchQuery}%`
-        );
-      }
-      // Apply pagination
-      if (filters.limit !== undefined) {
-        query = query.limit(filters.limit);
-      }
-      if (filters.offset !== undefined) {
-        query = query.range(filters.offset, filters.offset + (filters.limit || 25) - 1);
-      }
+    query = applyObservationFilters(query, filters);
+
+    // Apply pagination
+    if (filters?.offset !== undefined) {
+      query = query.range(filters.offset, filters.offset + (filters.limit || 25) - 1);
+    } else if (filters?.limit !== undefined) {
+      query = query.limit(filters.limit);
     }
 
-    const { data, error } = await query;
+    const { data, count, error } = await query;
 
     if (error) {
       console.error('Error fetching observations:', error);
-      return [];
+      return { data: [], count: 0 };
     }
 
-    return data ? data.map(enhanceWithSpecies) : [];
+    return {
+      data: data ? data.map(enhanceWithSpecies) : [],
+      count: count || 0,
+    };
   } catch (error) {
     console.error('Error fetching observations:', error);
-    return [];
+    return { data: [], count: 0 };
   }
+}
+
+/**
+ * Get all observations with optional filters
+ */
+export async function getObservations(filters?: ObservationFilters): Promise<ObservationWithTurtle[]> {
+  const result = await getObservationsWithCount(filters);
+  return result.data;
 }
 
 /**
@@ -120,7 +140,7 @@ export async function getObservationById(id: string): Promise<ObservationWithTur
 /**
  * Get observations for a specific turtle
  */
-export async function getObservationsByTurtle(turtleId: string): Promise<ObservationWithTurtle[]> {
+export async function getObservationsByTurtle(turtleId: string, limit: number = 100): Promise<ObservationWithTurtle[]> {
   try {
     const { data, error } = await supabase
       .from('observations')
@@ -129,7 +149,8 @@ export async function getObservationsByTurtle(turtleId: string): Promise<Observa
         turtles!inner(species)
       `)
       .eq('turtle_id', turtleId)
-      .order('encounter_date', { ascending: false });
+      .order('encounter_date', { ascending: false })
+      .limit(limit);
 
     if (error) {
       console.error('Error fetching turtle observations:', error);
@@ -154,7 +175,7 @@ export async function getRecentObservations(days: number = 30): Promise<Observat
 }
 
 /**
- * Get observations count by filters
+ * Get observations count by filters (uses combined query internally)
  */
 export async function getObservationsCount(filters?: ObservationFilters): Promise<number> {
   try {
@@ -162,27 +183,7 @@ export async function getObservationsCount(filters?: ObservationFilters): Promis
       .from('observations')
       .select('id', { count: 'exact', head: true });
 
-    // Apply same filters as getObservations
-    if (filters) {
-      if (filters.turtleName) {
-        query = query.ilike('turtle_name', `%${filters.turtleName}%`);
-      }
-      if (filters.observerName) {
-        query = query.ilike('observer_name', `%${filters.observerName}%`);
-      }
-      if (filters.dateFrom) {
-        query = query.gte('encounter_date', filters.dateFrom.toISOString());
-      }
-      if (filters.dateTo) {
-        query = query.lte('encounter_date', filters.dateTo.toISOString());
-      }
-      if (filters.didNest !== undefined) {
-        query = query.eq('did_she_nest', filters.didNest);
-      }
-      if (filters.beachSector) {
-        query = query.eq('beach_sector', filters.beachSector);
-      }
-    }
+    query = applyObservationFilters(query, filters);
 
     const { count, error } = await query;
 

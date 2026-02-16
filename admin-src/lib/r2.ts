@@ -54,6 +54,18 @@ export function isR2Configured(): boolean {
 }
 
 /**
+ * Get full PDF URL from filename
+ * Used when archival_pdf_filename is stored in database
+ * @param filename - Just the filename (e.g., "mola.pdf")
+ * @returns Full URL or null if R2 not configured
+ */
+export function getPdfUrlFromFilename(filename: string): string | null {
+  const bucketUrl = getR2BucketUrl();
+  if (!bucketUrl) return null;
+  return `${bucketUrl}/${filename}`;
+}
+
+/**
  * Check if a PDF exists for a turtle
  * Note: This requires making a HEAD request, which may have CORS limitations
  */

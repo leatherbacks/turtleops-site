@@ -36,20 +36,20 @@ export default function StatCard({
       <div style={{
         backgroundColor: 'var(--color-surface)',
         padding: '24px',
-        borderRadius: '8px',
+        borderRadius: 'var(--radius-lg)',
         border: '1px solid var(--color-border)',
-        minHeight: '140px',
+        minHeight: '130px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
       }}>
         <div style={{
-          width: '32px',
-          height: '32px',
-          border: '3px solid var(--color-surface-elevated)',
+          width: '28px',
+          height: '28px',
+          border: '2.5px solid var(--color-surface-elevated)',
           borderTopColor: 'var(--color-primary)',
           borderRadius: '50%',
-          animation: 'spin 1s linear infinite',
+          animation: 'spin 0.8s linear infinite',
         }} />
       </div>
     );
@@ -58,39 +58,53 @@ export default function StatCard({
   return (
     <div style={{
       backgroundColor: 'var(--color-surface)',
-      padding: '24px',
-      borderRadius: '8px',
+      padding: '22px 24px',
+      borderRadius: 'var(--radius-lg)',
       border: '1px solid var(--color-border)',
       transition: 'all 0.2s ease',
-    }}>
+      cursor: 'default',
+    }}
+    onMouseEnter={(e) => {
+      e.currentTarget.style.borderColor = 'var(--color-border-light)';
+      e.currentTarget.style.boxShadow = 'var(--shadow-card-hover)';
+      e.currentTarget.style.transform = 'translateY(-1px)';
+    }}
+    onMouseLeave={(e) => {
+      e.currentTarget.style.borderColor = 'var(--color-border)';
+      e.currentTarget.style.boxShadow = 'none';
+      e.currentTarget.style.transform = 'translateY(0)';
+    }}
+    >
       <div style={{
         display: 'flex',
         alignItems: 'flex-start',
         justifyContent: 'space-between',
-        marginBottom: '12px',
+        marginBottom: '14px',
       }}>
         <h3 style={{
-          fontSize: '14px',
-          fontWeight: '500',
-          color: 'var(--color-text-secondary)',
+          fontSize: '12px',
+          fontWeight: '600',
+          color: 'var(--color-text-muted)',
           textTransform: 'uppercase',
           letterSpacing: '0.5px',
         }}>
           {title}
         </h3>
         {icon && (
-          <div style={{ fontSize: '24px', opacity: 0.6 }}>
+          <div style={{ fontSize: '20px', opacity: 0.5 }}>
             {icon}
           </div>
         )}
       </div>
 
       <div style={{
-        fontSize: '36px',
-        fontWeight: '600',
+        fontSize: '32px',
+        fontWeight: '700',
         color: 'var(--color-text)',
-        marginBottom: '8px',
+        marginBottom: '6px',
         fontFamily: 'var(--font-mono)',
+        letterSpacing: '-1px',
+        lineHeight: 1,
       }}>
         {value}
       </div>
@@ -100,7 +114,8 @@ export default function StatCard({
           display: 'flex',
           alignItems: 'center',
           gap: '8px',
-          fontSize: '14px',
+          fontSize: '13px',
+          marginTop: '8px',
         }}>
           {trendValue && trend && (
             <span style={{

@@ -15,12 +15,15 @@ export default function Button({
 }: ButtonProps) {
   const getVariantStyles = () => {
     const base = {
-      border: 'none',
-      borderRadius: '6px',
-      fontWeight: '600',
-      cursor: disabled ? 'not-allowed' : 'pointer',
-      opacity: disabled ? 0.6 : 1,
-      transition: 'all 0.2s ease',
+      border: 'none' as const,
+      fontWeight: '600' as const,
+      cursor: disabled ? 'not-allowed' as const : 'pointer' as const,
+      opacity: disabled ? 0.5 : 1,
+      transition: 'all 0.15s ease',
+      display: 'inline-flex' as const,
+      alignItems: 'center' as const,
+      justifyContent: 'center' as const,
+      gap: '6px',
     };
 
     switch (variant) {
@@ -29,6 +32,7 @@ export default function Button({
           ...base,
           backgroundColor: 'var(--color-primary)',
           color: 'white',
+          borderRadius: 'var(--radius-md)',
         };
       case 'secondary':
         return {
@@ -36,12 +40,14 @@ export default function Button({
           backgroundColor: 'var(--color-surface-elevated)',
           color: 'var(--color-text)',
           border: '1px solid var(--color-border)',
+          borderRadius: 'var(--radius-md)',
         };
       case 'danger':
         return {
           ...base,
           backgroundColor: 'var(--color-error)',
           color: 'white',
+          borderRadius: 'var(--radius-md)',
         };
       case 'ghost':
         return {
@@ -49,6 +55,7 @@ export default function Button({
           backgroundColor: 'transparent',
           color: 'var(--color-text-secondary)',
           border: '1px solid transparent',
+          borderRadius: 'var(--radius-md)',
         };
       default:
         return base;
@@ -60,17 +67,17 @@ export default function Button({
       case 'sm':
         return {
           padding: '6px 12px',
-          fontSize: '13px',
+          fontSize: '12px',
         };
       case 'md':
         return {
-          padding: '10px 16px',
-          fontSize: '14px',
+          padding: '8px 16px',
+          fontSize: '13px',
         };
       case 'lg':
         return {
-          padding: '12px 24px',
-          fontSize: '16px',
+          padding: '10px 20px',
+          fontSize: '14px',
         };
       default:
         return {};

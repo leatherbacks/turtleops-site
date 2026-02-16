@@ -61,7 +61,6 @@ export default function ConfigPage() {
           require_measurements: false,
           injury_diagram_type: 'hardshell',
           pit_tag_pattern: '^[A-Z]{2}\\d{4}$',
-          emergency_contact: '',
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         });

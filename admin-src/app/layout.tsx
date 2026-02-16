@@ -3,8 +3,15 @@ import './globals.css'
 import { AuthProvider } from '@/components/auth/AuthProvider'
 
 export const metadata: Metadata = {
-  title: 'TurtleOps Admin Console',
-  description: 'Admin console for TurtleOps turtle tracking system',
+  title: {
+    default: 'TurtleOps Admin',
+    template: '%s | TurtleOps Admin',
+  },
+  description: 'Admin console for TurtleOps sea turtle tracking system',
+  icons: {
+    icon: '/logo.png',
+    apple: '/logo.png',
+  },
 }
 
 export default function RootLayout({

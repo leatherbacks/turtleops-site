@@ -9,7 +9,8 @@ import {
 } from '@/lib/database/turtles';
 import { getObservationsByTurtle } from '@/lib/database/observations';
 import { useAuth } from '@/components/auth/AuthProvider';
-import { getTurtlePdfUrl, isR2Configured } from '@/lib/r2';
+import { getPdfUrlFromFilename, isR2Configured } from '@/lib/r2';
+import { supabase } from '@/lib/supabase';
 import type { Turtle } from '@/lib/types';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
@@ -56,7 +57,7 @@ export default function TurtleDetailPage() {
   const [observations, setObservations] = useState<ObservationRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
-  const [pdfExists, setPdfExists] = useState<boolean>(false);
+  const [datasheetPhotos, setDatasheetPhotos] = useState<Array<{ url: string; observation_id: string; date: string }>>([]);
 
   useEffect(() => {
     // Wait for auth to be ready before loading data
@@ -94,16 +95,20 @@ export default function TurtleDetailPage() {
       setAdditionalTags(additionalTagsData as AdditionalTag[]);
       setObservations(observationsData as ObservationRecord[]);
 
-      // Check for historical PDF if R2 is configured
-      // Try Title Case first (most common: "Aries.pdf", "Jupiter.pdf")
-      // If it doesn't exist, the iframe will handle the error
-      if (isR2Configured() && turtleData) {
-        const url = getTurtlePdfUrl(turtleData.name, 'title');
+      // Check for archival PDF using stored filename from database
+      console.log('R2 configured:', isR2Configured(), 'Turtle:', turtleData?.name, 'PDF filename:', turtleData?.archival_pdf_filename);
+      if (isR2Configured() && turtleData?.archival_pdf_filename) {
+        const url = getPdfUrlFromFilename(turtleData.archival_pdf_filename);
+        console.log('PDF URL from database filename:', url);
         if (url) {
           setPdfUrl(url);
-          setPdfExists(true); // Assume it exists; iframe will handle 404
         }
       }
+
+      // TODO: Load datasheet photos from Supabase storage
+      // Temporarily disabled - photos table query causing 400 errors
+      // Need to verify photos table schema or use alternative storage method
+      console.log('Datasheet photos feature temporarily disabled - needs schema verification');
     } catch (error) {
       console.error('Error loading turtle data:', error);
       setTurtle(null);
@@ -372,69 +377,126 @@ export default function TurtleDetailPage() {
       </Card>
 
       {/* Historical PDF */}
-      {pdfUrl && pdfExists && (
+      {pdfUrl && (
         <Card
-          title="Historical Data"
+          title="Archival Data"
           subtitle="Legacy observation records"
           style={{ marginBottom: '24px' }}
         >
+          <p style={{
+            fontSize: '14px',
+            color: 'var(--color-text-secondary)',
+            marginBottom: '12px',
+          }}>
+            Historical observation data may be available for this turtle
+          </p>
+          <a
+            href={pdfUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: 'inline-block',
+              padding: '10px 16px',
+              backgroundColor: 'var(--color-primary)',
+              color: 'white',
+              borderRadius: '6px',
+              textDecoration: 'none',
+              fontSize: '14px',
+              fontWeight: '500',
+              cursor: 'pointer',
+              transition: 'opacity 0.2s',
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
+            onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+          >
+            📄 View Archival PDF
+          </a>
+        </Card>
+      )}
+
+      {/* Datasheet Photos from Supabase */}
+      {console.log('Rendering - datasheetPhotos length:', datasheetPhotos.length, 'pdfUrl:', pdfUrl)}
+      {datasheetPhotos.length > 0 && (
+        <Card title="Observation Datasheet Photos" style={{ marginBottom: '24px' }}>
           <div style={{ marginBottom: '16px' }}>
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: '12px',
+            <p style={{
+              fontSize: '14px',
+              color: 'var(--color-text-secondary)',
+              margin: 0,
+              marginBottom: '16px',
             }}>
-              <p style={{
-                fontSize: '14px',
-                color: 'var(--color-text-secondary)',
-                margin: 0,
-              }}>
-                Historical observation data available for this turtle
-              </p>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => window.open(pdfUrl, '_blank')}
-                >
-                  Open in New Tab
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => {
-                    const link = document.createElement('a');
-                    link.href = pdfUrl;
-                    link.download = `${turtle.name}-historical.pdf`;
-                    link.click();
-                  }}
-                >
-                  Download PDF
-                </Button>
-              </div>
-            </div>
+              {datasheetPhotos.length} datasheet photo{datasheetPhotos.length > 1 ? 's' : ''} from recent observations
+            </p>
           </div>
 
-          {/* PDF Viewer */}
+          {/* Datasheet Photos Grid */}
           <div style={{
-            position: 'relative',
-            width: '100%',
-            height: '800px',
-            backgroundColor: 'var(--color-background)',
-            borderRadius: '8px',
-            overflow: 'hidden',
-            border: '1px solid var(--color-border)',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+            gap: '16px',
           }}>
-            <iframe
-              src={pdfUrl}
-              style={{
-                width: '100%',
-                height: '100%',
-                border: 'none',
-              }}
-              title={`Historical data for ${turtle.name}`}
-            />
+            {datasheetPhotos.map((photo, index) => (
+              <div
+                key={`${photo.observation_id}-${index}`}
+                style={{
+                  backgroundColor: 'var(--color-surface-elevated)',
+                  borderRadius: '8px',
+                  overflow: 'hidden',
+                  border: '1px solid var(--color-border)',
+                }}
+              >
+                <div style={{
+                  position: 'relative',
+                  width: '100%',
+                  paddingBottom: '75%', // 4:3 aspect ratio
+                  backgroundColor: 'var(--color-background)',
+                }}>
+                  <img
+                    src={photo.url}
+                    alt={`Datasheet from ${new Date(photo.date).toLocaleDateString()}`}
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'contain',
+                      cursor: 'pointer',
+                    }}
+                    onClick={() => window.open(photo.url, '_blank')}
+                  />
+                </div>
+                <div style={{
+                  padding: '12px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                }}>
+                  <div>
+                    <div style={{
+                      fontSize: '12px',
+                      color: 'var(--color-text-secondary)',
+                    }}>
+                      {new Date(photo.date).toLocaleDateString()}
+                    </div>
+                    <div style={{
+                      fontSize: '11px',
+                      color: 'var(--color-text-muted)',
+                      marginTop: '2px',
+                    }}>
+                      Observation ID: {photo.observation_id.slice(0, 8)}...
+                    </div>
+                  </div>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => window.open(photo.url, '_blank')}
+                  >
+                    View Full
+                  </Button>
+                </div>
+              </div>
+            ))}
           </div>
         </Card>
       )}

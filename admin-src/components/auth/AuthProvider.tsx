@@ -32,6 +32,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   useEffect(() => {
+    // Safety timeout: if loading takes more than 8 seconds, force it to stop.
+    // This prevents a permanent "Loading..." screen from network issues.
+    const safetyTimeout = setTimeout(() => {
+      setLoading((current) => {
+        if (current) {
+          console.warn('[Auth] Safety timeout: forcing loading to false after 8s');
+          return false;
+        }
+        return current;
+      });
+    }, 8000);
+
     // Get initial session
     supabase.auth.getSession().then(async ({ data: { session }, error }) => {
       if (error) {
@@ -50,6 +62,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else {
         setLoading(false);
       }
+    }).catch((err) => {
+      console.error('[Auth] getSession failed:', err);
+      setSession(null);
+      setProfile(null);
+      setOrganization(null);
+      setLoading(false);
     });
 
     // Listen for auth changes
@@ -78,98 +96,73 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      clearTimeout(safetyTimeout);
+      subscription.unsubscribe();
+    };
   }, []);
-
-  // Subscriber access checking and redirection
-  useEffect(() => {
-    if (!loading && profile) {
-      const userIsAdmin = profile.role === 'admin';
-      const userIsSubscriber = profile.role === 'admin' && profile.is_subscriber === true;
-
-      setIsAdmin(userIsAdmin);
-      setIsSubscriber(userIsSubscriber);
-
-      // If not a subscriber and trying to access protected routes, redirect to login with error
-      if (!userIsSubscriber && pathname && !pathname.includes('/login')) {
-        console.warn('[Auth] Non-subscriber user trying to access admin console');
-        router.push('/login?error=subscriber_required');
-      }
-    }
-  }, [profile, loading, pathname, router]);
 
   async function loadProfile(userId: string) {
     try {
-      console.log('[Auth] Loading profile for user:', userId);
-
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
-        .maybeSingle();
+        .single();
 
       if (error) {
         console.error('[Auth] Error loading profile:', error);
         throw error;
       }
 
-      if (!data) {
-        console.warn('[Auth] No profile found for user:', userId);
-        setProfile(null);
-        setOrganization(null);
-        setLoading(false);
-        return;
-      }
-
-      // Map profile data (handle potential column name variations)
+      // Map profile data
       const profileData: Profile = {
         id: data.id,
+        email: data.email || '',
         full_name: data.full_name,
         role: data.role,
         is_subscriber: data.is_subscriber || false,
+        is_active: data.is_active ?? true,
+        disabled_at: data.disabled_at || null,
+        disabled_by: data.disabled_by || null,
         org_id: data.org_id || null,
         created_at: data.created_at,
         updated_at: data.updated_at,
       };
 
-      console.log('[Auth] Profile loaded:', {
-        id: profileData.id,
-        name: profileData.full_name,
-        role: profileData.role
-      });
+      const userIsAdmin = profileData.role === 'admin';
+      const userIsSubscriber = userIsAdmin && profileData.is_subscriber === true;
 
-      setProfile(profileData);
-
-      // Load organization if user has one
+      // Load organization in parallel with setting profile state
+      // to avoid an extra re-render when org loads later
       if (profileData.org_id) {
-        await loadOrganization(profileData.org_id);
+        try {
+          const { data: orgData } = await supabase
+            .from('organizations')
+            .select('*')
+            .eq('id', profileData.org_id)
+            .single();
+
+          if (orgData) {
+            setOrganization(orgData);
+          }
+        } catch (orgError) {
+          console.error('[Auth] Error loading organization:', orgError);
+        }
       }
 
+      // Set all state together to minimize re-renders
+      setIsAdmin(userIsAdmin);
+      setIsSubscriber(userIsSubscriber);
+      setProfile(profileData);
       setLoading(false);
     } catch (error) {
       console.error('[Auth] Error in loadProfile:', error);
       setProfile(null);
       setOrganization(null);
+      setIsAdmin(false);
+      setIsSubscriber(false);
       setLoading(false);
-    }
-  }
-
-  async function loadOrganization(orgId: string) {
-    try {
-      const { data, error } = await supabase
-        .from('organizations')
-        .select('*')
-        .eq('id', orgId)
-        .single();
-
-      if (error) {
-        console.error('[Auth] Error loading organization:', error);
-        return;
-      }
-
-      setOrganization(data);
-    } catch (error) {
-      console.error('[Auth] Error in loadOrganization:', error);
     }
   }
 

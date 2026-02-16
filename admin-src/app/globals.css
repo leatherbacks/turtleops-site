@@ -1,30 +1,32 @@
-/* Dark theme optimized for nighttime beach work */
+/* Modern dark theme for TurtleOps Admin Dashboard */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
 :root {
-  /* Background colors - very dark to preserve night vision */
-  --color-background: #0a0a0a;
-  --color-surface: #1a1a1a;
-  --color-surface-elevated: #242424;
-  --color-card: #1a1a1a;
+  /* Background colors */
+  --color-background: #09090b;
+  --color-surface: #18181b;
+  --color-surface-elevated: #27272a;
+  --color-card: #18181b;
 
   /* Form input backgrounds */
-  --color-input: #262626;
-  --color-input-focused: #2a2a2a;
+  --color-input: #27272a;
+  --color-input-focused: #303034;
 
   /* Disabled state */
-  --color-disabled: #3a3a3a;
+  --color-disabled: #3f3f46;
 
-  /* Text colors - optimized for readability on dark backgrounds */
-  --color-text: #e5e5e5;
-  --color-text-secondary: #a0a0a0;
-  --color-text-muted: #666666;
+  /* Text colors */
+  --color-text: #fafafa;
+  --color-text-secondary: #a1a1aa;
+  --color-text-muted: #71717a;
 
-  /* Primary - warm red tones to preserve night vision */
+  /* Primary - warm red tones */
   --color-primary: #ff5757;
-  --color-primary-dark: #d93636;
+  --color-primary-dark: #dc2626;
   --color-primary-light: #ff8080;
-  --color-primary-glow: rgba(255, 87, 87, 0.15);
+  --color-primary-glow: rgba(255, 87, 87, 0.12);
 
-  /* Status colors - dimmed for night use */
+  /* Status colors */
   --color-success: #10b981;
   --color-success-light: #34d399;
   --color-warning: #f59e0b;
@@ -34,18 +36,27 @@
   --color-info-light: #60a5fa;
 
   /* Borders and dividers */
-  --color-border: #2a2a2a;
-  --color-border-light: #333333;
-  --color-divider: #242424;
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-border-light: rgba(255, 255, 255, 0.12);
+  --color-divider: #27272a;
 
   /* Shadows and overlays */
   --color-shadow: rgba(0, 0, 0, 0.5);
   --color-overlay: rgba(0, 0, 0, 0.7);
 
-  /* Console aesthetic */
+  /* Radii */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+
+  /* Typography */
   --font-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', 'Monaco', 'Courier New', monospace;
+
+  /* Shadows */
   --shadow-glow: 0 0 20px var(--color-primary-glow);
-  --shadow-card: 0 4px 6px rgba(0, 0, 0, 0.5);
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 * {
@@ -63,26 +74,26 @@ body {
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto',
+    'Helvetica Neue', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  line-height: 1.6;
 }
 
-/* Console-style scrollbars */
+/* Smooth scrollbars */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--color-surface);
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
   background: var(--color-border-light);
-  border-radius: 4px;
+  border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
@@ -93,11 +104,11 @@ body {
 a {
   color: var(--color-primary);
   text-decoration: none;
+  transition: color 0.15s ease;
 }
 
 a:hover {
   color: var(--color-primary-light);
-  text-decoration: underline;
 }
 
 /* Buttons */
@@ -108,7 +119,7 @@ button {
 
 button:disabled {
   cursor: not-allowed;
-  opacity: 0.6;
+  opacity: 0.5;
 }
 
 /* Inputs */
@@ -119,7 +130,8 @@ select {
   color: var(--color-text);
   background-color: var(--color-input);
   border: 1px solid var(--color-border);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
+  transition: all 0.15s ease;
 }
 
 input:focus,
@@ -128,6 +140,7 @@ select:focus {
   outline: none;
   background-color: var(--color-input-focused);
   border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-glow);
 }
 
 /* Tables */
@@ -139,20 +152,31 @@ table {
 th,
 td {
   text-align: left;
-  padding: 12px;
+  padding: 12px 16px;
   border-bottom: 1px solid var(--color-border);
 }
 
 th {
   background-color: var(--color-surface-elevated);
   font-weight: 600;
-  font-family: var(--font-mono);
-  font-size: 0.875rem;
+  font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: var(--color-text-secondary);
+  color: var(--color-text-muted);
 }
 
-tr:hover {
-  background-color: var(--color-surface);
+tr:hover td {
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+/* Spin animation for loaders */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Fade in animation */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
 }

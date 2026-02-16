@@ -2,11 +2,21 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { getTurtles, getTurtlesCount, exportTurtlesToCSV, type TurtleFilters } from '@/lib/database/turtles';
+import { getTurtlesWithCount, exportTurtlesToCSV, type TurtleFilters } from '@/lib/database/turtles';
 import type { Turtle } from '@/lib/types';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
+
+// Debounce hook
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+  return debouncedValue;
+}
 
 export default function TurtlesPage() {
   const router = useRouter();
@@ -15,10 +25,13 @@ export default function TurtlesPage() {
   const [totalCount, setTotalCount] = useState(0);
 
   // Filter state
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchInput, setSearchInput] = useState('');
   const [speciesFilter, setSpeciesFilter] = useState<string>('all');
   const [nameStatusFilter, setNameStatusFilter] = useState<'all' | 'named' | 'unnamed'>('all');
   const [researchFilter, setResearchFilter] = useState<'all' | 'needs-research' | 'no-research'>('all');
+
+  // Debounce search to avoid querying on every keystroke
+  const searchQuery = useDebounce(searchInput, 300);
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -26,6 +39,11 @@ export default function TurtlesPage() {
 
   useEffect(() => {
     loadTurtles();
+  }, [searchQuery, speciesFilter, nameStatusFilter, researchFilter, currentPage]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
   }, [searchQuery, speciesFilter, nameStatusFilter, researchFilter]);
 
   const loadTurtles = async () => {
@@ -50,10 +68,11 @@ export default function TurtlesPage() {
       filters.needsResearch = false;
     }
 
-    const [data, count] = await Promise.all([
-      getTurtles(filters),
-      getTurtlesCount(filters),
-    ]);
+    // Server-side pagination
+    filters.limit = itemsPerPage;
+    filters.offset = (currentPage - 1) * itemsPerPage;
+
+    const { data, count } = await getTurtlesWithCount(filters);
 
     setTurtles(data);
     setTotalCount(count);
@@ -74,7 +93,7 @@ export default function TurtlesPage() {
   };
 
   const handleClearFilters = () => {
-    setSearchQuery('');
+    setSearchInput('');
     setSpeciesFilter('all');
     setNameStatusFilter('all');
     setResearchFilter('all');
@@ -104,11 +123,8 @@ export default function TurtlesPage() {
     return species.substring(0, 2).toUpperCase();
   };
 
-  // Pagination
-  const totalPages = Math.ceil(turtles.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const paginatedTurtles = turtles.slice(startIndex, endIndex);
+  // Pagination (server-side)
+  const totalPages = Math.ceil(totalCount / itemsPerPage);
 
   const hasActiveFilters =
     searchQuery ||
@@ -174,8 +190,8 @@ export default function TurtlesPage() {
             </label>
             <input
               type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
               placeholder="Name or tag number..."
               style={{
                 width: '100%',
@@ -332,7 +348,7 @@ export default function TurtlesPage() {
             gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))',
             gap: '16px',
           }}>
-            {paginatedTurtles.map((turtle) => (
+            {turtles.map((turtle) => (
               <Card
                 key={turtle.id}
                 style={{
