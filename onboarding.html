@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Onboarding Guide - TurtleOps</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/png" href="assets/turtleoops_notext.png">
+  <style>
+    :root {
+      --background: #0a0a0a;
+      --surface: #1a1a1a;
+      --surface-elevated: #242424;
+      --primary: #ff5757;
+      --primary-dim: #cc4545;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --text: #e5e5e5;
+      --text-secondary: #a0a0a0;
+      --text-muted: #666666;
+      --border: rgba(255, 255, 255, 0.08);
+      --border-solid: #2a2a2a;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background-color: var(--background);
+      color: var(--text);
+      line-height: 1.7;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    header {
+      padding: 24px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .header-inner {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    header a {
+      color: var(--text);
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 18px;
+    }
+
+    header a:hover { color: var(--primary); }
+
+    .header-links a {
+      font-weight: 500;
+      font-size: 14px;
+      color: var(--text-secondary);
+      margin-left: 24px;
+    }
+
+    main { padding: 60px 0; }
+
+    h1 {
+      font-size: 32px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      color: var(--text-secondary);
+      font-size: 16px;
+      margin-bottom: 48px;
+    }
+
+    .section {
+      margin-bottom: 48px;
+    }
+
+    .section h2 {
+      font-size: 22px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 16px;
+    }
+
+    .section p, .section li {
+      color: var(--text-secondary);
+      font-size: 15px;
+      margin-bottom: 10px;
+    }
+
+    .section ul, .section ol {
+      padding-left: 24px;
+      margin-bottom: 16px;
+    }
+
+    .section li { margin-bottom: 6px; }
+
+    .tip {
+      background: var(--surface);
+      border-left: 3px solid var(--primary);
+      padding: 14px 18px;
+      border-radius: 0 8px 8px 0;
+      margin: 16px 0;
+    }
+
+    .tip p {
+      color: var(--text-secondary);
+      font-size: 14px;
+      margin-bottom: 0;
+    }
+
+    .tip strong { color: var(--text); }
+
+    .warning {
+      background: var(--surface);
+      border-left: 3px solid var(--warning);
+      padding: 14px 18px;
+      border-radius: 0 8px 8px 0;
+      margin: 16px 0;
+    }
+
+    .warning p {
+      color: var(--text-secondary);
+      font-size: 14px;
+      margin-bottom: 0;
+    }
+
+    .warning strong { color: var(--warning); }
+
+    .csv-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0;
+      font-size: 14px;
+    }
+
+    .csv-table th {
+      text-align: left;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border-solid);
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    .csv-table td {
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-secondary);
+    }
+
+    .csv-table code {
+      background: var(--surface-elevated);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 13px;
+      color: var(--primary);
+    }
+
+    .required {
+      color: var(--primary);
+      font-weight: 600;
+      font-size: 11px;
+      text-transform: uppercase;
+    }
+
+    .optional {
+      color: var(--text-muted);
+      font-size: 11px;
+      text-transform: uppercase;
+    }
+
+    .csv-example {
+      background: var(--surface);
+      border: 1px solid var(--border-solid);
+      border-radius: 8px;
+      padding: 16px 20px;
+      overflow-x: auto;
+      margin: 16px 0;
+    }
+
+    .csv-example pre {
+      color: var(--text-secondary);
+      font-size: 13px;
+      line-height: 1.6;
+      white-space: pre;
+    }
+
+    .csv-example .header-row {
+      color: var(--primary);
+      font-weight: 600;
+    }
+
+    .step-list {
+      counter-reset: step-counter;
+      list-style: none;
+      padding-left: 0;
+    }
+
+    .step-list li {
+      counter-increment: step-counter;
+      position: relative;
+      padding-left: 48px;
+      margin-bottom: 16px;
+    }
+
+    .step-list li::before {
+      content: counter(step-counter);
+      position: absolute;
+      left: 0;
+      width: 32px;
+      height: 32px;
+      background: var(--primary);
+      color: #fff;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 14px;
+    }
+
+    .result-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 12px;
+      margin: 16px 0;
+    }
+
+    .result-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
+      text-align: center;
+    }
+
+    .result-item .icon {
+      font-size: 20px;
+      margin-bottom: 4px;
+    }
+
+    .result-item .label {
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-bottom: 0;
+    }
+
+    .divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 48px 0;
+    }
+
+    a { color: var(--primary); }
+
+    footer {
+      padding: 40px 0;
+      border-top: 1px solid var(--border);
+      text-align: center;
+    }
+
+    footer p {
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    footer a {
+      color: var(--text-muted);
+      text-decoration: none;
+    }
+    footer a:hover { color: var(--primary); }
+
+    @media (max-width: 600px) {
+      h1 { font-size: 26px; }
+      .section h2 { font-size: 18px; }
+      .csv-table { font-size: 13px; }
+      .csv-table th, .csv-table td { padding: 6px 8px; }
+      .csv-example pre { font-size: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container">
+      <div class="header-inner">
+        <a href="/">TurtleOps</a>
+        <div class="header-links">
+          <a href="/#features">Features</a>
+          <a href="/#pricing">Pricing</a>
+          <a href="/quickstart.html">Quick Start</a>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div class="container">
+      <h1>Onboarding Guide</h1>
+      <p class="subtitle">Import your existing turtle data and get your team up to speed.</p>
+
+      <!-- Overview -->
+      <div class="section">
+        <h2>Importing Historical Turtle Data</h2>
+        <p>If your team has been tracking turtles with spreadsheets, paper records, or another system, you can import your existing turtle database into TurtleOps via CSV upload. This lets your team start identifying returning turtles from day one.</p>
+        <div class="tip">
+          <p><strong>Admin-only feature.</strong> CSV import is available to organization admins in the <strong>Operations</strong> tab under Admin Tools.</p>
+        </div>
+      </div>
+
+      <!-- CSV Format -->
+      <div class="section">
+        <h2>CSV File Format</h2>
+        <p>Your CSV file should have a header row with the following columns:</p>
+
+        <table class="csv-table">
+          <thead>
+            <tr>
+              <th>Column</th>
+              <th>Status</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>NAME</code></td>
+              <td><span class="required">Required</span></td>
+              <td>Turtle name or identifier. Automatically uppercased.</td>
+            </tr>
+            <tr>
+              <td><code>SPECIES</code></td>
+              <td><span class="optional">Optional</span></td>
+              <td>Species name (e.g., Leatherback, Green, Loggerhead). Defaults to your project's primary species if blank.</td>
+            </tr>
+            <tr>
+              <td><code>LRF</code></td>
+              <td><span class="optional">Optional</span></td>
+              <td>Left rear flipper tag number</td>
+            </tr>
+            <tr>
+              <td><code>RRF</code></td>
+              <td><span class="optional">Optional</span></td>
+              <td>Right rear flipper tag number</td>
+            </tr>
+            <tr>
+              <td><code>RFF</code></td>
+              <td><span class="optional">Optional</span></td>
+              <td>Right front flipper tag number</td>
+            </tr>
+            <tr>
+              <td><code>LFF</code></td>
+              <td><span class="optional">Optional</span></td>
+              <td>Left front flipper tag number</td>
+            </tr>
+            <tr>
+              <td><code>PIT_TAG</code></td>
+              <td><span class="optional">Optional</span></td>
+              <td>PIT (microchip) tag number, typically 15 digits</td>
+            </tr>
+            <tr>
+              <td><code>ADD_TAG_1</code></td>
+              <td><span class="optional">Optional</span></td>
+              <td>Additional or historical tag number</td>
+            </tr>
+            <tr>
+              <td><code>ADD_TAG_2</code></td>
+              <td><span class="optional">Optional</span></td>
+              <td>Additional or historical tag number</td>
+            </tr>
+            <tr>
+              <td><code>ADD_TAG_3</code></td>
+              <td><span class="optional">Optional</span></td>
+              <td>Additional or historical tag number</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Example -->
+      <div class="section">
+        <h2>Example CSV</h2>
+        <div class="csv-example">
+<pre><span class="header-row">NAME,SPECIES,LRF,RRF,RFF,LFF,PIT_TAG,ADD_TAG_1</span>
+GRACIE,Leatherback,WW1234,WW5678,,,982000123456789,
+LUNA,Leatherback,WW2345,,WW6789,,982000987654321,OLD567
+SHELLY,Green,GR001,GR002,,,,,
+CORAL,Hawksbill,,HB100,HB101,,,,HB099</pre>
+        </div>
+        <p>Empty cells are fine - just leave them blank. The app handles them gracefully.</p>
+      </div>
+
+      <!-- PIT Tag Warning -->
+      <div class="section">
+        <h2>Excel &amp; PIT Tag Warning</h2>
+        <div class="warning">
+          <p><strong>Important:</strong> Excel automatically converts 15-digit PIT tag numbers into scientific notation (e.g., <code>982000123456789</code> becomes <code>9.82E+14</code>). This permanently corrupts the data and <strong>cannot be reversed</strong>. TurtleOps will reject files with corrupted PIT tags to protect your data.</p>
+        </div>
+        <p>To prevent PIT tag corruption:</p>
+        <ol>
+          <li><strong>Use the template:</strong> Download the CSV template from the import screen. The template is pre-formatted to avoid this issue.</li>
+          <li><strong>Format as Text first:</strong> In Excel, select the PIT_TAG column, right-click, choose <strong>Format Cells &gt; Text</strong>, then enter your data.</li>
+          <li><strong>Prefix with a quote:</strong> Type a single quote before the number (<code>'982000123456789</code>). Excel will treat it as text but won't include the quote in the saved CSV.</li>
+          <li><strong>Use Google Sheets:</strong> Google Sheets does not have this problem - it preserves long numbers as-is.</li>
+        </ol>
+        <div class="tip">
+          <p><strong>Already have corrupted data?</strong> Go back to your original data source (paper records, database export) and re-enter the PIT tags. There is no reliable way to recover the original number from scientific notation.</p>
+        </div>
+      </div>
+
+      <hr class="divider">
+
+      <!-- Step by Step -->
+      <div class="section">
+        <h2>How to Import</h2>
+        <ul class="step-list">
+          <li>
+            <strong>Navigate to Operations tab</strong><br>
+            <span style="color: var(--text-secondary);">Open the app and go to the Operations tab. Scroll to Admin Tools.</span>
+          </li>
+          <li>
+            <strong>Tap "Import Turtles"</strong><br>
+            <span style="color: var(--text-secondary);">This opens the import screen with instructions and a template download button.</span>
+          </li>
+          <li>
+            <strong>Download the template (optional)</strong><br>
+            <span style="color: var(--text-secondary);">Tap the template button to get a pre-formatted CSV file. Fill it with your data and save as CSV.</span>
+          </li>
+          <li>
+            <strong>Select your CSV file</strong><br>
+            <span style="color: var(--text-secondary);">Tap "Select CSV File" and choose your file. The app will parse it and show a preview of the first 5 rows.</span>
+          </li>
+          <li>
+            <strong>Review the preview</strong><br>
+            <span style="color: var(--text-secondary);">Check that names and tags look correct. Verify PIT tags haven't been corrupted by Excel.</span>
+          </li>
+          <li>
+            <strong>Tap Import</strong><br>
+            <span style="color: var(--text-secondary);">The import runs and shows results when complete - how many turtles were created, skipped, or had errors.</span>
+          </li>
+        </ul>
+      </div>
+
+      <!-- What Happens -->
+      <div class="section">
+        <h2>What Happens During Import</h2>
+        <p>The import process handles several things automatically:</p>
+        <ul>
+          <li><strong>Name normalization:</strong> All turtle names are uppercased and trimmed for consistency</li>
+          <li><strong>Duplicate detection:</strong> If a turtle with the same name already exists in your organization, the row is skipped (no data is overwritten)</li>
+          <li><strong>Tag validation:</strong> Empty tags, "no tag", and "null" values are treated as blank. If your project has a tag pattern configured, tags are validated against it.</li>
+          <li><strong>PIT tag check:</strong> Scientific notation is detected and the entire import is blocked with a clear error message - no partial imports with bad data</li>
+          <li><strong>Default species:</strong> Rows without a SPECIES value use your project's primary species setting</li>
+        </ul>
+
+        <p>After the import completes, you'll see a summary:</p>
+        <div class="result-grid">
+          <div class="result-item">
+            <div class="icon">&#x2705;</div>
+            <p class="label">Created</p>
+          </div>
+          <div class="result-item">
+            <div class="icon">&#x23ED;</div>
+            <p class="label">Skipped (duplicates)</p>
+          </div>
+          <div class="result-item">
+            <div class="icon">&#x274C;</div>
+            <p class="label">Errors</p>
+          </div>
+        </div>
+        <p>Error details are shown per-row so you can fix specific issues and re-import just the failed entries.</p>
+      </div>
+
+      <hr class="divider">
+
+      <!-- Tips -->
+      <div class="section">
+        <h2>Tips for a Smooth Import</h2>
+        <ul>
+          <li><strong>Start small:</strong> Test with a file of 5-10 turtles first to verify formatting before importing your full dataset</li>
+          <li><strong>One import at a time:</strong> Import handles duplicates by name, so you can safely run multiple imports without creating duplicate records</li>
+          <li><strong>Historical tags:</strong> Use ADD_TAG_1, ADD_TAG_2, and ADD_TAG_3 for old flipper tags that were replaced. These are stored as additional tags and searchable in the app.</li>
+          <li><strong>No observations:</strong> CSV import creates turtle profiles only. Observation history (encounters, nesting records) should be entered through the app or the web dashboard.</li>
+          <li><strong>Re-import safe:</strong> If you make a mistake, you can delete turtles individually and re-import. Duplicates are skipped automatically.</li>
+        </ul>
+      </div>
+
+      <!-- Next Steps -->
+      <div class="section">
+        <h2>After Importing</h2>
+        <p>Once your turtles are imported:</p>
+        <ul>
+          <li><strong>Verify in the Turtles tab:</strong> Browse your turtle list to confirm names and tags imported correctly</li>
+          <li><strong>Invite your team:</strong> Generate invite codes from the Operations tab and share them with your volunteers and coordinators</li>
+          <li><strong>Configure your project:</strong> Set your beach location, nesting season dates, required photos, and measurement preferences in Project Setup</li>
+          <li><strong>Set up turtle alerts:</strong> Create alerts for turtles of special interest - injured turtles, research subjects, or turtles that shouldn't be disturbed</li>
+        </ul>
+        <p>See the <a href="/quickstart.html">Quick Start Guide</a> for a full walkthrough of setting up your team.</p>
+      </div>
+
+      <div class="section">
+        <h2>Need Help?</h2>
+        <p>Contact us at <a href="mailto:hello@turtleops.org">hello@turtleops.org</a> and we'll help you get your data imported.</p>
+      </div>
+
+    </div>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p><a href="/">Back to TurtleOps</a> &nbsp;&middot;&nbsp; <a href="/quickstart.html">Quick Start</a> &nbsp;&middot;&nbsp; <a href="/privacy.html">Privacy Policy</a></p>
+    </div>
+  </footer>
+</body>
+</html>
