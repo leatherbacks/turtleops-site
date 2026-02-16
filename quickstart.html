@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quick Start - TurtleOps</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/png" href="assets/turtleoops_notext.png">
+  <style>
+    :root {
+      --background: #0a0a0a;
+      --surface: #1a1a1a;
+      --surface-elevated: #242424;
+      --primary: #ff5757;
+      --primary-dim: #cc4545;
+      --success: #10b981;
+      --text: #e5e5e5;
+      --text-secondary: #a0a0a0;
+      --text-muted: #666666;
+      --border: rgba(255, 255, 255, 0.08);
+      --border-solid: #2a2a2a;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background-color: var(--background);
+      color: var(--text);
+      line-height: 1.7;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    header {
+      padding: 24px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .header-inner {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    header a {
+      color: var(--text);
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 18px;
+    }
+
+    header a:hover { color: var(--primary); }
+
+    .header-links a {
+      font-weight: 500;
+      font-size: 14px;
+      color: var(--text-secondary);
+      margin-left: 24px;
+    }
+
+    main { padding: 60px 0; }
+
+    h1 {
+      font-size: 32px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      color: var(--text-secondary);
+      font-size: 16px;
+      margin-bottom: 48px;
+    }
+
+    .step {
+      margin-bottom: 48px;
+    }
+
+    .step-header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .step-number {
+      width: 40px;
+      height: 40px;
+      background: var(--primary);
+      color: #fff;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+
+    .step h2 {
+      font-size: 22px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .step p, .step li {
+      color: var(--text-secondary);
+      font-size: 15px;
+      margin-bottom: 10px;
+    }
+
+    .step ul {
+      padding-left: 24px;
+      margin-bottom: 16px;
+    }
+
+    .step li { margin-bottom: 6px; }
+
+    .tip {
+      background: var(--surface);
+      border-left: 3px solid var(--primary);
+      padding: 14px 18px;
+      border-radius: 0 8px 8px 0;
+      margin: 16px 0;
+    }
+
+    .tip p {
+      color: var(--text-secondary);
+      font-size: 14px;
+      margin-bottom: 0;
+    }
+
+    .tip strong { color: var(--text); }
+
+    .role-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0;
+      font-size: 14px;
+    }
+
+    .role-table th {
+      text-align: left;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border-solid);
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    .role-table td {
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-secondary);
+    }
+
+    .role-table td:not(:first-child),
+    .role-table th:not(:first-child) {
+      text-align: center;
+    }
+
+    .divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 48px 0;
+    }
+
+    a { color: var(--primary); }
+
+    footer {
+      padding: 40px 0;
+      border-top: 1px solid var(--border);
+      text-align: center;
+    }
+
+    footer p {
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    footer a {
+      color: var(--text-muted);
+      text-decoration: none;
+    }
+    footer a:hover { color: var(--primary); }
+
+    @media (max-width: 600px) {
+      h1 { font-size: 26px; }
+      .step h2 { font-size: 18px; }
+      .role-table { font-size: 13px; }
+      .role-table th, .role-table td { padding: 6px 8px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container">
+      <div class="header-inner">
+        <a href="/">TurtleOps</a>
+        <div class="header-links">
+          <a href="/#features">Features</a>
+          <a href="/#pricing">Pricing</a>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div class="container">
+      <h1>Quick Start Guide</h1>
+      <p class="subtitle">From download to your first observation in 10 minutes.</p>
+
+      <!-- Step 1 -->
+      <div class="step">
+        <div class="step-header">
+          <div class="step-number">1</div>
+          <h2>Download and Create an Account</h2>
+        </div>
+        <p>Install TurtleOps from the App Store (iOS) or Google Play (Android). Open the app and tap <strong>Sign Up</strong>.</p>
+        <ul>
+          <li>Enter your full name, email, and a password (6+ characters)</li>
+          <li>You may need to confirm your email before signing in</li>
+        </ul>
+      </div>
+
+      <!-- Step 2 -->
+      <div class="step">
+        <div class="step-header">
+          <div class="step-number">2</div>
+          <h2>Join or Create an Organization</h2>
+        </div>
+        <p>After signing up, you'll choose one of two paths:</p>
+        <ul>
+          <li><strong>Join an existing team:</strong> Enter the invite code from your coordinator (e.g., <code>STCROIX2026</code>). You'll be added to the team with the role your admin assigned.</li>
+          <li><strong>Start a new project:</strong> Enter your organization name and you'll become the admin. You can invite your team later.</li>
+        </ul>
+        <div class="tip">
+          <p><strong>Team coordinators:</strong> Generate invite codes from the Operations tab. You can set the role (volunteer, coordinator, or admin) for each code.</p>
+        </div>
+      </div>
+
+      <!-- Step 3 -->
+      <div class="step">
+        <div class="step-header">
+          <div class="step-number">3</div>
+          <h2>Configure Your Project (Admins)</h2>
+        </div>
+        <p>If you created a new organization, head to <strong>Operations &gt; Project Setup</strong> to configure:</p>
+        <ul>
+          <li><strong>Species:</strong> Enable the species your team monitors and set a primary species</li>
+          <li><strong>Beach location:</strong> Set your coordinates for automatic weather, tide, and moon data</li>
+          <li><strong>Nesting season:</strong> Define your start and end dates</li>
+          <li><strong>Data requirements:</strong> Choose which photos are required, whether to require measurements (CCL/CCW), and your survey mode (walking or ATV)</li>
+          <li><strong>Contact info:</strong> Add coordinator name and emergency contact for your team</li>
+        </ul>
+        <div class="tip">
+          <p><strong>Skip this if you joined a team.</strong> Your admin has already configured these settings.</p>
+        </div>
+      </div>
+
+      <!-- Step 4 -->
+      <div class="step">
+        <div class="step-header">
+          <div class="step-number">4</div>
+          <h2>Check In for a Survey</h2>
+        </div>
+        <p>On the <strong>Dashboard</strong>, tap the check-in button. This starts your survey session and records:</p>
+        <ul>
+          <li>Your GPS location</li>
+          <li>Current weather, tide, wave, and moon conditions</li>
+          <li>Session start time and elapsed timer</li>
+        </ul>
+        <p>You must be checked in to create observations. When you're done for the night, tap <strong>Check Out</strong>.</p>
+        <div class="tip">
+          <p><strong>Auto-checkout:</strong> If you forget, the app will remind you after 6 hours and automatically check you out after 8 hours (configurable by your admin).</p>
+        </div>
+      </div>
+
+      <!-- Step 5 -->
+      <div class="step">
+        <div class="step-header">
+          <div class="step-number">5</div>
+          <h2>Record Your First Observation</h2>
+        </div>
+        <p>Tap the <strong>New Observation</strong> tab. Here's the flow:</p>
+        <ul>
+          <li><strong>Identify the turtle:</strong> Search by tag number or name. If it's a new turtle, a record is created automatically.</li>
+          <li><strong>Tags:</strong> Confirm existing tags are still present, or record new/missing tags. The app checks for duplicates across your organization.</li>
+          <li><strong>Behavior:</strong> What was the turtle doing? (nesting, crawling, in-water, etc.)</li>
+          <li><strong>Measurements:</strong> CCL and CCW if required by your project</li>
+          <li><strong>Nesting:</strong> Did she nest? Nest marked? Record the timeline.</li>
+          <li><strong>Photos:</strong> Capture datasheet, turtle, tag, and injury photos as needed</li>
+          <li><strong>Submit:</strong> Review and submit. Data syncs to the cloud automatically.</li>
+        </ul>
+        <div class="tip">
+          <p><strong>Auto-save:</strong> Your observation auto-saves as a draft every 30 seconds. If you get interrupted, find it in the <strong>Drafts</strong> tab later.</p>
+        </div>
+      </div>
+
+      <!-- Step 6 -->
+      <div class="step">
+        <div class="step-header">
+          <div class="step-number">6</div>
+          <h2>Invite Your Team</h2>
+        </div>
+        <p>From the <strong>Operations</strong> tab, admins can generate invite codes for team members. Share the code and have them enter it during signup.</p>
+        <table class="role-table">
+          <thead>
+            <tr>
+              <th>Role</th>
+              <th>Observe</th>
+              <th>Team Stats</th>
+              <th>Manage Team</th>
+              <th>Configure</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Volunteer</td>
+              <td>Yes</td>
+              <td>Yes</td>
+              <td>-</td>
+              <td>-</td>
+            </tr>
+            <tr>
+              <td>Coordinator</td>
+              <td>Yes</td>
+              <td>Yes</td>
+              <td>-</td>
+              <td>-</td>
+            </tr>
+            <tr>
+              <td>Admin</td>
+              <td>Yes</td>
+              <td>Yes</td>
+              <td>Yes</td>
+              <td>Yes</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <hr class="divider">
+
+      <div class="step">
+        <div class="step-header">
+          <h2>Good to Know</h2>
+        </div>
+        <ul>
+          <li><strong>Works offline:</strong> All data saves to your device first and syncs when you have a connection. No Wi-Fi on the beach? No problem.</li>
+          <li><strong>Dark theme:</strong> The red-on-black interface is designed to preserve your night vision during surveys.</li>
+          <li><strong>Relayed sightings:</strong> Admins can record observations reported by other surveyors without needing to check in themselves.</li>
+          <li><strong>Turtle alerts:</strong> Admins can create alerts for specific turtles (injured, research interest, do not disturb) that appear when any team member selects that turtle.</li>
+          <li><strong>CSV import:</strong> Have historical data? Admins can import turtles and observations from spreadsheets.</li>
+        </ul>
+      </div>
+
+      <div class="step">
+        <div class="step-header">
+          <h2>Need Help?</h2>
+        </div>
+        <p>Contact us at <a href="mailto:hello@turtleops.org">hello@turtleops.org</a> and we'll get you set up.</p>
+      </div>
+
+    </div>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p><a href="/">Back to TurtleOps</a> &nbsp;&middot;&nbsp; <a href="/privacy.html">Privacy Policy</a></p>
+    </div>
+  </footer>
+</body>
+</html>
