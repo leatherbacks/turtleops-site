@@ -333,7 +333,7 @@
             <tr>
               <td><code>NAME</code></td>
               <td><span class="required">Required</span></td>
-              <td>Turtle name or identifier. Automatically uppercased.</td>
+              <td>Turtle name or identifier. This is the primary label shown in the app - it can be a name, a tag number, or any ID your project uses. Automatically uppercased.</td>
             </tr>
             <tr>
               <td><code>SPECIES</code></td>
@@ -382,17 +382,30 @@
             </tr>
           </tbody>
         </table>
+
+        <div class="tip">
+          <p><strong>Don't use names?</strong> Many projects identify turtles by tag number only. That's fine - just use the primary tag number or any project ID as the NAME value (e.g., <code>WW1234</code> or <code>STX-0042</code>). The NAME field is simply the label your team will see in the app.</p>
+        </div>
       </div>
 
       <!-- Example -->
       <div class="section">
         <h2>Example CSV</h2>
+        <p>Here's an example using turtle names:</p>
         <div class="csv-example">
 <pre><span class="header-row">NAME,SPECIES,LRF,RRF,RFF,LFF,PIT_TAG,ADD_TAG_1</span>
 GRACIE,Leatherback,WW1234,WW5678,,,982000123456789,
 LUNA,Leatherback,WW2345,,WW6789,,982000987654321,OLD567
 SHELLY,Green,GR001,GR002,,,,,
 CORAL,Hawksbill,,HB100,HB101,,,,HB099</pre>
+        </div>
+        <p>And the same data for a project that uses tag numbers as identifiers:</p>
+        <div class="csv-example">
+<pre><span class="header-row">NAME,SPECIES,LRF,RRF,RFF,LFF,PIT_TAG</span>
+WW1234,Leatherback,WW1234,WW5678,,,982000123456789
+WW2345,Leatherback,WW2345,,WW6789,,982000987654321
+GR001,Green,GR001,GR002,,,
+HB100,Hawksbill,,HB100,HB101,,</pre>
         </div>
         <p>Empty cells are fine - just leave them blank. The app handles them gracefully.</p>
       </div>
