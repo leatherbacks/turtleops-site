@@ -20,7 +20,8 @@
       --text: #e5e5e5;
       --text-secondary: #a0a0a0;
       --text-muted: #666666;
-      --border: #333333;
+      --border: rgba(255, 255, 255, 0.08);
+      --border-solid: #2a2a2a;
     }
 
     * {
@@ -193,7 +194,7 @@
     .feature-card {
       background-color: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 12px;
+      border-radius: 14px;
       padding: 28px;
       transition: border-color 0.2s;
     }
@@ -215,11 +216,130 @@
       line-height: 1.5;
     }
 
+    /* Pricing */
+    .pricing {
+      padding: 80px 0;
+      border-top: 1px solid var(--border);
+      background-color: var(--surface);
+    }
+
+    .pricing h2 {
+      text-align: center;
+      font-size: 36px;
+      margin-bottom: 16px;
+    }
+
+    .pricing-subtitle {
+      text-align: center;
+      color: var(--text-secondary);
+      margin-bottom: 60px;
+      font-size: 18px;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .pricing-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap: 32px;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    .pricing-card {
+      background-color: var(--surface-elevated);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 36px;
+      position: relative;
+    }
+
+    .pricing-card.featured {
+      border-color: var(--primary);
+      box-shadow: 0 0 40px rgba(255, 87, 87, 0.1);
+    }
+
+    .pricing-badge {
+      position: absolute;
+      top: -12px;
+      left: 50%;
+      transform: translateX(-50%);
+      background-color: var(--primary);
+      color: white;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 4px 16px;
+      border-radius: 20px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .pricing-card h3 {
+      font-size: 22px;
+      margin-bottom: 8px;
+    }
+
+    .pricing-price {
+      font-size: 36px;
+      font-weight: 700;
+      color: var(--primary);
+      margin-bottom: 4px;
+    }
+
+    .pricing-price span {
+      font-size: 16px;
+      font-weight: 400;
+      color: var(--text-secondary);
+    }
+
+    .pricing-desc {
+      color: var(--text-secondary);
+      font-size: 14px;
+      margin-bottom: 24px;
+    }
+
+    .pricing-features {
+      list-style: none;
+      margin-bottom: 28px;
+    }
+
+    .pricing-features li {
+      padding: 8px 0;
+      font-size: 14px;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+    }
+
+    .pricing-features li::before {
+      content: "✓";
+      color: var(--success);
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .pricing-card .btn {
+      display: block;
+      text-align: center;
+      width: 100%;
+    }
+
+    .btn-outline {
+      border: 1px solid var(--border-solid);
+      color: var(--text);
+      background: none;
+    }
+    .btn-outline:hover {
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+
     /* Customization Section */
     .customization {
       padding: 80px 0;
       border-top: 1px solid var(--border);
-      background-color: var(--surface);
     }
 
     .customization h2 {
@@ -268,6 +388,7 @@
     .screenshots {
       padding: 80px 0;
       border-top: 1px solid var(--border);
+      background-color: var(--surface);
     }
 
     .screenshots h2 {
@@ -315,58 +436,6 @@
       color: var(--text-secondary);
       max-width: 280px;
       margin: 0 auto;
-    }
-
-    /* Footer */
-    footer {
-      padding: 40px 0;
-      border-top: 1px solid var(--border);
-      text-align: center;
-    }
-
-    footer p {
-      color: var(--text-muted);
-      font-size: 14px;
-    }
-
-    /* Store Badges */
-    .store-badges {
-      display: flex;
-      gap: 24px;
-      justify-content: center;
-      align-items: center;
-      margin-top: 40px;
-      flex-wrap: wrap;
-    }
-
-    .badge-container {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .badge-link {
-      display: inline-block;
-      transition: transform 0.2s ease, opacity 0.2s ease;
-    }
-
-    .badge-link:hover {
-      transform: translateY(-2px);
-      opacity: 0.9;
-    }
-
-    .store-badge {
-      height: 54px;
-      width: auto;
-    }
-
-    .coming-soon-label {
-      font-size: 12px;
-      color: var(--text-secondary);
-      font-weight: 500;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
     }
 
     /* Workflow Section */
@@ -457,11 +526,71 @@
       user-select: none;
     }
 
+    /* Store Badges */
+    .store-badges {
+      display: flex;
+      gap: 24px;
+      justify-content: center;
+      align-items: center;
+      margin-top: 40px;
+      flex-wrap: wrap;
+    }
+
+    .badge-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .badge-link {
+      display: inline-block;
+      transition: transform 0.2s ease, opacity 0.2s ease;
+    }
+
+    .badge-link:hover {
+      transform: translateY(-2px);
+      opacity: 0.9;
+    }
+
+    .store-badge {
+      height: 54px;
+      width: auto;
+    }
+
+    .coming-soon-label {
+      font-size: 12px;
+      color: var(--text-secondary);
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    /* Footer */
+    footer {
+      padding: 40px 0;
+      border-top: 1px solid var(--border);
+      text-align: center;
+    }
+
+    footer p {
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    footer a {
+      color: var(--text-muted);
+      text-decoration: none;
+    }
+    footer a:hover {
+      color: var(--primary);
+    }
+
     /* Responsive */
     @media (max-width: 768px) {
       .hero h1 { font-size: 32px; }
       .hero p { font-size: 16px; }
-      .features h2, .customization h2, .screenshots h2 { font-size: 28px; }
+      .features h2, .customization h2, .screenshots h2, .pricing h2 { font-size: 28px; }
       .header-content {
         flex-direction: column;
         gap: 16px;
@@ -500,6 +629,10 @@
         height: 42px;
         font-size: 18px;
       }
+      .pricing-grid {
+        grid-template-columns: 1fr;
+        max-width: 400px;
+      }
     }
   </style>
 </head>
@@ -513,6 +646,7 @@
         </a>
         <nav>
           <a href="#features">Features</a>
+          <a href="#pricing">Pricing</a>
           <a href="#customization">For Teams</a>
         </nav>
       </div>
@@ -551,35 +685,35 @@
           <div class="workflow-step">
             <div class="workflow-emoji">🌊</div>
             <div class="workflow-number">1</div>
-            <h3>Check conditions + alerts</h3>
-            <p>Is it safe to survey</p>
+            <h3>Check conditions</h3>
+            <p>Weather, tide, moon phase, and team alerts</p>
           </div>
 
-          <div class="workflow-arrow">→</div>
+          <div class="workflow-arrow">&rarr;</div>
 
           <div class="workflow-step">
-            <div class="workflow-emoji">✓</div>
+            <div class="workflow-emoji">&#x2713;</div>
             <div class="workflow-number">2</div>
             <h3>Start survey</h3>
-            <p>Auto time/GPS</p>
+            <p>One tap check-in with auto time and GPS</p>
           </div>
 
-          <div class="workflow-arrow">→</div>
+          <div class="workflow-arrow">&rarr;</div>
 
           <div class="workflow-step">
             <div class="workflow-emoji">🐢</div>
             <div class="workflow-number">3</div>
-            <h3>Log encounter</h3>
-            <p>Tags/photos/measures</p>
+            <h3>Log encounters</h3>
+            <p>Tags, photos, measurements, nesting data</p>
           </div>
 
-          <div class="workflow-arrow">→</div>
+          <div class="workflow-arrow">&rarr;</div>
 
           <div class="workflow-step">
-            <div class="workflow-emoji">📊</div>
+            <div class="workflow-emoji">&#x2601;</div>
             <div class="workflow-number">4</div>
-            <h3>Sync + export + stats</h3>
-            <p>Complete the mission</p>
+            <h3>Sync &amp; analyze</h3>
+            <p>Cloud sync, stats, and data export</p>
           </div>
         </div>
       </div>
@@ -597,7 +731,7 @@
           <div class="value-item">
             <div class="value-icon">&#x1F4F4;</div>
             <h3>Works Offline</h3>
-            <p>No cell service on the beach? No problem. Data syncs automatically when you're back online.</p>
+            <p>No cell service on the beach? No problem. Data saves locally and syncs automatically when you're back online.</p>
           </div>
           <div class="value-item">
             <div class="value-icon">&#x1F319;</div>
@@ -612,26 +746,26 @@
     <section class="features" id="features">
       <div class="container">
         <h2>Built for the Field</h2>
-        <p class="features-subtitle">Everything your team needs, from check-in to data export</p>
+        <p class="features-subtitle">Everything your team needs, from check-in to data export - free for all users</p>
 
         <!-- Before You Go Out -->
         <div class="feature-group">
           <h3>Before You Go Out</h3>
           <div class="features-grid">
             <div class="feature-card">
-              <div class="feature-icon">&#x1F30A;</div>
+              <div class="feature-icon">🌊</div>
               <h4>Beach Conditions</h4>
-              <p>Weather, tide, and moon phase data fetched automatically. Know what to expect before you hit the sand.</p>
+              <p>Real-time weather, tide status, wave height, and moon phase fetched automatically. Includes an overall Activity-to-Visit score so you know what to expect.</p>
             </div>
             <div class="feature-card">
               <div class="feature-icon">&#x1F514;</div>
-              <h4>Team Alerts</h4>
-              <p>Important notices, turtle-specific alerts, and survey updates shared with your whole team.</p>
+              <h4>Team Notes &amp; Alerts</h4>
+              <p>Share important notices with your team - equipment updates, turtle-specific alerts, or survey conditions. Everyone sees them on the dashboard.</p>
             </div>
             <div class="feature-card">
               <div class="feature-icon">&#x2705;</div>
               <h4>Survey Check-In</h4>
-              <p>One tap to start your survey. Captures time, location, and conditions automatically.</p>
+              <p>One tap to start your survey. Captures time, location, and conditions. Tracks your session duration and links all observations to the survey.</p>
             </div>
           </div>
         </div>
@@ -642,23 +776,23 @@
           <div class="features-grid">
             <div class="feature-card">
               <div class="feature-icon">&#x1F3F7;</div>
-              <h4>Tag Lookup</h4>
-              <p>Identify turtles by flipper tags or PIT tags. Search current tags, historical tags, and replacements.</p>
+              <h4>Tag Lookup &amp; Verification</h4>
+              <p>Search by flipper tags, PIT tags, or name. Matches current tags, historical tags, and additional tags. Flags new turtles automatically.</p>
             </div>
             <div class="feature-card">
               <div class="feature-icon">&#x1F4CD;</div>
               <h4>GPS Location</h4>
-              <p>Automatic coordinates for every observation. Track nesting locations across seasons.</p>
+              <p>Automatic coordinates for encounter start and nest site. Track nesting locations and beach sectors across seasons.</p>
             </div>
             <div class="feature-card">
               <div class="feature-icon">&#x1F4F7;</div>
               <h4>Photo Documentation</h4>
-              <p>Capture and categorize photos - carapace, injuries, nest markers. Stored locally until sync.</p>
+              <p>Capture and categorize photos - carapace profile, injuries, nest markers, tag close-ups. Stored locally until sync.</p>
             </div>
             <div class="feature-card">
               <div class="feature-icon">&#x1F4DD;</div>
-              <h4>Quick Data Entry</h4>
-              <p>Streamlined forms for nesting status, measurements, samples, and more. Auto-saves as you go.</p>
+              <h4>Comprehensive Data Entry</h4>
+              <p>Nesting status, egg count, carapace measurements, body condition, injuries, sample collection, and detailed activity timing. Auto-saves every 30 seconds.</p>
             </div>
           </div>
         </div>
@@ -669,41 +803,100 @@
           <div class="features-grid">
             <div class="feature-card">
               <div class="feature-icon">&#x1F4C5;</div>
-              <h4>Encounter Timeline</h4>
-              <p>Complete history for every turtle - when and where they were seen, across all seasons.</p>
+              <h4>Encounter History</h4>
+              <p>Complete timeline for every turtle - when and where they were seen, who observed them, nesting records across all seasons.</p>
             </div>
             <div class="feature-card">
               <div class="feature-icon">&#x1FA79;</div>
               <h4>Injury Tracking</h4>
-              <p>Document injuries and monitor healing over time. Visual body map for marking affected areas.</p>
+              <p>Document injuries with location mapping - boat strikes, entanglement, shark bites. Track whether injuries are fresh or healing.</p>
             </div>
             <div class="feature-card">
               <div class="feature-icon">&#x1F504;</div>
               <h4>Tag History</h4>
-              <p>Track original tags, replacements, and additional PIT tags. Never lose a turtle's identity.</p>
+              <p>Track original tags, replacements, and additional PIT tags with full change history. Never lose a turtle's identity.</p>
             </div>
             <div class="feature-card">
               <div class="feature-icon">&#x1F4C8;</div>
-              <h4>Growth & Nesting</h4>
-              <p>Carapace measurements over time, nesting records, and reproductive patterns all in one place.</p>
+              <h4>Growth &amp; Nesting Data</h4>
+              <p>Curved carapace measurements over time, nesting records, egg counts, and nest depth - all linked to the individual turtle.</p>
             </div>
           </div>
         </div>
 
-        <!-- Back at Base -->
+        <!-- Team Operations -->
         <div class="feature-group">
-          <h3>Back at Base</h3>
+          <h3>Team Operations</h3>
           <div class="features-grid">
             <div class="feature-card">
               <div class="feature-icon">&#x2601;</div>
               <h4>Cloud Sync</h4>
-              <p>Data syncs to the cloud when connected. Access from any device, share with researchers.</p>
+              <p>Data syncs to the cloud when connected. Multi-device access with organization-level data isolation.</p>
             </div>
             <div class="feature-card">
               <div class="feature-icon">&#x1F4CA;</div>
-              <h4>Season Statistics</h4>
-              <p>Track nesting counts, recaptures, new turtles, and team activity throughout the season.</p>
+              <h4>Personal &amp; Team Stats</h4>
+              <p>Track your own survey contributions alongside team-wide metrics - total turtles, observations, volunteer hours, nesting rates, and recapture stats.</p>
             </div>
+            <div class="feature-card">
+              <div class="feature-icon">&#x1F465;</div>
+              <h4>Team Management</h4>
+              <p>Invite members with codes, manage roles (admin, coordinator, volunteer), and track who's actively surveying.</p>
+            </div>
+            <div class="feature-card">
+              <div class="feature-icon">&#x1F4E5;</div>
+              <h4>Import &amp; Export</h4>
+              <p>Import historical turtle data from CSV. Export observations for reports and analysis. Keep your existing data flowing.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Pricing -->
+    <section class="pricing" id="pricing">
+      <div class="container">
+        <h2>Simple Pricing</h2>
+        <p class="pricing-subtitle">Core fieldwork tools are free for every team. Upgrade for advanced analytics and desktop management.</p>
+
+        <div class="pricing-grid">
+          <div class="pricing-card">
+            <h3>Free</h3>
+            <div class="pricing-price">$0</div>
+            <p class="pricing-desc">For teams getting started</p>
+            <ul class="pricing-features">
+              <li>Unlimited observations &amp; turtles</li>
+              <li>Survey check-in/check-out</li>
+              <li>Beach conditions &amp; tide data</li>
+              <li>Tag lookup &amp; verification</li>
+              <li>Photo documentation</li>
+              <li>Offline mode with cloud sync</li>
+              <li>Team notes &amp; alerts</li>
+              <li>Personal &amp; team statistics</li>
+              <li>CSV import &amp; export</li>
+              <li>Unlimited team members</li>
+            </ul>
+            <a href="#features" class="btn btn-outline">Get Started</a>
+          </div>
+
+          <div class="pricing-card featured">
+            <div class="pricing-badge">Premium</div>
+            <h3>Pro</h3>
+            <div class="pricing-price">$42 <span>/month</span></div>
+            <p class="pricing-desc">Per organization, billed annually</p>
+            <ul class="pricing-features">
+              <li>Everything in Free, plus:</li>
+              <li>Web dashboard for desktop management</li>
+              <li>Interactive observation map</li>
+              <li>AI-generated social media posts</li>
+              <li>Duplicate turtle merge tool</li>
+              <li>Fuzzy tag search</li>
+              <li>Observation edit history</li>
+              <li>Research flag workflows</li>
+              <li>Unnamed turtle name approval</li>
+              <li>Advanced analytics &amp; reporting</li>
+            </ul>
+            <a href="mailto:hello@turtleops.org?subject=TurtleOps Premium" class="btn btn-primary">Contact Us</a>
           </div>
         </div>
       </div>
@@ -716,24 +909,24 @@
         <p class="customization-subtitle">Whether you're tracking leatherbacks in Trinidad or greens in Hawaii, TurtleOps adapts to your program.</p>
         <div class="customization-grid">
           <div class="customization-item">
-            <div class="customization-icon">&#x1F422;</div>
+            <div class="customization-icon">🐢</div>
             <h4>Any Species</h4>
             <p>Leatherbacks, greens, loggerheads, hawksbills, olive ridleys - configure the species you monitor.</p>
           </div>
           <div class="customization-item">
             <div class="customization-icon">&#x1F3D6;</div>
             <h4>Any Beach</h4>
-            <p>Set up your beach zones, landmarks, and survey routes. Works anywhere in the world.</p>
+            <p>Set up your beach zones, landmarks, and survey sectors. Works anywhere in the world with automatic tide and weather.</p>
           </div>
           <div class="customization-item">
             <div class="customization-icon">&#x1F527;</div>
-            <h4>Flexible Data Fields</h4>
-            <p>Configure required photos, measurements, and data points for your research protocols.</p>
+            <h4>Your Protocols</h4>
+            <p>Configure required photos, measurements, and data fields. Match your research protocols exactly.</p>
           </div>
           <div class="customization-item">
             <div class="customization-icon">&#x1F465;</div>
             <h4>Team Roles</h4>
-            <p>Admins manage settings and review data. Surveyors focus on fieldwork. Everyone stays in sync.</p>
+            <p>Admins manage settings and review data. Coordinators handle operations. Volunteers focus on fieldwork.</p>
           </div>
         </div>
       </div>
@@ -763,17 +956,17 @@
           <div class="screenshot-item">
             <img src="assets/injuru_tracking.png" alt="Injury tracking">
             <h4>Injury Tracking</h4>
-            <p>Document injuries on a visual body map and monitor healing across seasons.</p>
+            <p>Document injuries with location details and track healing across seasons.</p>
           </div>
           <div class="screenshot-item">
             <img src="assets/note_issue_tracking.png" alt="Notes and issue tracking">
-            <h4>Notes &amp; Issues</h4>
-            <p>Log beach conditions, equipment problems, or anything the team needs to know.</p>
+            <h4>Team Notes</h4>
+            <p>Share survey conditions, equipment updates, and important notices with your team.</p>
           </div>
           <div class="screenshot-item">
             <img src="assets/admin_operations.png" alt="Admin operations">
-            <h4>Admin Operations</h4>
-            <p>Manage turtle records, review data quality, and configure team settings.</p>
+            <h4>Operations</h4>
+            <p>Team stats, turtle alerts, data import/export, and project configuration.</p>
           </div>
         </div>
       </div>
@@ -782,7 +975,7 @@
 
   <footer>
     <div class="container">
-      <p>Built by conservationists, for conservationists.</p>
+      <p>Built by conservationists, for conservationists. &nbsp;&middot;&nbsp; <a href="mailto:hello@turtleops.org">hello@turtleops.org</a></p>
     </div>
   </footer>
 </body>
