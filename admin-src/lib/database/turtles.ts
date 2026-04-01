@@ -47,11 +47,12 @@ function applyTurtleFilters(query: any, filters?: TurtleFilters) {
 /**
  * Get turtles with count in a single query (eliminates duplicate DB call)
  */
-export async function getTurtlesWithCount(filters?: TurtleFilters): Promise<{ data: Turtle[]; count: number }> {
+export async function getTurtlesWithCount(orgId: string, filters?: TurtleFilters): Promise<{ data: Turtle[]; count: number }> {
   try {
     let query = supabase
       .from('turtles')
       .select('*', { count: 'exact' })
+      .eq('org_id', orgId)
       .order('last_encountered_at', { ascending: false, nullsFirst: false })
       .order('name', { ascending: true });
 
@@ -81,19 +82,20 @@ export async function getTurtlesWithCount(filters?: TurtleFilters): Promise<{ da
 /**
  * Get all turtles with optional filters
  */
-export async function getTurtles(filters?: TurtleFilters): Promise<Turtle[]> {
-  const result = await getTurtlesWithCount(filters);
+export async function getTurtles(orgId: string, filters?: TurtleFilters): Promise<Turtle[]> {
+  const result = await getTurtlesWithCount(orgId, filters);
   return result.data;
 }
 
 /**
  * Get count of turtles matching filters
  */
-export async function getTurtlesCount(filters?: TurtleFilters): Promise<number> {
+export async function getTurtlesCount(orgId: string, filters?: TurtleFilters): Promise<number> {
   try {
     let query = supabase
       .from('turtles')
-      .select('id', { count: 'exact', head: true });
+      .select('id', { count: 'exact', head: true })
+      .eq('org_id', orgId);
 
     query = applyTurtleFilters(query, filters);
 
@@ -114,11 +116,12 @@ export async function getTurtlesCount(filters?: TurtleFilters): Promise<number> 
 /**
  * Get single turtle by ID
  */
-export async function getTurtleById(id: string): Promise<Turtle | null> {
+export async function getTurtleById(orgId: string, id: string): Promise<Turtle | null> {
   try {
     const { data, error } = await supabase
       .from('turtles')
       .select('*')
+      .eq('org_id', orgId)
       .eq('id', id)
       .single();
 
@@ -137,11 +140,12 @@ export async function getTurtleById(id: string): Promise<Turtle | null> {
 /**
  * Get turtles with temporary UNNAMED- names
  */
-export async function getUnnamedTurtles(): Promise<Turtle[]> {
+export async function getUnnamedTurtles(orgId: string): Promise<Turtle[]> {
   try {
     const { data, error } = await supabase
       .from('turtles')
       .select('*')
+      .eq('org_id', orgId)
       .ilike('name', 'UNNAMED-%')
       .order('first_encountered_at', { ascending: false });
 
@@ -160,11 +164,12 @@ export async function getUnnamedTurtles(): Promise<Turtle[]> {
 /**
  * Get turtles flagged for research
  */
-export async function getTurtlesNeedingResearch(): Promise<Turtle[]> {
+export async function getTurtlesNeedingResearch(orgId: string): Promise<Turtle[]> {
   try {
     const { data, error } = await supabase
       .from('turtles')
       .select('*')
+      .eq('org_id', orgId)
       .eq('needs_research', true)
       .order('research_flagged_at', { ascending: false });
 
@@ -183,7 +188,7 @@ export async function getTurtlesNeedingResearch(): Promise<Turtle[]> {
 /**
  * Search turtles by tag number (current or historical)
  */
-export async function searchTurtlesByTag(tagNumber: string): Promise<Turtle[]> {
+export async function searchTurtlesByTag(orgId: string, tagNumber: string): Promise<Turtle[]> {
   try {
     if (!tagNumber || tagNumber.trim().length === 0) {
       return [];
@@ -196,6 +201,7 @@ export async function searchTurtlesByTag(tagNumber: string): Promise<Turtle[]> {
     const { data, error } = await supabase
       .from('turtles')
       .select('*')
+      .eq('org_id', orgId)
       .or(
         `lrf.ilike.%${searchTerm}%,rrf.ilike.%${searchTerm}%,rff.ilike.%${searchTerm}%,lff.ilike.%${searchTerm}%`
       )
@@ -216,11 +222,12 @@ export async function searchTurtlesByTag(tagNumber: string): Promise<Turtle[]> {
 /**
  * Get tag history for a turtle
  */
-export async function getTagHistoryForTurtle(turtleId: string) {
+export async function getTagHistoryForTurtle(orgId: string, turtleId: string) {
   try {
     const { data, error } = await supabase
       .from('tag_history')
       .select('*')
+      .eq('org_id', orgId)
       .eq('turtle_id', turtleId)
       .order('created_at', { ascending: false });
 
@@ -239,11 +246,12 @@ export async function getTagHistoryForTurtle(turtleId: string) {
 /**
  * Get additional tags for a turtle
  */
-export async function getAdditionalTagsForTurtle(turtleId: string) {
+export async function getAdditionalTagsForTurtle(orgId: string, turtleId: string) {
   try {
     const { data, error } = await supabase
       .from('turtle_additional_tags')
       .select('*')
+      .eq('org_id', orgId)
       .eq('turtle_id', turtleId)
       .order('created_at', { ascending: false });
 
@@ -270,6 +278,7 @@ function toSnakeCase(str: string): string {
  * Update a turtle by ID
  */
 export async function updateTurtle(
+  orgId: string,
   id: string,
   updates: Record<string, any>
 ): Promise<Turtle | null> {
@@ -285,6 +294,7 @@ export async function updateTurtle(
     const { data, error } = await supabase
       .from('turtles')
       .update(dbUpdates)
+      .eq('org_id', orgId)
       .eq('id', id)
       .select()
       .single();
@@ -304,11 +314,12 @@ export async function updateTurtle(
 /**
  * Find a turtle by exact name match
  */
-export async function findTurtleByName(name: string): Promise<Turtle | null> {
+export async function findTurtleByName(orgId: string, name: string): Promise<Turtle | null> {
   try {
     const { data, error } = await supabase
       .from('turtles')
       .select('*')
+      .eq('org_id', orgId)
       .eq('name', name.trim().toUpperCase())
       .maybeSingle();
 

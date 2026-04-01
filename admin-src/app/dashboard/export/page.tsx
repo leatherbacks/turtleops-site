@@ -25,8 +25,8 @@ export default function ExportDataPage() {
     setLoading(true);
 
     const [observations, turtles] = await Promise.all([
-      getObservations({ limit: 1 }),
-      getTurtles(),
+      getObservations(profile?.org_id || '', { limit: 1 }),
+      getTurtles(profile?.org_id || ''),
     ]);
 
     setStats({
@@ -41,7 +41,7 @@ export default function ExportDataPage() {
     setLoading(true);
     try {
       // Get all observations (no pagination)
-      const observations = await getObservations({});
+      const observations = await getObservations(profile?.org_id || '', {});
 
       if (observations.length === 0) {
         alert('No observations to export');
@@ -97,7 +97,7 @@ export default function ExportDataPage() {
   const handleExportAllTurtles = async () => {
     setLoading(true);
     try {
-      const turtles = await getTurtles();
+      const turtles = await getTurtles(profile?.org_id || '');
 
       if (turtles.length === 0) {
         alert('No turtles to export');
@@ -154,7 +154,7 @@ export default function ExportDataPage() {
   const handleExportCMTTP = async () => {
     setLoading(true);
     try {
-      const observations = await getObservations({});
+      const observations = await getObservations(profile?.org_id || '', {});
 
       if (observations.length === 0) {
         alert('No observations to export');

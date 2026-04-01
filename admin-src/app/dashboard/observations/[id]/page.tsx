@@ -29,7 +29,7 @@ export default function ObservationDetailPage() {
 
     // Load observation and photos in parallel
     const [observationData, photosData] = await Promise.all([
-      getObservationById(id),
+      getObservationById(profile?.org_id || '', id),
       getPhotosByObservation(id),
     ]);
 

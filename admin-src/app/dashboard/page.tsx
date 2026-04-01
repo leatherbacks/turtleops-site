@@ -28,7 +28,8 @@ interface ActionCounts {
 export default function DashboardPage() {
   const { profile, organization } = useAuth();
   const router = useRouter();
-  const { stats, loading, error, refresh } = useStats({ autoRefresh: false, refreshInterval: 300000 });
+  const orgId = profile?.org_id || '';
+  const { stats, loading, error, refresh } = useStats({ orgId, autoRefresh: false, refreshInterval: 300000 });
 
   const [recentActivity, setRecentActivity] = useState<RecentActivityItem[]>([]);
   const [actionCounts, setActionCounts] = useState<ActionCounts>({ unnamedTurtles: 0, researchFlags: 0, activeAlerts: 0 });
@@ -36,12 +37,13 @@ export default function DashboardPage() {
   const [extraLoading, setExtraLoading] = useState(true);
 
   useEffect(() => {
+    if (!orgId) return;
     async function fetchExtra() {
       try {
         const [activity, counts, lastYear] = await Promise.all([
-          getRecentActivity(10),
-          getActionItemCounts(),
-          getLastYearObservationCount(),
+          getRecentActivity(orgId, 10),
+          getActionItemCounts(orgId),
+          getLastYearObservationCount(orgId),
         ]);
         setRecentActivity(activity);
         setActionCounts(counts);
@@ -53,21 +55,26 @@ export default function DashboardPage() {
       }
     }
     fetchExtra();
-  }, []);
+  }, [orgId]);
 
   const handleRefresh = async () => {
-    await refresh();
-    try {
-      const [activity, counts, lastYear] = await Promise.all([
-        getRecentActivity(10),
-        getActionItemCounts(),
-        getLastYearObservationCount(),
-      ]);
+    // Run stats refresh and extras in parallel — no waterfall
+    const [, extras] = await Promise.all([
+      refresh(),
+      Promise.all([
+        getRecentActivity(orgId, 10),
+        getActionItemCounts(orgId),
+        getLastYearObservationCount(orgId),
+      ]).catch((err) => {
+        console.error('Error refreshing dashboard extras:', err);
+        return null;
+      }),
+    ]);
+    if (extras) {
+      const [activity, counts, lastYear] = extras;
       setRecentActivity(activity);
       setActionCounts(counts);
       setLastYearObs(lastYear);
-    } catch (err) {
-      console.error('Error refreshing dashboard extras:', err);
     }
   };
 

@@ -2,12 +2,15 @@
 
 import { useState } from 'react';
 import { useActiveVolunteers } from '@/hooks/useActiveVolunteers';
+import { useAuth } from '@/components/auth/AuthProvider';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 
 export default function ActiveVolunteersPage() {
+  const { profile } = useAuth();
   const { sessions, loading, error, refresh, forceCheckout } = useActiveVolunteers({
+    orgId: profile?.org_id || '',
     autoRefresh: true,
     refreshInterval: 30000,
   });

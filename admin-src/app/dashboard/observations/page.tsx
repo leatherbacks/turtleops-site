@@ -80,7 +80,7 @@ export default function ObservationsPage() {
     filters.limit = itemsPerPage;
     filters.offset = (currentPage - 1) * itemsPerPage;
 
-    const { data, count } = await getObservationsWithCount(filters);
+    const { data, count } = await getObservationsWithCount(profile?.org_id || '', filters);
 
     setObservations(data);
     setTotalCount(count);

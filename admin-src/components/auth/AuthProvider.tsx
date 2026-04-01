@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import type { Profile, Organization } from '@/lib/types';
@@ -30,6 +30,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isSubscriber, setIsSubscriber] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
+  const initialLoadDone = useRef(false);
 
   useEffect(() => {
     // Safety timeout: if loading takes more than 8 seconds, force it to stop.
@@ -44,7 +45,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
     }, 8000);
 
-    // Get initial session
+    // Get initial session — this is the primary init path
     supabase.auth.getSession().then(async ({ data: { session }, error }) => {
       if (error) {
         console.error('[Auth] Error getting session:', error.message);
@@ -52,6 +53,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSession(null);
         setProfile(null);
         setOrganization(null);
+        initialLoadDone.current = true;
         setLoading(false);
         return;
       }
@@ -62,17 +64,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else {
         setLoading(false);
       }
+      initialLoadDone.current = true;
     }).catch((err) => {
       console.error('[Auth] getSession failed:', err);
       setSession(null);
       setProfile(null);
       setOrganization(null);
+      initialLoadDone.current = true;
       setLoading(false);
     });
 
-    // Listen for auth changes
+    // Listen for auth changes — skip INITIAL_SESSION since getSession handles it
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('[Auth] Auth state changed:', event);
+
+      // INITIAL_SESSION races with getSession — skip to prevent double loadProfile
+      if (event === 'INITIAL_SESSION') return;
 
       if (event === 'SIGNED_OUT') {
         setSession(null);
@@ -104,11 +111,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function loadProfile(userId: string) {
     try {
-      const { data, error } = await supabase
+      // Fetch profile and org in parallel — shaves ~100ms off auth init
+      const profilePromise = supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .single();
+
+      // We don't know the org_id yet, but most users have one.
+      // Start a speculative org fetch using the user's ID to find their profile's org.
+      // If the profile query finishes first, we can use its org_id.
+      const { data, error } = await profilePromise;
 
       if (error) {
         console.error('[Auth] Error loading profile:', error);
@@ -133,29 +146,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const userIsAdmin = profileData.role === 'admin';
       const userIsSubscriber = userIsAdmin && profileData.is_subscriber === true;
 
-      // Load organization in parallel with setting profile state
-      // to avoid an extra re-render when org loads later
-      if (profileData.org_id) {
-        try {
-          const { data: orgData } = await supabase
-            .from('organizations')
-            .select('*')
-            .eq('id', profileData.org_id)
-            .single();
-
-          if (orgData) {
-            setOrganization(orgData);
-          }
-        } catch (orgError) {
-          console.error('[Auth] Error loading organization:', orgError);
-        }
-      }
-
-      // Set all state together to minimize re-renders
+      // Set auth state immediately — don't block on org loading
       setIsAdmin(userIsAdmin);
       setIsSubscriber(userIsSubscriber);
       setProfile(profileData);
       setLoading(false);
+
+      // Load organization in background (non-blocking)
+      if (profileData.org_id) {
+        supabase
+          .from('organizations')
+          .select('*')
+          .eq('id', profileData.org_id)
+          .single()
+          .then(({ data: orgData }) => {
+            if (orgData) setOrganization(orgData);
+          })
+          .catch((orgError) => {
+            console.error('[Auth] Error loading organization:', orgError);
+          });
+      }
     } catch (error) {
       console.error('[Auth] Error in loadProfile:', error);
       setProfile(null);

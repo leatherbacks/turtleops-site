@@ -76,11 +76,12 @@ export default function TurtleDetailPage() {
       console.log('Loading turtle data for ID:', id);
 
       // Load all data in parallel
+      const orgId = profile?.org_id || '';
       const [turtleData, tagHistoryData, additionalTagsData, observationsData] = await Promise.all([
-        getTurtleById(id),
-        getTagHistoryForTurtle(id),
-        getAdditionalTagsForTurtle(id),
-        getObservationsByTurtle(id),
+        getTurtleById(orgId, id),
+        getTagHistoryForTurtle(orgId, id),
+        getAdditionalTagsForTurtle(orgId, id),
+        getObservationsByTurtle(orgId, id),
       ]);
 
       console.log('Turtle data loaded:', {

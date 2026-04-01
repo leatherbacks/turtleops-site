@@ -24,11 +24,12 @@ function mapSupabaseAlert(data: any): TurtleAlert {
 /**
  * Get all turtle alerts
  */
-export async function getAllAlerts(): Promise<TurtleAlert[]> {
+export async function getAllAlerts(orgId: string): Promise<TurtleAlert[]> {
   try {
     const { data, error } = await supabase
       .from('turtle_alerts')
       .select('*, turtles(name)')
+      .eq('org_id', orgId)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -46,11 +47,12 @@ export async function getAllAlerts(): Promise<TurtleAlert[]> {
 /**
  * Get alerts for a specific turtle
  */
-export async function getAlertsForTurtle(turtleId: string): Promise<TurtleAlert[]> {
+export async function getAlertsForTurtle(orgId: string, turtleId: string): Promise<TurtleAlert[]> {
   try {
     const { data, error } = await supabase
       .from('turtle_alerts')
       .select('*, turtles(name)')
+      .eq('org_id', orgId)
       .eq('turtle_id', turtleId)
       .eq('is_active', true)
       .order('priority', { ascending: false });
@@ -112,6 +114,7 @@ export async function createTurtleAlert(alert: {
  * Update a turtle alert
  */
 export async function updateTurtleAlert(
+  orgId: string,
   id: string,
   updates: {
     type?: 'named_by' | 'health_note' | 'custom';
@@ -133,6 +136,7 @@ export async function updateTurtleAlert(
     const { data, error } = await supabase
       .from('turtle_alerts')
       .update(sbUpdates)
+      .eq('org_id', orgId)
       .eq('id', id)
       .select('*, turtles(name)')
       .single();
@@ -152,9 +156,9 @@ export async function updateTurtleAlert(
 /**
  * Delete a turtle alert
  */
-export async function deleteTurtleAlert(id: string): Promise<boolean> {
+export async function deleteTurtleAlert(orgId: string, id: string): Promise<boolean> {
   try {
-    const { error } = await supabase.from('turtle_alerts').delete().eq('id', id);
+    const { error } = await supabase.from('turtle_alerts').delete().eq('org_id', orgId).eq('id', id);
 
     if (error) {
       console.error('Error deleting alert:', error);

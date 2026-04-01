@@ -148,7 +148,7 @@ export default function NewHistoricalObservationPage() {
     }
 
     setIsSearching(true);
-    const results = await getTurtles({ searchQuery: turtleSearch.trim() });
+    const results = await getTurtles(profile?.org_id || '', { searchQuery: turtleSearch.trim() });
     setSearchResults(results);
     setIsSearching(false);
   };

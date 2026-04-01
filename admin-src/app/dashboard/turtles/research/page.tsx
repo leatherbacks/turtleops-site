@@ -23,7 +23,7 @@ export default function ResearchFlagsPage() {
 
   const loadTurtles = async () => {
     setLoading(true);
-    const data = await getTurtlesNeedingResearch();
+    const data = await getTurtlesNeedingResearch(profile?.org_id || '');
     setTurtles(data);
     setLoading(false);
   };
@@ -39,7 +39,7 @@ export default function ResearchFlagsPage() {
 
     setProcessing(turtle.id);
 
-    const updated = await updateTurtle(turtle.id, {
+    const updated = await updateTurtle(profile?.org_id || '', turtle.id, {
       researchNotes: notes,
     });
 
@@ -69,7 +69,7 @@ export default function ResearchFlagsPage() {
 
     setProcessing(turtle.id);
 
-    const updated = await updateTurtle(turtle.id, {
+    const updated = await updateTurtle(profile?.org_id || '', turtle.id, {
       name: newName,
     });
 
@@ -97,7 +97,7 @@ export default function ResearchFlagsPage() {
 
     setProcessing(turtle.id);
 
-    const updated = await updateTurtle(turtle.id, {
+    const updated = await updateTurtle(profile?.org_id || '', turtle.id, {
       needsResearch: false,
       researchResolvedAt: new Date(),
       researchResolvedBy: profile.id,
@@ -122,7 +122,7 @@ export default function ResearchFlagsPage() {
 
     setProcessing(turtle.id);
 
-    const updated = await updateTurtle(turtle.id, {
+    const updated = await updateTurtle(profile?.org_id || '', turtle.id, {
       needsResearch: true,
       researchResolvedAt: null,
       researchResolvedBy: null,

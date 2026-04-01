@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getTurtlesWithCount, exportTurtlesToCSV, type TurtleFilters } from '@/lib/database/turtles';
+import { useAuth } from '@/components/auth/AuthProvider';
 import type { Turtle } from '@/lib/types';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
@@ -20,6 +21,8 @@ function useDebounce<T>(value: T, delay: number): T {
 
 export default function TurtlesPage() {
   const router = useRouter();
+  const { profile } = useAuth();
+  const orgId = profile?.org_id || '';
   const [turtles, setTurtles] = useState<Turtle[]>([]);
   const [loading, setLoading] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
@@ -72,7 +75,7 @@ export default function TurtlesPage() {
     filters.limit = itemsPerPage;
     filters.offset = (currentPage - 1) * itemsPerPage;
 
-    const { data, count } = await getTurtlesWithCount(filters);
+    const { data, count } = await getTurtlesWithCount(orgId, filters);
 
     setTurtles(data);
     setTotalCount(count);

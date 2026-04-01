@@ -67,14 +67,15 @@ function applyObservationFilters(query: any, filters?: ObservationFilters) {
 /**
  * Get observations with count in a single query (eliminates duplicate DB call)
  */
-export async function getObservationsWithCount(filters?: ObservationFilters): Promise<{ data: ObservationWithTurtle[]; count: number }> {
+export async function getObservationsWithCount(orgId: string, filters?: ObservationFilters): Promise<{ data: ObservationWithTurtle[]; count: number }> {
   try {
     let query = supabase
       .from('observations')
       .select(`
         *,
-        turtles!inner(species)
+        turtles(species)
       `, { count: 'exact' })
+      .eq('org_id', orgId)
       .order('encounter_date', { ascending: false });
 
     query = applyObservationFilters(query, filters);
@@ -106,22 +107,23 @@ export async function getObservationsWithCount(filters?: ObservationFilters): Pr
 /**
  * Get all observations with optional filters
  */
-export async function getObservations(filters?: ObservationFilters): Promise<ObservationWithTurtle[]> {
-  const result = await getObservationsWithCount(filters);
+export async function getObservations(orgId: string, filters?: ObservationFilters): Promise<ObservationWithTurtle[]> {
+  const result = await getObservationsWithCount(orgId, filters);
   return result.data;
 }
 
 /**
  * Get a single observation by ID
  */
-export async function getObservationById(id: string): Promise<ObservationWithTurtle | null> {
+export async function getObservationById(orgId: string, id: string): Promise<ObservationWithTurtle | null> {
   try {
     const { data, error } = await supabase
       .from('observations')
       .select(`
         *,
-        turtles!inner(species, name, lrf, rrf, rff, lff)
+        turtles(species, name, lrf, rrf, rff, lff)
       `)
+      .eq('org_id', orgId)
       .eq('id', id)
       .single();
 
@@ -140,14 +142,15 @@ export async function getObservationById(id: string): Promise<ObservationWithTur
 /**
  * Get observations for a specific turtle
  */
-export async function getObservationsByTurtle(turtleId: string, limit: number = 100): Promise<ObservationWithTurtle[]> {
+export async function getObservationsByTurtle(orgId: string, turtleId: string, limit: number = 100): Promise<ObservationWithTurtle[]> {
   try {
     const { data, error } = await supabase
       .from('observations')
       .select(`
         *,
-        turtles!inner(species)
+        turtles(species)
       `)
+      .eq('org_id', orgId)
       .eq('turtle_id', turtleId)
       .order('encounter_date', { ascending: false })
       .limit(limit);
@@ -167,21 +170,22 @@ export async function getObservationsByTurtle(turtleId: string, limit: number = 
 /**
  * Get recent observations (last 30 days)
  */
-export async function getRecentObservations(days: number = 30): Promise<ObservationWithTurtle[]> {
+export async function getRecentObservations(orgId: string, days: number = 30): Promise<ObservationWithTurtle[]> {
   const dateFrom = new Date();
   dateFrom.setDate(dateFrom.getDate() - days);
 
-  return getObservations({ dateFrom });
+  return getObservations(orgId, { dateFrom });
 }
 
 /**
  * Get observations count by filters (uses combined query internally)
  */
-export async function getObservationsCount(filters?: ObservationFilters): Promise<number> {
+export async function getObservationsCount(orgId: string, filters?: ObservationFilters): Promise<number> {
   try {
     let query = supabase
       .from('observations')
-      .select('id', { count: 'exact', head: true });
+      .select('id', { count: 'exact', head: true })
+      .eq('org_id', orgId);
 
     query = applyObservationFilters(query, filters);
 

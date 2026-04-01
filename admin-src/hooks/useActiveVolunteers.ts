@@ -16,6 +16,7 @@ interface ActiveSession {
 }
 
 interface UseActiveVolunteersOptions {
+  orgId?: string;
   autoRefresh?: boolean;
   refreshInterval?: number; // in milliseconds, default 30000 (30s)
 }
@@ -34,16 +35,17 @@ interface UseActiveVolunteersReturn {
 export function useActiveVolunteers(
   options: UseActiveVolunteersOptions = {}
 ): UseActiveVolunteersReturn {
-  const { autoRefresh = true, refreshInterval = 30000 } = options;
+  const { orgId, autoRefresh = true, refreshInterval = 30000 } = options;
 
   const [sessions, setSessions] = useState<ActiveSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
   const fetchSessions = useCallback(async () => {
+    if (!orgId) return;
     try {
       setError(null);
-      const data = await getActiveSessionsAll();
+      const data = await getActiveSessionsAll(orgId);
       setSessions(data);
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to fetch active sessions'));
@@ -51,11 +53,11 @@ export function useActiveVolunteers(
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [orgId]);
 
   const handleForceCheckout = useCallback(
     async (sessionId: string): Promise<boolean> => {
-      const success = await forceCheckoutSession(sessionId);
+      const success = await forceCheckoutSession(orgId!, sessionId);
       if (success) {
         // Refresh the list after checkout
         await fetchSessions();

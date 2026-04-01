@@ -7,6 +7,7 @@ import { useSidebar } from '@/contexts/SidebarContext';
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: '📊' },
   { href: '/dashboard/observations', label: 'Observations', icon: '📋' },
+  { href: '/dashboard/map', label: 'Map', icon: '🗺️' },
   { href: '/dashboard/volunteers', label: 'Active Volunteers', icon: '👥' },
   { href: '/dashboard/turtles', label: 'Turtles', icon: '🐢' },
   { href: '/dashboard/tags', label: 'Tag History', icon: '🏷️' },

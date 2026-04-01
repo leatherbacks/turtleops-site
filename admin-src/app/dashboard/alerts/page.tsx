@@ -43,7 +43,7 @@ export default function TurtleAlertsPage() {
 
   const loadAlerts = async () => {
     setLoading(true);
-    const data = await getAllAlerts();
+    const data = await getAllAlerts(profile?.org_id || '');
     setAlerts(data);
     setLoading(false);
   };
@@ -51,7 +51,7 @@ export default function TurtleAlertsPage() {
   const handleSearchTurtle = async () => {
     if (!turtleSearch.trim()) return;
 
-    const results = await searchTurtlesByTag(turtleSearch.trim());
+    const results = await searchTurtlesByTag(profile?.org_id || '', turtleSearch.trim());
     if (results.length > 0) {
       setSelectedTurtle({ id: results[0].id, name: results[0].name });
     } else {
@@ -113,7 +113,7 @@ export default function TurtleAlertsPage() {
 
     if (editingAlert) {
       // Update existing alert
-      const updated = await updateTurtleAlert(editingAlert.id, {
+      const updated = await updateTurtleAlert(organization!.id, editingAlert.id, {
         type: alertType,
         priority,
         message: message.trim(),
@@ -158,7 +158,7 @@ export default function TurtleAlertsPage() {
     }
 
     setProcessing(true);
-    const success = await deleteTurtleAlert(id);
+    const success = await deleteTurtleAlert(profile?.org_id || '', id);
 
     if (success) {
       alert('Alert deleted');

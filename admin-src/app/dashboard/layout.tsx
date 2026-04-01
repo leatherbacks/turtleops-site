@@ -50,22 +50,23 @@ export default function DashboardLayout({
   const { session, profile, loading, isSubscriber } = useAuth();
   const router = useRouter();
 
-  // Track if we've ever authenticated in this session
-  // Persists across component remounts via sessionStorage
-  const [hasAuthed, setHasAuthed] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return sessionStorage.getItem('hasAuthed') === 'true';
+  // Track if we've ever authenticated in this browser session.
+  // Initialize false to match server render, then hydrate from sessionStorage
+  // in useEffect to avoid React hydration mismatch (error #418).
+  const [hasAuthed, setHasAuthed] = useState(false);
+
+  // Read sessionStorage after hydration
+  useEffect(() => {
+    if (sessionStorage.getItem('hasAuthed') === 'true') {
+      setHasAuthed(true);
     }
-    return false;
-  });
+  }, []);
 
   // Update hasAuthed when we successfully authenticate
   useEffect(() => {
     if (session && profile && isSubscriber) {
       setHasAuthed(true);
-      if (typeof window !== 'undefined') {
-        sessionStorage.setItem('hasAuthed', 'true');
-      }
+      sessionStorage.setItem('hasAuthed', 'true');
     }
   }, [session, profile, isSubscriber]);
 
@@ -73,22 +74,22 @@ export default function DashboardLayout({
   useEffect(() => {
     if (!loading) {
       if (!session) {
-        if (typeof window !== 'undefined') {
-          sessionStorage.removeItem('hasAuthed');
-        }
+        sessionStorage.removeItem('hasAuthed');
         router.push('/login');
       } else if (profile && !isSubscriber) {
-        if (typeof window !== 'undefined') {
-          sessionStorage.removeItem('hasAuthed');
-        }
+        sessionStorage.removeItem('hasAuthed');
         router.push('/login?error=subscriber_required');
       }
     }
   }, [loading, session, profile, isSubscriber, router]);
 
-  // Show spinner while auth is loading
-  if (loading) {
-    if (hasAuthed) {
+  // Show spinner or skeleton while auth is resolving.
+  // Consolidate both checks (loading=true AND post-load but missing profile/subscriber)
+  // into one block to prevent a bare spinner flash between states.
+  if (loading || !session || !profile || !isSubscriber) {
+    // If we previously authenticated (sessionStorage) or currently have a session,
+    // show the full skeleton with sidebar — avoids jarring blank screen.
+    if (hasAuthed || session) {
       return (
         <SidebarProvider>
           <div style={{
@@ -102,11 +103,6 @@ export default function DashboardLayout({
         </SidebarProvider>
       );
     }
-    return <LoadingSpinner />;
-  }
-
-  // Not authenticated or not subscriber - show spinner while redirect happens
-  if (!session || !profile || !isSubscriber) {
     return <LoadingSpinner />;
   }
 

@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { getTurtlesWithCount } from '@/lib/database/turtles';
 import { getObservationsWithCount } from '@/lib/database/observations';
+import { useAuth } from '@/components/auth/AuthProvider';
 
 interface SearchResult {
   type: 'turtle' | 'observation';
@@ -14,6 +15,8 @@ interface SearchResult {
 }
 
 export default function HeaderSearch() {
+  const { profile } = useAuth();
+  const orgId = profile?.org_id || '';
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -33,8 +36,8 @@ export default function HeaderSearch() {
     setSearching(true);
     try {
       const [turtles, observations] = await Promise.all([
-        getTurtlesWithCount({ searchQuery: q, limit: 5 }),
-        getObservationsWithCount({ searchQuery: q, limit: 5 }),
+        getTurtlesWithCount(orgId, { searchQuery: q, limit: 5 }),
+        getObservationsWithCount(orgId, { searchQuery: q, limit: 5 }),
       ]);
 
       const mapped: SearchResult[] = [

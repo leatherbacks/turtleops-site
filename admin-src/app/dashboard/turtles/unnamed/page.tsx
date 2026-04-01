@@ -21,7 +21,7 @@ export default function UnnamedTurtlesPage() {
 
   const loadTurtles = async () => {
     setLoading(true);
-    const data = await getUnnamedTurtles();
+    const data = await getUnnamedTurtles(profile?.org_id || '');
     setTurtles(data);
     setLoading(false);
   };
@@ -30,7 +30,7 @@ export default function UnnamedTurtlesPage() {
     if (!turtle.suggestedName || !profile) return;
 
     // Check if name already exists
-    const existing = await findTurtleByName(turtle.suggestedName);
+    const existing = await findTurtleByName(profile?.org_id || '',turtle.suggestedName);
     if (existing && existing.id !== turtle.id) {
       alert(
         `Cannot approve: A turtle named "${turtle.suggestedName}" already exists.\n\nPlease choose a different name or merge these turtles if they are the same individual.`
@@ -48,7 +48,7 @@ export default function UnnamedTurtlesPage() {
 
     setProcessing(turtle.id);
 
-    const updated = await updateTurtle(turtle.id, {
+    const updated = await updateTurtle(profile?.org_id || '', turtle.id, {
       name: turtle.suggestedName,
       suggestedName: null,
       suggestedBy: null,
@@ -73,7 +73,7 @@ export default function UnnamedTurtlesPage() {
 
     setProcessing(turtle.id);
 
-    const updated = await updateTurtle(turtle.id, {
+    const updated = await updateTurtle(profile?.org_id || '', turtle.id, {
       suggestedName: null,
       suggestedBy: null,
       suggestedByName: null,
@@ -99,7 +99,7 @@ export default function UnnamedTurtlesPage() {
     }
 
     // Check if name already exists
-    const existing = await findTurtleByName(customName);
+    const existing = await findTurtleByName(profile?.org_id || '',customName);
     if (existing && existing.id !== turtle.id) {
       alert(
         `Cannot use name: A turtle named "${customName}" already exists.\n\nPlease choose a different name or merge these turtles if they are the same individual.`
@@ -117,7 +117,7 @@ export default function UnnamedTurtlesPage() {
 
     setProcessing(turtle.id);
 
-    const updated = await updateTurtle(turtle.id, {
+    const updated = await updateTurtle(profile?.org_id || '', turtle.id, {
       name: customName,
       suggestedName: null,
       suggestedBy: null,
