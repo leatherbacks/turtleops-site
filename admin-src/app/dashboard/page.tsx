@@ -139,13 +139,14 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Action Items Row */}
-      {totalActionItems > 0 && (
+      {/* Action Items Row — always reserve space to prevent layout shift */}
+      {totalActionItems > 0 && !extraLoading && (
         <div style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
           gap: '12px',
           marginBottom: '24px',
+          minHeight: '68px',
         }}>
           {actionCounts.unnamedTurtles > 0 && (
             <div
@@ -323,7 +324,7 @@ export default function DashboardPage() {
       {/* Conservation Metrics + Most Sighted */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: stats?.mostSightedTurtle ? '2fr 1fr' : '1fr',
+        gridTemplateColumns: '2fr 1fr',
         gap: '16px',
         marginBottom: '24px',
       }}>
@@ -358,8 +359,8 @@ export default function DashboardPage() {
           </div>
         </Card>
 
-        {stats?.mostSightedTurtle && (
-          <Card title="Most Sighted">
+        <Card title="Most Sighted">
+          {stats?.mostSightedTurtle ? (
             <div style={{
               display: 'flex',
               alignItems: 'center',
@@ -389,8 +390,19 @@ export default function DashboardPage() {
                 </div>
               </div>
             </div>
-          </Card>
-        )}
+          ) : (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minHeight: '50px',
+              color: 'var(--color-text-muted)',
+              fontSize: '13px',
+            }}>
+              {loading ? 'Loading...' : 'No data yet'}
+            </div>
+          )}
+        </Card>
       </div>
 
       {/* Recent Activity Feed */}

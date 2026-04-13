@@ -61,6 +61,7 @@ export default function StatCard({
       padding: '22px 24px',
       borderRadius: 'var(--radius-lg)',
       border: '1px solid var(--color-border)',
+      minHeight: '130px',
       transition: 'all 0.2s ease',
       cursor: 'default',
     }}
