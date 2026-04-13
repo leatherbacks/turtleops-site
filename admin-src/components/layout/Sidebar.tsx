@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSidebar } from '@/contexts/SidebarContext';
+import { APP_VERSION } from '@/lib/version';
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: '📊' },
@@ -186,6 +187,17 @@ export default function Sidebar() {
           </span>
           {!collapsed && <span style={{ fontSize: '12px' }}>Collapse</span>}
         </button>
+        {!collapsed && (
+          <div style={{
+            padding: '4px 8px',
+            fontSize: '10px',
+            color: 'var(--color-text-muted)',
+            opacity: 0.5,
+            textAlign: 'center',
+          }}>
+            v{APP_VERSION}
+          </div>
+        )}
       </div>
     </aside>
   );
