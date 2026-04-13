@@ -27,21 +27,6 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
   );
 }
 
-function DashboardSkeleton() {
-  const { sidebarWidth } = useSidebar();
-
-  return (
-    <div style={{
-      marginLeft: `${sidebarWidth}px`,
-      width: `calc(100% - ${sidebarWidth}px)`,
-      transition: 'margin-left 0.2s ease, width 0.2s ease',
-    }}>
-      <Header />
-      <main style={{ minHeight: 'calc(100vh - 56px)' }} />
-    </div>
-  );
-}
-
 export default function DashboardLayout({
   children,
 }: {
@@ -83,30 +68,15 @@ export default function DashboardLayout({
     }
   }, [loading, session, profile, isSubscriber, router]);
 
-  // Show spinner or skeleton while auth is resolving.
-  // Consolidate both checks (loading=true AND post-load but missing profile/subscriber)
-  // into one block to prevent a bare spinner flash between states.
+  // While auth is resolving with no prior session, show a simple spinner.
+  // Otherwise render the full layout with children immediately to avoid CLS —
+  // pages already handle missing orgId gracefully by showing zero values.
   if (loading || !session || !profile || !isSubscriber) {
-    // If we previously authenticated (sessionStorage) or currently have a session,
-    // show the full skeleton with sidebar — avoids jarring blank screen.
-    if (hasAuthed || session) {
-      return (
-        <SidebarProvider>
-          <div style={{
-            display: 'flex',
-            minHeight: '100vh',
-            backgroundColor: 'var(--color-background)',
-          }}>
-            <Sidebar />
-            <DashboardSkeleton />
-          </div>
-        </SidebarProvider>
-      );
+    if (!(hasAuthed || session)) {
+      return <LoadingSpinner />;
     }
-    return <LoadingSpinner />;
   }
 
-  // User is authenticated AND is subscriber - show dashboard
   return (
     <SidebarProvider>
       <div style={{
