@@ -64,7 +64,7 @@ export default function HeaderSearch() {
     } finally {
       setSearching(false);
     }
-  }, []);
+  }, [orgId]);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
