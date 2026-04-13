@@ -67,7 +67,7 @@ export async function getEnhancedStats(orgId: string): Promise<EnhancedStats> {
       supabase.from('observations').select('*', { count: 'exact', head: true }).eq('org_id', orgId).gte('encounter_date', yesterdayStart).lt('encounter_date', yesterdayEnd),
       supabase.from('survey_sessions').select('check_in_time, check_out_time').eq('org_id', orgId).not('check_out_time', 'is', null).gte('check_in_time', yearStart),
       supabase.from('survey_sessions').select('*', { count: 'exact', head: true }).eq('org_id', orgId).is('check_out_time', null),
-      supabase.from('observations').select('nesting_status').eq('org_id', orgId).gte('encounter_date', yearStart).in('nesting_status', ['nested', 'attempted_nest']),
+      supabase.from('observations').select('did_she_nest').eq('org_id', orgId).gte('encounter_date', yearStart),
       // Only fetch turtle_id to minimize payload — resolve name with a single follow-up
       supabase.from('observations').select('turtle_id').eq('org_id', orgId).gte('encounter_date', yearStart).not('turtle_id', 'is', null),
     ]);
@@ -87,8 +87,8 @@ export async function getEnhancedStats(orgId: string): Promise<EnhancedStats> {
 
     const avgSessionDuration = sessionCount > 0 ? totalHours / sessionCount : 0;
 
-    // Nesting success rate
-    const nested = nestingObs?.filter((o: any) => o.nesting_status === 'nested').length || 0;
+    // Nesting success rate: did_she_nest=true is nested, false is attempted but didn't nest
+    const nested = nestingObs?.filter((o: any) => o.did_she_nest === true).length || 0;
     const attempted = nestingObs?.length || 0;
     const nestingSuccessRate = attempted > 0 ? (nested / attempted) * 100 : 0;
 

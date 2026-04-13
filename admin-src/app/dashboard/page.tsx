@@ -315,87 +315,40 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Conservation Metrics + Most Sighted */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: '2fr 1fr',
-        gap: '16px',
-        marginBottom: '24px',
-      }}>
-        <Card title="Conservation Metrics">
+      {/* Most Sighted */}
+      {stats?.mostSightedTurtle && (
+        <Card title="Most Sighted" style={{ marginBottom: '24px' }}>
           <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-            gap: '16px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '14px',
           }}>
-            <StatCard
-              title="Nesting Success Rate"
-              value={`${stats?.nestingSuccessRate ?? 0}%`}
-              subtitle="Successful nests / attempts"
-              trend={
-                stats?.nestingSuccessRate
-                  ? stats.nestingSuccessRate >= 50
-                    ? 'up'
-                    : stats.nestingSuccessRate >= 30
-                    ? 'neutral'
-                    : 'down'
-                  : 'neutral'
-              }
-            />
-            <StatCard
-              title="Recapture Rate"
-              value={`${stats?.recaptureRate ?? 0}%`}
-              subtitle="Turtles seen multiple times"
-              trend={stats?.recaptureRate && stats.recaptureRate > 0 ? 'up' : 'neutral'}
-            />
+            <div style={{
+              fontSize: '40px',
+              lineHeight: 1,
+            }}>
+              🏆
+            </div>
+            <div>
+              <div style={{
+                fontSize: '20px',
+                fontWeight: '700',
+                color: 'var(--color-text)',
+                marginBottom: '2px',
+                letterSpacing: '-0.3px',
+              }}>
+                {stats.mostSightedTurtle.name}
+              </div>
+              <div style={{
+                fontSize: '13px',
+                color: 'var(--color-text-muted)',
+              }}>
+                {stats.mostSightedTurtle.count} observations this year
+              </div>
+            </div>
           </div>
         </Card>
-
-        <Card title="Most Sighted">
-          {stats?.mostSightedTurtle ? (
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '14px',
-            }}>
-              <div style={{
-                fontSize: '40px',
-                lineHeight: 1,
-              }}>
-                🏆
-              </div>
-              <div>
-                <div style={{
-                  fontSize: '20px',
-                  fontWeight: '700',
-                  color: 'var(--color-text)',
-                  marginBottom: '2px',
-                  letterSpacing: '-0.3px',
-                }}>
-                  {stats.mostSightedTurtle.name}
-                </div>
-                <div style={{
-                  fontSize: '13px',
-                  color: 'var(--color-text-muted)',
-                }}>
-                  {stats.mostSightedTurtle.count} observations this year
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              minHeight: '50px',
-              color: 'var(--color-text-muted)',
-              fontSize: '13px',
-            }}>
-              {loading ? 'Loading...' : 'No data yet'}
-            </div>
-          )}
-        </Card>
-      </div>
+      )}
 
       {/* Recent Activity Feed */}
       <Card
