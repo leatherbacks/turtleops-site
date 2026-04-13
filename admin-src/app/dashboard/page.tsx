@@ -139,14 +139,79 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Action Items Row — always reserve space to prevent layout shift */}
+      {/* Key Metrics Grid */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+        gap: '16px',
+        marginBottom: '24px',
+      }}>
+        <StatCard
+          title="Total Turtles"
+          value={stats?.totalTurtles ?? 0}
+          subtitle="Documented in database"
+          icon="🐢"
+          loading={loading}
+        />
+        <StatCard
+          title="Observations This Year"
+          value={stats?.observationsThisYear ?? 0}
+          subtitle={
+            lastYearObs > 0 && !extraLoading
+              ? seasonDiff >= 0
+                ? `+${seasonDiff}% vs ${new Date().getFullYear() - 1}`
+                : `${seasonDiff}% vs ${new Date().getFullYear() - 1}`
+              : `${new Date().getFullYear()} season`
+          }
+          icon="📊"
+          loading={loading}
+        />
+        <StatCard
+          title="Last Night"
+          value={stats?.lastNightObservations ?? 0}
+          subtitle="Observations recorded"
+          icon="🌙"
+          loading={loading}
+        />
+        <StatCard
+          title="Active Volunteers"
+          value={stats?.activeVolunteers ?? 0}
+          subtitle="Currently checked in"
+          icon="👥"
+          loading={loading}
+        />
+      </div>
+
+      {/* Volunteer Metrics */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+        gap: '16px',
+        marginBottom: '24px',
+      }}>
+        <StatCard
+          title="Volunteer Hours"
+          value={stats?.volunteerHours ?? 0}
+          subtitle="Total logged time"
+          icon="⏱️"
+          loading={loading}
+        />
+        <StatCard
+          title="Avg Session Duration"
+          value={`${stats?.avgSessionDuration ?? 0}h`}
+          subtitle="Per survey session"
+          icon="📈"
+          loading={loading}
+        />
+      </div>
+
+      {/* Action Items Row — placed below stat cards to avoid CLS */}
       {totalActionItems > 0 && !extraLoading && (
         <div style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
           gap: '12px',
           marginBottom: '24px',
-          minHeight: '68px',
         }}>
           {actionCounts.unnamedTurtles > 0 && (
             <div
@@ -254,72 +319,6 @@ export default function DashboardPage() {
           )}
         </div>
       )}
-
-      {/* Key Metrics Grid */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-        gap: '16px',
-        marginBottom: '24px',
-      }}>
-        <StatCard
-          title="Total Turtles"
-          value={stats?.totalTurtles ?? 0}
-          subtitle="Documented in database"
-          icon="🐢"
-          loading={loading}
-        />
-        <StatCard
-          title="Observations This Year"
-          value={stats?.observationsThisYear ?? 0}
-          subtitle={
-            lastYearObs > 0 && !extraLoading
-              ? seasonDiff >= 0
-                ? `+${seasonDiff}% vs ${new Date().getFullYear() - 1}`
-                : `${seasonDiff}% vs ${new Date().getFullYear() - 1}`
-              : `${new Date().getFullYear()} season`
-          }
-          icon="📊"
-          loading={loading}
-        />
-        <StatCard
-          title="Last Night"
-          value={stats?.lastNightObservations ?? 0}
-          subtitle="Observations recorded"
-          icon="🌙"
-          loading={loading}
-        />
-        <StatCard
-          title="Active Volunteers"
-          value={stats?.activeVolunteers ?? 0}
-          subtitle="Currently checked in"
-          icon="👥"
-          loading={loading}
-        />
-      </div>
-
-      {/* Volunteer Metrics */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-        gap: '16px',
-        marginBottom: '24px',
-      }}>
-        <StatCard
-          title="Volunteer Hours"
-          value={stats?.volunteerHours ?? 0}
-          subtitle="Total logged time"
-          icon="⏱️"
-          loading={loading}
-        />
-        <StatCard
-          title="Avg Session Duration"
-          value={`${stats?.avgSessionDuration ?? 0}h`}
-          subtitle="Per survey session"
-          icon="📈"
-          loading={loading}
-        />
-      </div>
 
       {/* Conservation Metrics + Most Sighted */}
       <div style={{
