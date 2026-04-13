@@ -54,6 +54,37 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // Server-side subscriber + admin check for dashboard routes
+  if (user && pathname.startsWith('/dashboard')) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role, is_subscriber, is_active, org_id')
+      .eq('id', user.id)
+      .single();
+
+    // No profile, not admin, not subscriber, or disabled → block access
+    if (!profile || profile.role !== 'admin' || !profile.is_subscriber || !profile.is_active) {
+      const url = request.nextUrl.clone();
+      url.pathname = '/login';
+      url.searchParams.set('error', 'subscriber_required');
+      return NextResponse.redirect(url);
+    }
+
+    // No org assigned → block access
+    if (!profile.org_id) {
+      const url = request.nextUrl.clone();
+      url.pathname = '/login';
+      url.searchParams.set('error', 'no_organization');
+      return NextResponse.redirect(url);
+    }
+  }
+
+  // Security headers
+  supabaseResponse.headers.set('X-Frame-Options', 'DENY');
+  supabaseResponse.headers.set('X-Content-Type-Options', 'nosniff');
+  supabaseResponse.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  supabaseResponse.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+
   return supabaseResponse;
 }
 
