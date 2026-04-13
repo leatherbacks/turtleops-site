@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { SidebarProvider, useSidebar } from '@/contexts/SidebarContext';
@@ -45,9 +45,13 @@ export default function DashboardLayout({
     }
   }, [loading, session, profile, isSubscriber, router]);
 
-  // Always render sidebar + header for stable layout (no CLS).
-  // Only render page children once auth is fully resolved.
-  const authReady = !loading && !!session && !!profile && isSubscriber;
+  // Once auth resolves, keep children mounted permanently — prevents
+  // data loss from auth state flickering (token refreshes, etc.)
+  const authEverReady = useRef(false);
+  if (!loading && !!session && !!profile && isSubscriber) {
+    authEverReady.current = true;
+  }
+  const authReady = authEverReady.current;
 
   return (
     <SidebarProvider>
