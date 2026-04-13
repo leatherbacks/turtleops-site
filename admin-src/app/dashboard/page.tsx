@@ -151,7 +151,6 @@ export default function DashboardPage() {
           value={stats?.totalTurtles ?? 0}
           subtitle="Documented in database"
           icon="🐢"
-          loading={loading}
         />
         <StatCard
           title="Observations This Year"
@@ -164,21 +163,18 @@ export default function DashboardPage() {
               : `${new Date().getFullYear()} season`
           }
           icon="📊"
-          loading={loading}
         />
         <StatCard
           title="Last Night"
           value={stats?.lastNightObservations ?? 0}
           subtitle="Observations recorded"
           icon="🌙"
-          loading={loading}
         />
         <StatCard
           title="Active Volunteers"
           value={stats?.activeVolunteers ?? 0}
           subtitle="Currently checked in"
           icon="👥"
-          loading={loading}
         />
       </div>
 
@@ -194,14 +190,13 @@ export default function DashboardPage() {
           value={stats?.volunteerHours ?? 0}
           subtitle="Total logged time"
           icon="⏱️"
-          loading={loading}
         />
         <StatCard
           title="Avg Session Duration"
           value={`${stats?.avgSessionDuration ?? 0}h`}
           subtitle="Per survey session"
           icon="📈"
-          loading={loading}
+
         />
       </div>
 
@@ -346,14 +341,12 @@ export default function DashboardPage() {
                     : 'down'
                   : 'neutral'
               }
-              loading={loading}
             />
             <StatCard
               title="Recapture Rate"
               value={`${stats?.recaptureRate ?? 0}%`}
               subtitle="Turtles seen multiple times"
               trend={stats?.recaptureRate && stats.recaptureRate > 0 ? 'up' : 'neutral'}
-              loading={loading}
             />
           </div>
         </Card>
