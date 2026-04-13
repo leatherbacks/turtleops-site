@@ -69,6 +69,10 @@ export function useActiveVolunteers(
 
   // Initial fetch
   useEffect(() => {
+    if (!orgId) {
+      setLoading(false);
+      return;
+    }
     fetchSessions();
   }, [fetchSessions]);
 

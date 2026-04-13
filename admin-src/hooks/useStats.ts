@@ -73,7 +73,10 @@ export function useStats(options: UseStatsOptions = {}): UseStatsReturn {
 
   // Initial fetch — skip if cache is fresh or orgId not yet available
   useEffect(() => {
-    if (!orgId) return;
+    if (!orgId) {
+      setLoading(false);
+      return;
+    }
 
     if (statsCache.data && (Date.now() - statsCache.timestamp) < CACHE_TTL) {
       setStats(statsCache.data);
@@ -169,7 +172,11 @@ export function useRecentStats(options: UseStatsOptions = {}): UseRecentStatsRet
 
   // Initial fetch
   useEffect(() => {
-    if (orgId) fetchStats();
+    if (!orgId) {
+      setLoading(false);
+      return;
+    }
+    fetchStats();
   }, [fetchStats, orgId]);
 
   // Auto-refresh
