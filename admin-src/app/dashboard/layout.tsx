@@ -7,7 +7,7 @@ import { SidebarProvider, useSidebar } from '@/contexts/SidebarContext';
 import Sidebar from '@/components/layout/Sidebar';
 import Header from '@/components/layout/Header';
 
-function DashboardContent({ children }: { children: React.ReactNode }) {
+function DashboardContent({ children, authReady }: { children: React.ReactNode; authReady: boolean }) {
   const { sidebarWidth } = useSidebar();
 
   return (
@@ -20,7 +20,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
       <main style={{
         minHeight: 'calc(100vh - 56px)',
       }}>
-        {children}
+        {authReady ? children : null}
       </main>
     </div>
   );
@@ -45,9 +45,10 @@ export default function DashboardLayout({
     }
   }, [loading, session, profile, isSubscriber, router]);
 
-  // Always render the full layout to avoid CLS. The middleware already
-  // redirects unauthenticated users server-side. Pages handle missing
-  // orgId gracefully by showing zero values until auth resolves.
+  // Always render sidebar + header for stable layout (no CLS).
+  // Only render page children once auth is fully resolved.
+  const authReady = !loading && !!session && !!profile && isSubscriber;
+
   return (
     <SidebarProvider>
       <div style={{
@@ -56,7 +57,7 @@ export default function DashboardLayout({
         backgroundColor: 'var(--color-background)',
       }}>
         <Sidebar />
-        <DashboardContent>{children}</DashboardContent>
+        <DashboardContent authReady={authReady}>{children}</DashboardContent>
       </div>
     </SidebarProvider>
   );
