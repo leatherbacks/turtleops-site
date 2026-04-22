@@ -464,6 +464,27 @@ export default function TagFinderPage() {
           Popoff estimation: Nault et al. 2024, Animal Biotelemetry 12:7.
           Argos errors: Boyd &amp; Brightsmith 2013.
         </p>
+        <p className="mt-1">
+          Recovery methods:{' '}
+          <a
+            href="https://animalbiotelemetry.biomedcentral.com/articles/10.1186/s40317-017-0137-8"
+            target="_blank"
+            rel="noopener"
+            className="hover:text-primary underline underline-offset-2"
+          >
+            Fisher et al. 2017, Animal Biotelemetry 5:21
+          </a>
+          {' '}(CLS RXG-134 goniometer + RG-58 antenna, ~3.6 km detection range).{' '}
+          <a
+            href="https://academic.oup.com/icesjms/article/77/7-8/2890/5923787"
+            target="_blank"
+            rel="noopener"
+            className="hover:text-primary underline underline-offset-2"
+          >
+            Gatti et al. 2020, ICES J. Mar. Sci. 77:2890
+          </a>
+          {' '}(large-scale PSAT recovery program, 75% rate).
+        </p>
         <p className="mt-2">
           If this tool informed your recovery or research, please cite: TurtleTag Recovery (Johnson, 2026) — tagfinder.turtleops.org
         </p>

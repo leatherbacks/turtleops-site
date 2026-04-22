@@ -28,6 +28,10 @@ tagfinder-app/*.pxp
 tagfinder-app/*.kmz
 tagfinder-app/*-search-map.html
 
+# Reference literature kept local (PDFs and their extracted text)
+*.pdf
+tagfinder-app/*.txt
+
 # Next.js / Node build output (defensive — tagfinder-app/.gitignore already covers these)
 tagfinder-app/.next/
 tagfinder-app/node_modules/

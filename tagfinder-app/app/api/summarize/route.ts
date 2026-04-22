@@ -202,6 +202,12 @@ Guidelines:
 - **For stationary/findable tags, mention the MiniPAT optional UHF pinger (~1-2 sec interval)** —
   recovery teams with directional RDF antennas can track it. Note this is a separate signal from
   Argos transmissions and requires different tuning than the Argos transmit frequency.
+- **For tags floating at sea and still transmitting**, recommend a **CLS RXG-134 goniometer
+  with RG-58 direction-finding antenna** (CLS America, Lanham MD — receives Argos pings at
+  401.650 MHz, ~1/min). Per Fisher et al. 2017, mount the antenna ~4.5 m above the waterline,
+  expect detection range ~3.6 km, and an average search time of ~44 min once a tag is detected
+  (range 20–98 min). The post-popoff transmission window is typically ~2 weeks — recover within
+  that window. Calm seas improve results; winds above ~15 knots make goniometer work difficult.
 - End with 1-3 specific, actionable recommendations.
 
 Be confident but honest about uncertainty. Use plain English. Avoid jargon unless necessary.
