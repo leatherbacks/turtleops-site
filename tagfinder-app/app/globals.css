@@ -1,0 +1,109 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  min-height: 100vh;
+}
+
+/* Leaflet container needs explicit height */
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+}
+
+/* ─── Print styles for search brief ─────────────────────────── */
+@media print {
+  /* Reset to light theme for print */
+  html,
+  body {
+    background: white !important;
+    color: #111 !important;
+    font-size: 11pt;
+  }
+
+  /* Hide interactive / navigation UI */
+  .no-print,
+  header.sticky,
+  button:not(.print-allow),
+  footer,
+  .leaflet-control-container {
+    display: none !important;
+  }
+
+  /* Show print-only blocks */
+  .print-only {
+    display: block !important;
+  }
+
+  /* Force light backgrounds and legible text on panels */
+  .bg-surface,
+  .bg-surface-elevated,
+  .bg-background {
+    background: white !important;
+    color: #111 !important;
+  }
+
+  .bg-surface,
+  [class*='bg-surface'] {
+    border: 1px solid #ccc !important;
+  }
+
+  /* Muted/secondary text darker for print legibility */
+  .text-muted {
+    color: #555 !important;
+  }
+
+  /* Stack the two columns (map + analysis) for print */
+  .lg\:col-span-3,
+  .lg\:col-span-2 {
+    grid-column: span 5 / span 5 !important;
+  }
+
+  .lg\:grid-cols-5 {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Page break rules — don't cut panels in half */
+  .bg-surface,
+  .rounded-xl {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Put a new page before the map so brief lands on page 1 */
+  .print-page-break-before {
+    break-before: page;
+    page-break-before: always;
+  }
+
+  /* Leaflet map */
+  .leaflet-container {
+    break-inside: avoid;
+    height: 400px !important;
+  }
+
+  /* Make SVG charts render properly */
+  svg {
+    max-width: 100%;
+    height: auto;
+  }
+
+  /* Shrink padding for print */
+  main,
+  .p-5 {
+    padding: 12px !important;
+  }
+
+  /* URL annotations are distracting in print */
+  a[href]:after {
+    content: none !important;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

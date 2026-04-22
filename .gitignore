@@ -1,0 +1,35 @@
+# Admin production exports — real research data, never commit
+admin.turtleops.org-*.json
+
+# Editor / IDE state
+.claude/
+.vscode/
+.idea/
+
+# Windows stray artifacts from stdout redirects
+nul
+**/nul
+
+# Screenshots
+Screenshot*.png
+Screenshot*.jpg
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Reference directory — real tag data, kept local (anchored to repo root;
+# leading slash prevents Windows case-insensitive matches on tagfinder-app/components/tagfinder/)
+/TagFinder/
+
+# Test tag data inside the Next.js app (real tag exports)
+tagfinder-app/*.csv
+tagfinder-app/*.pxp
+tagfinder-app/*.kmz
+tagfinder-app/*-search-map.html
+
+# Next.js / Node build output (defensive — tagfinder-app/.gitignore already covers these)
+tagfinder-app/.next/
+tagfinder-app/node_modules/
+tagfinder-app/out/
+tagfinder-app/.vercel

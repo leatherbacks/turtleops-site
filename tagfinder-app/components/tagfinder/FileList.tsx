@@ -1,0 +1,58 @@
+'use client';
+
+import type { DetectedFile } from '@/lib/types';
+import { CheckCircle2, XCircle } from 'lucide-react';
+
+interface FileListProps {
+  files: DetectedFile[];
+}
+
+const FILE_TYPE_LABELS: Record<string, string> = {
+  locations: 'Locations',
+  argos: 'Argos Passes',
+  status: 'Tag Status',
+  summary: 'Summary',
+  series: 'Dive Series',
+  sst: 'Sea Surface Temp',
+  minmaxdepth: 'Daily Dive Range',
+  corrupt: 'Corrupted Messages',
+  lightloc: 'Light Levels',
+  unknown: 'Not recognized',
+};
+
+export default function FileList({ files }: FileListProps) {
+  if (files.length === 0) return null;
+
+  const recognized = files.filter((f) => f.fileType !== 'unknown');
+  const unrecognized = files.filter((f) => f.fileType === 'unknown');
+
+  return (
+    <div className="space-y-2">
+      <h3 className="text-sm font-semibold text-muted uppercase tracking-wide">
+        Detected Files
+      </h3>
+      <div className="space-y-1">
+        {recognized.map((f) => (
+          <div
+            key={f.file.name}
+            className="flex items-center gap-2 text-sm py-1"
+          >
+            <CheckCircle2 className="w-4 h-4 text-success flex-shrink-0" />
+            <span className="font-medium">{FILE_TYPE_LABELS[f.fileType]}</span>
+            <span className="text-muted truncate">{f.file.name}</span>
+          </div>
+        ))}
+        {unrecognized.map((f) => (
+          <div
+            key={f.file.name}
+            className="flex items-center gap-2 text-sm py-1 text-muted"
+          >
+            <XCircle className="w-4 h-4 flex-shrink-0 opacity-50" />
+            <span className="truncate">{f.file.name}</span>
+            <span className="text-xs opacity-50">skipped</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
