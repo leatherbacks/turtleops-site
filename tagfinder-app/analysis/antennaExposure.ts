@@ -68,7 +68,8 @@ export function analyzeAntennaExposure(passes: AnnotatedPass[]): AntennaExposure
   } else if (azimuthBias && azimuthBias !== 'symmetric') {
     pattern = 'directional';
     confidence = 0.7;
-    reasoning = `Reception is biased toward the ${azimuthBias} (mean received azimuth ${meanReceivedAz.toFixed(0)}°). Passes from the opposite direction are consistently missed, suggesting a directional obstruction — e.g., the antenna is tilted or blocked by nearby structure on one side.`;
+    const windowFaces = { N: 'north', E: 'east', S: 'south', W: 'west' }[azimuthBias];
+    reasoning = `Reception is biased toward the ${azimuthBias} (mean received azimuth ${meanReceivedAz.toFixed(0)}°). Passes from the opposite direction are consistently missed, suggesting a directional obstruction — e.g., the tag is indoors near a window facing ${windowFaces}, or the antenna is blocked by a wall/roof/vehicle on one side.`;
   } else if (received.length / passes.length > 0.3) {
     pattern = 'clear';
     confidence = 0.6;

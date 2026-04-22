@@ -14,9 +14,9 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://tagfinder.turtleops.org"),
-  title: "TurtleTag Recovery | TurtleOps",
+  title: "TurtleTag Recovery — Pop-up Satellite Tag Analysis | TurtleOps",
   description:
-    "Free satellite tag analysis for marine researchers. Upload Wildlife Computers CSVs to estimate tag position, diagnose physical state, and generate AI-drafted recovery search briefs — all client-side.",
+    "Find your popped-off archival tag. Free analysis for marine researchers using Wildlife Computers MiniPATs and other PSATs — position estimates, drift predictions, and AI-drafted recovery briefs.",
   keywords: [
     "satellite tag",
     "wildlife computers",
@@ -34,18 +34,18 @@ export const metadata: Metadata = {
     icon: "/assets/logo.png",
   },
   openGraph: {
-    title: "TurtleTag Recovery",
+    title: "TurtleTag Recovery — Pop-up Satellite Tag Analysis",
     description:
-      "Free satellite tag analysis for marine researchers. Estimate tag position, diagnose state, generate recovery briefs.",
+      "Find your popped-off archival tag. Upload MiniPAT/PSAT CSVs and get position, drift prediction, and an AI-drafted recovery brief.",
     url: "https://tagfinder.turtleops.org",
     siteName: "TurtleTag Recovery",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "TurtleTag Recovery",
+    title: "TurtleTag Recovery — Pop-up Satellite Tag Analysis",
     description:
-      "Free satellite tag analysis for marine researchers. Upload WC CSVs, get position + state + recovery brief.",
+      "Find your popped-off archival tag. Upload MiniPAT/PSAT CSVs, get position + state + recovery brief.",
   },
   robots: {
     index: true,

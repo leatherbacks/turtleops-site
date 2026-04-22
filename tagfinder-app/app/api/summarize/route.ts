@@ -130,7 +130,15 @@ Possible tag scenarios to consider:
    - Transmission history is short (ended shortly after the tag reached this location)
    - Temperature readings anomalously high (> 35°C) suggest indoor/car/window — not natural sun-on-sand
    - Location name suggests residential area, urban, not coastal natural feature
-6. **Still on animal** (for tracker-type tags) — depth varying with diving, temperature matching water.
+6. **Indoors on a windowsill / near a window** — a specific sub-case of "recovered by a person."
+   Key signature: position is on land AND antennaExposure.pattern is 'directional' (reception
+   biased to one compass quadrant, with passes from the opposite direction consistently missed).
+   When this combination appears, the tag is almost certainly indoors near a window, and
+   **the compass direction of received passes is the direction the window faces**. If light
+   analysis shows 'shaded' or 'indoor' and temp comparison shows 'in_air_insulated' or
+   'anomalous_hot', that reinforces the windowsill interpretation. Recommend contacting the
+   resident — call out the window direction explicitly so they can identify which window.
+7. **Still on animal** (for tracker-type tags) — depth varying with diving, temperature matching water.
 
 **Urban/developed beach considerations:**
 When the tag is beached near an urban, developed, or actively-maintained shoreline (boardwalks,

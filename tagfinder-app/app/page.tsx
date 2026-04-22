@@ -221,7 +221,7 @@ export default function TagFinderPage() {
               <span className="text-primary">TurtleTag</span> Recovery
             </h1>
             <p className="text-xs text-muted">
-              Satellite tag analysis &amp; recovery planning
+              Pop-up archival tag recovery
             </p>
           </div>
           {result && (
@@ -251,11 +251,12 @@ export default function TagFinderPage() {
           <div className="max-w-2xl mx-auto">
             <div className="text-center mb-8">
               <h2 className="text-3xl font-bold mb-3 tracking-tight">
-                Analyze your satellite tag data
+                Find your popped-off archival tag
               </h2>
               <p className="text-muted text-lg">
-                Upload Wildlife Computers CSV exports to get instant position estimates,
-                drift analysis, and recovery search briefs.
+                Upload Wildlife Computers CSVs from your MiniPAT or PSAT deployment.
+                Get instant position estimates, drift predictions, and AI-drafted
+                recovery briefs.
               </p>
             </div>
 
