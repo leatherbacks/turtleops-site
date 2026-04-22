@@ -31,6 +31,7 @@ import { checkMirrorSolutions } from '@/analysis/mirrorCheck';
 import { interpretReleaseType } from '@/analysis/releaseType';
 import { detectCrushDepthEvent } from '@/analysis/crushDepth';
 import { analyzeLightLevel } from '@/analysis/lightLevel';
+import { analyzeTransmissionHealth } from '@/analysis/transmissionHealth';
 import {
   estimatePopoffLocation,
   meetsNaultCriteria,
@@ -192,6 +193,7 @@ export function useAnalysis(): UseAnalysisReturn {
         summary
       );
       const lightAnalysis = lightCurves.length > 0 ? analyzeLightLevel(lightCurves, summary) : null;
+      const transmissionHealth = passes.length > 0 ? analyzeTransmissionHealth(passes, summary) : null;
 
       // 12. Build result
       const validFixes = fixes.filter((f) => !f.isOutlier);
@@ -228,6 +230,7 @@ export function useAnalysis(): UseAnalysisReturn {
         lightAnalysis,
         tempComparison: null, // computed async in the page after environment fetch
         bathymetry: null, // computed async in the page after environment fetch
+        transmissionHealth,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Analysis failed');

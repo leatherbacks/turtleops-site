@@ -36,6 +36,8 @@ export interface ArgosPass {
   longitude2: number | null;
   /** Measured frequency in Hz (includes Doppler shift) — useful for RDF gear */
   frequencyHz: number | null;
+  /** Received signal strength in dBm (usually negative, e.g. -130 to -140) */
+  powerDbm: number | null;
 }
 
 // ─── Mirror Solution Check (detects obstructed tags) ───
@@ -336,6 +338,44 @@ export interface Bathymetry {
   tagOnSeabed: boolean;
 }
 
+// ─── Transmission Health Trend ───
+// Tracks whether the tag's signal is degrading post-release. CRC failure rate,
+// transmit power, and frequency drift each carry independent diagnostic signal
+// about thermal stress, antenna obstruction, and battery health.
+
+export type TransmissionTrend = 'stable' | 'degrading' | 'failing' | 'insufficient';
+
+export interface TransmissionHealthWindow {
+  /** Center date of the window (for plotting on a timeline) */
+  date: Date;
+  /** Total message count heard from Argos in this window */
+  totalMessages: number;
+  /** Corrupt (CRC-failed) message count */
+  corruptMessages: number;
+  /** Corrupt % (0–100) for this window */
+  corruptPct: number;
+  /** Mean received signal power (dBm) — more negative = weaker */
+  meanPowerDbm: number | null;
+  /** Mean frequency offset from 401.650 MHz nominal, in Hz — how far the tag has drifted */
+  meanFrequencyOffsetHz: number | null;
+}
+
+export interface TransmissionHealth {
+  trend: TransmissionTrend;
+  /** Human-readable interpretation of the signals together */
+  reasoning: string;
+  /** Rolling-window buckets — ordered by time, suitable for a sparkline */
+  windows: TransmissionHealthWindow[];
+  /** Overall CRC % across all post-release passes */
+  overallCorruptPct: number;
+  /** Trend in corrupt % (negative = improving, positive = worsening) — per day */
+  corruptPctSlopePerDay: number;
+  /** Trend in mean power — negative = weakening, per day, dBm/day */
+  powerSlopePerDayDbm: number | null;
+  /** Trend in frequency offset — non-zero = thermal drift, per day, Hz/day */
+  frequencySlopePerDayHz: number | null;
+}
+
 // ─── Antenna Exposure Analysis ───
 // Diagnoses the physical condition of the tag's antenna from its reception
 // pattern. If received passes cluster at high elevations while missed passes
@@ -429,6 +469,7 @@ export interface AnalysisResult {
   lightAnalysis: LightAnalysis | null;
   tempComparison: TempComparison | null;
   bathymetry: Bathymetry | null;
+  transmissionHealth: TransmissionHealth | null;
 
   // Fixes
   allFixes: ArgosFix[];

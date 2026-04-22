@@ -16,6 +16,7 @@ export function parseArgos(rows: Record<string, string>[]): ArgosPass[] {
     const lat2 = parseFloat(row['Latitude2'] || '');
     const lon2 = parseFloat(row['Longitude2'] || '');
     const freq = parseFloat(row['Frequency'] || '');
+    const power = parseFloat(row['Power'] || '');
 
     passes.push({
       date,
@@ -30,6 +31,7 @@ export function parseArgos(rows: Record<string, string>[]): ArgosPass[] {
       latitude2: isNaN(lat2) ? null : lat2,
       longitude2: isNaN(lon2) ? null : lon2,
       frequencyHz: isNaN(freq) || freq === 0 ? null : freq,
+      powerDbm: isNaN(power) ? null : power,
     });
   }
 

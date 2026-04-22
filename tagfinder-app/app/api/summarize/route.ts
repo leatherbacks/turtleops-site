@@ -183,6 +183,13 @@ the physical state.
 - **Bathymetry null seabedDepthM** — position is on land per GEBCO; combine with light/temp
   to distinguish stranded, buried, or recovered-by-person.
 
+**Transmission health trend is time-urgent.** If transmissionHealth.trend is 'degrading' or
+'failing', the tag's signal quality is worsening across the post-release window — rising CRC
+failure rate, dropping received power, or frequency drifting off 401.650 MHz. This is a
+recover-now-before-battery-dies signal. Rising frequency offset in particular suggests the
+tag is heating up (consistent with trash can / car / attic / pocket storage). Call this out
+and use urgency framing in the recommendations.
+
 Guidelines:
 - Start with a one-sentence headline about where the tag is and your best guess at its state.
 - Describe the current position with context (use env.location.name verbatim).
@@ -316,6 +323,9 @@ ${JSON.stringify(a.tempComparison, null, 2)}
 
 ## Bathymetry (seabed depth at tag position — is the tag resting on the bottom, or floating above deep water?)
 ${JSON.stringify(a.bathymetry, null, 2)}
+
+## Transmission health trend (is the tag's signal degrading? Rising CRC rate, falling power, and rising frequency drift together diagnose a tag in trouble — e.g. buried, covered, overheating)
+${JSON.stringify(a.transmissionHealth, null, 2)}
 
 ## Upcoming satellite passes (next 48 hours over the tag's current position)
 ${JSON.stringify(summarizeUpcoming((a as Record<string, unknown>).upcomingPasses as unknown[] | undefined), null, 2)}

@@ -20,6 +20,7 @@ import DiveProfilePanel from '@/components/tagfinder/DiveProfilePanel';
 import SatCoveragePanel from '@/components/tagfinder/SatCoveragePanel';
 import SearchBriefPanel from '@/components/tagfinder/SearchBriefPanel';
 import MirrorCheckPanel from '@/components/tagfinder/MirrorCheckPanel';
+import TransmissionHealthPanel from '@/components/tagfinder/TransmissionHealthPanel';
 import SkyChart from '@/components/tagfinder/SkyChart';
 import UpcomingPassesPanel from '@/components/tagfinder/UpcomingPassesPanel';
 import EmailGate from '@/components/tagfinder/EmailGate';
@@ -426,6 +427,9 @@ export default function TagFinderPage() {
                 />
                 {displayResult.mirrorCheck && (
                   <MirrorCheckPanel mirror={displayResult.mirrorCheck} />
+                )}
+                {displayResult.transmissionHealth && (
+                  <TransmissionHealthPanel health={displayResult.transmissionHealth} />
                 )}
                 <AnalysisPanel result={displayResult} />
                 {displayResult.tagCategory.category === 'psat' && (
