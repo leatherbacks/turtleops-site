@@ -123,6 +123,23 @@ export function compareTemperatures(
       sources.sstTempC !== null ? ` and ${tagMinusSST!.toFixed(1)}°C warmer than SST` : ''
     }. Suggests the tag is inside an insulated or heated space (vehicle, building, pocket).`;
     confidence = 0.7;
+  } else if (
+    tagMinusAir !== null &&
+    tagMinusAir < -4 &&
+    tagMean >= 15 &&
+    tagMean <= 26
+  ) {
+    // Tag notably cooler than outside air AND in a comfortable indoor range (~15-26°C)
+    // = air-conditioned space, cooler, or refrigerator.
+    environment = 'air_conditioned';
+    reasoning = `Tag mean ${tagMean.toFixed(
+      1
+    )}°C is ${Math.abs(tagMinusAir).toFixed(
+      1
+    )}°C COOLER than ambient air (${sources.airTempC!.toFixed(
+      1
+    )}°C), and sits in a typical indoor climate-control range. Strongly suggests the tag is inside an air-conditioned building, a cooler, or a refrigerator.`;
+    confidence = 0.8;
   } else {
     environment = 'unknown';
     reasoning = `Tag mean ${tagMean.toFixed(1)}°C${

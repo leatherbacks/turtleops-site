@@ -629,6 +629,10 @@ function TempComparisonCard({ temp }: { temp: TempComparison }) {
       label: 'Insulated / indoors',
       color: 'text-primary bg-primary/10 border-primary/20',
     },
+    air_conditioned: {
+      label: 'Air-conditioned / cooler',
+      color: 'text-info bg-info/10 border-info/20',
+    },
     anomalous_hot: {
       label: 'Anomalously hot',
       color: 'text-error bg-error/10 border-error/20',

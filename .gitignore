@@ -26,6 +26,9 @@ Thumbs.db
 tagfinder-app/*.csv
 tagfinder-app/*.pxp
 tagfinder-app/*.kmz
+tagfinder-app/*.zip
+tagfinder-app/*.png
+tagfinder-app/*.jpg
 tagfinder-app/*-search-map.html
 
 # Reference literature kept local (PDFs and their extracted text)

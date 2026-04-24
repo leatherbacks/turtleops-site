@@ -313,6 +313,7 @@ export type TempEnvironment =
   | 'in_water'
   | 'in_air_exposed'
   | 'in_air_insulated'
+  | 'air_conditioned' // tag is cooler than outside air — AC'd building, cooler, fridge
   | 'anomalous_hot'
   | 'insufficient'
   | 'unknown';

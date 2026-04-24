@@ -178,6 +178,11 @@ the physical state.
 - **Temperature environment 'in_air_exposed'** — tag out of water, natural outdoor air.
 - **Temperature environment 'in_air_insulated' or 'anomalous_hot'** — tag is somewhere
   warmer than ambient. Consistent with being indoors, in a pocket, or in a vehicle.
+- **Temperature environment 'air_conditioned'** — tag is notably COOLER than outside air
+  and sits in a typical indoor climate-control range (15–26°C). This is a strong signal the
+  tag is inside an air-conditioned building, a cooler, or a refrigerator. Combined with an
+  on-land position, this is "recovered by a person and taken indoors" — recommend community
+  outreach rather than a field search.
 - **Bathymetry 'tagOnSeabed: true'** — the tag's max depth matches seabed depth. The tag
   is on the bottom; diving recovery may be needed, or the tag is unrecoverable if too deep.
 - **Bathymetry null seabedDepthM** — position is on land per GEBCO; combine with light/temp
