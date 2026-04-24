@@ -15,6 +15,7 @@ import type { SatCoverage, AntennaExposure } from '@/lib/types';
 import DropZone from '@/components/tagfinder/DropZone';
 import FileList from '@/components/tagfinder/FileList';
 import AnalysisPanel from '@/components/tagfinder/AnalysisPanel';
+import PositionCard from '@/components/tagfinder/PositionCard';
 import EnvironmentPanel from '@/components/tagfinder/EnvironmentPanel';
 import PopoffEstimatePanel from '@/components/tagfinder/PopoffEstimatePanel';
 import DiveProfilePanel from '@/components/tagfinder/DiveProfilePanel';
@@ -391,6 +392,9 @@ export default function TagFinderPage() {
               </div>
             )}
 
+            {/* Hero position — the single answer recovery teams come here for */}
+            <PositionCard result={displayResult} hero />
+
             {/* File list */}
             <FileList files={detectedFiles} />
 
@@ -462,7 +466,7 @@ export default function TagFinderPage() {
                 {displayResult.transmissionHealth && (
                   <TransmissionHealthPanel health={displayResult.transmissionHealth} />
                 )}
-                <AnalysisPanel result={displayResult} />
+                <AnalysisPanel result={displayResult} skipPositionCard />
                 {displayResult.tagCategory.category === 'psat' && (
                   displayResult.popoff ? (
                     <PopoffEstimatePanel popoff={displayResult.popoff} />
