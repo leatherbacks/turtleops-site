@@ -151,6 +151,14 @@ hotels, piers, popular parks), expand the search to include:
 - **Hotel/condo lost-and-found** — if the tag stranded near lodging
 - **Raking / mechanical beach cleaning schedules** — if the area is mechanically groomed, the tag
   may have been pushed into wrack line rows or collected into piles
+- **Dune vegetation immediately landward of the beach** — many well-meaning visitors (and
+  even some informal cleanup crews) "clean" the beach by tossing debris up into the
+  sea oats, beach grass, or dune scrub rather than walking it to a trash can. A tag that
+  washed up at the wrack line can end up 5–30 m inland in the vegetated dunes. If the
+  position circle straddles the high-tide line and the vegetated dune zone behind it,
+  explicitly recommend searching the dune vegetation (carefully — many beaches have
+  dune-protection rules; check before walking through). This is also where small
+  light-colored objects can sit visually obscured for weeks.
 
 This guidance is especially important when the geocoded location suggests an urban, populated,
 or tourist beach area (as opposed to a remote/undeveloped shoreline).
