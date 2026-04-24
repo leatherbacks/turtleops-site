@@ -231,6 +231,7 @@ export function useAnalysis(): UseAnalysisReturn {
         tempComparison: null, // computed async in the page after environment fetch
         bathymetry: null, // computed async in the page after environment fetch
         transmissionHealth,
+        burialDetection: null, // computed async in the page after environment fetch
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Analysis failed');

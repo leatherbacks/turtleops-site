@@ -10,6 +10,7 @@ import { analyzeSatCoverage } from '@/analysis/satCoverage';
 import { analyzeAntennaExposure } from '@/analysis/antennaExposure';
 import { compareTemperatures } from '@/analysis/tempComparison';
 import { analyzeBathymetry } from '@/analysis/bathymetry';
+import { detectBurial } from '@/analysis/burialDetection';
 import type { SatCoverage, AntennaExposure } from '@/lib/types';
 import DropZone from '@/components/tagfinder/DropZone';
 import FileList from '@/components/tagfinder/FileList';
@@ -144,6 +145,20 @@ export default function TagFinderPage() {
     );
   }, [result, series, statuses, envData.bathymetry]);
 
+  // Burial detection — diel temperature amplitude signature
+  const burialDetection = useMemo(() => {
+    if (!result) return null;
+    if (series.length === 0 && statuses.length === 0) return null;
+    const latestSST =
+      result.sst && result.sst.length > 0
+        ? result.sst[result.sst.length - 1].temperature
+        : null;
+    return detectBurial(series, statuses, result.summary, {
+      airTempC: envData.weather?.temperature ?? null,
+      sstTempC: latestSST,
+    });
+  }, [result, series, statuses, envData.weather]);
+
   // Merge fused tag state + satellite coverage into result for display
   const displayResult = useMemo(() => {
     if (!result) return null;
@@ -153,8 +168,9 @@ export default function TagFinderPage() {
     if (antennaExposure) merged.antennaExposure = antennaExposure;
     if (tempComparison) merged.tempComparison = tempComparison;
     if (bathymetry) merged.bathymetry = bathymetry;
+    if (burialDetection) merged.burialDetection = burialDetection;
     return merged;
-  }, [result, fusedTagState, satCoverage, antennaExposure, tempComparison, bathymetry]);
+  }, [result, fusedTagState, satCoverage, antennaExposure, tempComparison, bathymetry, burialDetection]);
 
   // Fetch AI brief once environment + sat coverage are loaded
   const envReady =
@@ -488,6 +504,36 @@ export default function TagFinderPage() {
             Gatti et al. 2020, ICES J. Mar. Sci. 77:2890
           </a>
           {' '}(large-scale PSAT recovery program, 75% rate).
+        </p>
+        <p className="mt-1">
+          Sand burial signature:{' '}
+          <a
+            href="https://pmc.ncbi.nlm.nih.gov/articles/PMC12240679/"
+            target="_blank"
+            rel="noopener"
+            className="hover:text-primary underline underline-offset-2"
+          >
+            Booth et al.
+          </a>
+          {' '}and{' '}
+          <a
+            href="https://www.researchgate.net/publication/232691738"
+            target="_blank"
+            rel="noopener"
+            className="hover:text-primary underline underline-offset-2"
+          >
+            DeGregorio &amp; Williard
+          </a>
+          {' '}on sea turtle nest thermal loggers;{' '}
+          <a
+            href="https://www.nature.com/articles/s41598-025-93054-w"
+            target="_blank"
+            rel="noopener"
+            className="hover:text-primary underline underline-offset-2"
+          >
+            sand thermal properties (Sci. Rep. 2025)
+          </a>
+          .
         </p>
         <p className="mt-2">
           If this tool informed your recovery or research, please cite: TurtleTag Recovery (Johnson, 2026) — tagfinder.turtleops.org

@@ -10,6 +10,7 @@ import type {
   LightAnalysis,
   TempComparison,
   Bathymetry,
+  BurialDetection,
 } from '@/lib/types';
 import {
   MapPin,
@@ -48,6 +49,7 @@ export default function AnalysisPanel({ result }: AnalysisPanelProps) {
       {result.tagState && <TagStateCard tagState={result.tagState} isTracker={isTracker} />}
       {result.lightAnalysis && <LightAnalysisCard light={result.lightAnalysis} />}
       {result.tempComparison && <TempComparisonCard temp={result.tempComparison} />}
+      {result.burialDetection && <BurialDetectionCard burial={result.burialDetection} />}
       {result.bathymetry && <BathymetryCard bathy={result.bathymetry} />}
       {result.tidalIntrusion && <TidalIntrusionCard tidal={result.tidalIntrusion} />}
       <DriftCard result={result} isTracker={isTracker} />
@@ -693,6 +695,69 @@ function TempComparisonCard({ temp }: { temp: TempComparison }) {
             </div>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function BurialDetectionCard({ burial }: { burial: BurialDetection }) {
+  if (burial.verdict === 'unknown' || burial.verdict === 'insufficient') return null;
+
+  const verdictMeta: Record<string, { label: string; color: string }> = {
+    buried_in_sand: {
+      label: 'Buried in sand',
+      color: 'text-error bg-error/10 border-error/20',
+    },
+    surface_exposed: {
+      label: 'Surface exposed',
+      color: 'text-warning bg-warning/10 border-warning/20',
+    },
+    insulated_indoor: {
+      label: 'Insulated / indoor',
+      color: 'text-primary bg-primary/10 border-primary/20',
+    },
+    in_water: {
+      label: 'In water',
+      color: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/20',
+    },
+  };
+
+  const info = verdictMeta[burial.verdict];
+  if (!info) return null;
+
+  return (
+    <div className="bg-surface rounded-xl border border-border p-5">
+      <div className="flex items-center gap-2 mb-3">
+        <Mountain className="w-5 h-5 text-amber-700" />
+        <h3 className="font-semibold">Burial Signature</h3>
+      </div>
+      <div className="mb-2">
+        <span
+          className={`inline-block px-3 py-1 rounded-full text-xs font-semibold border ${info.color}`}
+        >
+          {info.label.toUpperCase()}
+        </span>
+      </div>
+      <p className="text-sm text-muted mb-3">{burial.reasoning}</p>
+      <div className="grid grid-cols-3 gap-3 text-sm">
+        {burial.medianDielAmplitudeC !== null && (
+          <div>
+            <div className="text-xs text-muted uppercase tracking-wide">Diel Δ</div>
+            <div className="font-mono font-medium">
+              {burial.medianDielAmplitudeC.toFixed(1)}°C
+            </div>
+          </div>
+        )}
+        {burial.medianTempC !== null && (
+          <div>
+            <div className="text-xs text-muted uppercase tracking-wide">Median</div>
+            <div className="font-mono font-medium">{burial.medianTempC.toFixed(1)}°C</div>
+          </div>
+        )}
+        <div>
+          <div className="text-xs text-muted uppercase tracking-wide">Days</div>
+          <div className="font-mono font-medium">{burial.windowsAnalyzed}</div>
+        </div>
       </div>
     </div>
   );

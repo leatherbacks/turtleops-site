@@ -329,6 +329,34 @@ export interface TempComparison {
   confidence: number;
 }
 
+// ─── Burial Detection (thermal signature) ───
+// A tag buried in sand shows a very specific thermal profile: tiny diurnal
+// amplitude (0.3–1.4 °C at nest-chamber depth per published sea turtle
+// nest studies, vs 10+ °C for a surface-exposed tag), smooth low-slope
+// curve, and mean tracking daily-mean ambient. This is a positive-ID
+// signal — distinguishable from in-water (low amplitude, mean matches SST)
+// and AC building (low amplitude, mean much lower than ambient).
+
+export type BurialVerdict =
+  | 'buried_in_sand'     // low amplitude + on-land-ish mean
+  | 'surface_exposed'    // high amplitude — wide diurnal swing
+  | 'insulated_indoor'   // low amplitude but mean far from ambient (AC, heated room, vehicle)
+  | 'in_water'           // low amplitude + mean matches SST
+  | 'insufficient'
+  | 'unknown';
+
+export interface BurialDetection {
+  verdict: BurialVerdict;
+  reasoning: string;
+  /** Median diel (24-hour) temperature amplitude in °C */
+  medianDielAmplitudeC: number | null;
+  /** Median temp across post-release readings, for context */
+  medianTempC: number | null;
+  /** Number of 24-hour windows used in the calculation */
+  windowsAnalyzed: number;
+  confidence: number;
+}
+
 // ─── Bathymetry ───
 
 export interface Bathymetry {
@@ -471,6 +499,7 @@ export interface AnalysisResult {
   tempComparison: TempComparison | null;
   bathymetry: Bathymetry | null;
   transmissionHealth: TransmissionHealth | null;
+  burialDetection: BurialDetection | null;
 
   // Fixes
   allFixes: ArgosFix[];

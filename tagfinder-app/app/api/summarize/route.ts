@@ -183,6 +183,15 @@ the physical state.
   tag is inside an air-conditioned building, a cooler, or a refrigerator. Combined with an
   on-land position, this is "recovered by a person and taken indoors" — recommend community
   outreach rather than a field search.
+- **Burial detection 'buried_in_sand'** — tag's diel temperature swing is < 3°C across
+  multiple days, consistent with published sea turtle nest logger signatures (0.3–1.4°C
+  at nest-chamber depth). Very high-confidence call that the tag is under sand or sediment.
+  Combined with an on-land coordinate, focus the search on sand-search with a probe or rake
+  — goniometer alone may miss a shallow-buried tag because sand attenuates UHF noticeably.
+- **Burial detection 'surface_exposed'** — wide diel swing (>5°C) says the tag is NOT
+  buried; it's sitting in open air with direct sun/shade cycling.
+- **Burial detection 'insulated_indoor'** — low amplitude but mean temperature far from
+  ambient. Signature of a climate-controlled space (AC'd house, heated room, vehicle).
 - **Bathymetry 'tagOnSeabed: true'** — the tag's max depth matches seabed depth. The tag
   is on the bottom; diving recovery may be needed, or the tag is unrecoverable if too deep.
 - **Bathymetry null seabedDepthM** — position is on land per GEBCO; combine with light/temp
@@ -328,6 +337,9 @@ ${JSON.stringify(a.tempComparison, null, 2)}
 
 ## Bathymetry (seabed depth at tag position — is the tag resting on the bottom, or floating above deep water?)
 ${JSON.stringify(a.bathymetry, null, 2)}
+
+## Burial detection (thermal signature — small diel temperature swing = buried in sand per sea turtle nest logger literature)
+${JSON.stringify(a.burialDetection, null, 2)}
 
 ## Transmission health trend (is the tag's signal degrading? Rising CRC rate, falling power, and rising frequency drift together diagnose a tag in trouble — e.g. buried, covered, overheating)
 ${JSON.stringify(a.transmissionHealth, null, 2)}
