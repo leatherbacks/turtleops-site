@@ -244,7 +244,22 @@ export default function TagFinderPage() {
           {result && (
             <div className="flex items-center gap-2">
               <button
-                onClick={() => window.print()}
+                onClick={() => {
+                  // Browsers use document.title as the default Save-As-PDF
+                  // filename. Temporarily set a descriptive title so the
+                  // saved PDF is named with PTT + date, then restore after
+                  // the print dialog closes.
+                  const originalTitle = document.title;
+                  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+                  const pttPart = result.ptt ? `PTT-${result.ptt}-` : '';
+                  document.title = `TurtleTag-Recovery-${pttPart}${today}`;
+                  window.print();
+                  // Restore after the dialog closes. Use a short delay so the
+                  // PDF engine has captured the title.
+                  setTimeout(() => {
+                    document.title = originalTitle;
+                  }, 1000);
+                }}
                 className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg border border-border hover:bg-surface-elevated transition-colors"
               >
                 <Printer className="w-3.5 h-3.5" />

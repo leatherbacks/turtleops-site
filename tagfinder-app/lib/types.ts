@@ -578,6 +578,27 @@ export interface EnvironmentData {
     rawElevationM: number;
     source: 'gebco';
   } | null;
+  forecast: {
+    days: ForecastDay[];
+    stormAlert: boolean;
+    alertReason: string | null;
+    peakWindKn: number | null;
+    peakWaveM: number | null;
+  } | null;
+}
+
+export interface ForecastDay {
+  date: string; // YYYY-MM-DD
+  tempMaxC: number | null;
+  tempMinC: number | null;
+  precipitationMm: number | null;
+  windMaxKn: number | null;
+  windGustKn: number | null;
+  windDirectionDeg: number | null;
+  waveMaxM: number | null;
+  wavePeriodS: number | null;
+  waveDirectionDeg: number | null;
+  weatherCode: number | null;
 }
 
 // ─── File Detection ───

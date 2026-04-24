@@ -10,6 +10,7 @@ interface UseEnvironmentReturn {
     tides: boolean;
     location: boolean;
     bathymetry: boolean;
+    forecast: boolean;
   };
 }
 
@@ -27,6 +28,7 @@ export function useEnvironment(
     tides: null,
     location: null,
     bathymetry: null,
+    forecast: null,
   });
 
   const [loading, setLoading] = useState({
@@ -35,12 +37,13 @@ export function useEnvironment(
     tides: false,
     location: false,
     bathymetry: false,
+    forecast: false,
   });
 
   useEffect(() => {
     if (lat === null || lon === null) return;
 
-    setLoading({ elevation: true, weather: true, tides: true, location: true, bathymetry: true });
+    setLoading({ elevation: true, weather: true, tides: true, location: true, bathymetry: true, forecast: true });
 
     // Elevation
     fetch(`/api/elevation?lat=${lat}&lon=${lon}`)
@@ -117,6 +120,26 @@ export function useEnvironment(
       })
       .catch(() => {})
       .finally(() => setLoading((l) => ({ ...l, tides: false })));
+
+    // Forecast (7-day wind/wave + storm alert)
+    fetch(`/api/forecast?lat=${lat}&lon=${lon}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((res) => {
+        if (res && !res.error) {
+          setData((d) => ({
+            ...d,
+            forecast: {
+              days: res.forecast,
+              stormAlert: !!res.stormAlert,
+              alertReason: res.alertReason ?? null,
+              peakWindKn: res.peakWindKn ?? null,
+              peakWaveM: res.peakWaveM ?? null,
+            },
+          }));
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading((l) => ({ ...l, forecast: false })));
 
     // Bathymetry (GEBCO seabed depth)
     fetch(`/api/bathymetry?lat=${lat}&lon=${lon}`)
