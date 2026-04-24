@@ -40,21 +40,31 @@ export function detectBurial(
 ): BurialDetection {
   const releaseTime = summary?.releaseDate?.getTime() ?? null;
 
+  if (releaseTime === null) {
+    return {
+      verdict: 'insufficient',
+      reasoning:
+        "Summary.csv has no ReleaseDate — can't separate pre-release (in-water dive profile) readings from post-release (current environment) readings. Burial detection requires a confidently post-popoff thermal time series.",
+      medianDielAmplitudeC: null,
+      medianTempC: null,
+      windowsAnalyzed: 0,
+      confidence: 0,
+    };
+  }
+
   // Assemble post-release temperature readings with timestamps.
   const readings: { t: number; temp: number }[] = [];
 
-  const postSeries = releaseTime
-    ? seriesReadings.filter(
-        (s) => s.date.getTime() > releaseTime && s.temperature !== null
-      )
-    : seriesReadings.filter((s) => s.temperature !== null);
+  const postSeries = seriesReadings.filter(
+    (s) => s.date.getTime() > releaseTime && s.temperature !== null
+  );
   for (const s of postSeries) {
     readings.push({ t: s.date.getTime(), temp: s.temperature as number });
   }
 
-  const postStatus = releaseTime
-    ? statuses.filter((s) => s.date.getTime() > releaseTime && s.temperature !== null)
-    : statuses.filter((s) => s.temperature !== null);
+  const postStatus = statuses.filter(
+    (s) => s.date.getTime() > releaseTime && s.temperature !== null
+  );
   for (const s of postStatus) {
     readings.push({ t: s.date.getTime(), temp: s.temperature as number });
   }
@@ -65,7 +75,7 @@ export function detectBurial(
     return {
       verdict: 'insufficient',
       reasoning:
-        'No post-release tag temperature readings available yet — burial detection requires a post-popoff thermal time series.',
+        'No post-release tag temperature readings have come through yet — the tag may still be replaying its pre-release archive.',
       medianDielAmplitudeC: null,
       medianTempC: null,
       windowsAnalyzed: 0,

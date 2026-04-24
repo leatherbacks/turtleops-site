@@ -28,22 +28,34 @@ export function compareTemperatures(
 ): TempComparison {
   const releaseTime = summary?.releaseDate?.getTime() ?? null;
 
+  if (releaseTime === null) {
+    return {
+      environment: 'insufficient',
+      reasoning:
+        "Summary.csv has no ReleaseDate — can't separate pre-release (in-water on the animal) temperatures from post-release (current environment) temperatures. Classifying without that filter would produce a misleading verdict.",
+      tagTempRange: null,
+      airTempC: sources.airTempC,
+      sstTempC: sources.sstTempC,
+      tagMinusSST: null,
+      tagMinusAir: null,
+      confidence: 0,
+    };
+  }
+
   // Prefer post-release Series readings (high-rate, calibrated sensor).
   // Fall back to Status reports if Series isn't available.
-  const postReleaseSeries = releaseTime
-    ? seriesReadings.filter((s) => s.date.getTime() > releaseTime && s.temperature !== null)
-    : seriesReadings.filter((s) => s.temperature !== null);
+  const postReleaseSeries = seriesReadings.filter(
+    (s) => s.date.getTime() > releaseTime && s.temperature !== null
+  );
 
   const tagTemps: number[] = postReleaseSeries
     .map((s) => s.temperature as number)
     .filter((t) => !isNaN(t));
 
   if (tagTemps.length === 0) {
-    // Fall back to Status temperatures
-    const statusTemps = (releaseTime
-      ? statuses.filter((s) => s.date.getTime() > releaseTime)
-      : statuses
-    )
+    // Fall back to Status temperatures (post-release only)
+    const statusTemps = statuses
+      .filter((s) => s.date.getTime() > releaseTime)
       .map((s) => s.temperature)
       .filter((t): t is number => t !== null && !isNaN(t));
     tagTemps.push(...statusTemps);
@@ -52,7 +64,8 @@ export function compareTemperatures(
   if (tagTemps.length === 0) {
     return {
       environment: 'insufficient',
-      reasoning: 'No post-release tag temperature readings available.',
+      reasoning:
+        'No post-release tag temperature readings have come through yet — the tag may still be replaying its pre-release archive.',
       tagTempRange: null,
       airTempC: sources.airTempC,
       sstTempC: sources.sstTempC,
