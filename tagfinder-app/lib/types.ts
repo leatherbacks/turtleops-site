@@ -107,6 +107,29 @@ export interface LightCurve {
   attenDeep: number | null;
 }
 
+// ─── Time-At-Temperature / Time-At-Depth Histograms (Histos.csv) ───
+// One row per UTC day per histogram type. Bin edges live in TATLIMITS /
+// TADLIMITS rows in the same file; data rows (TAT / TAD) carry counts
+// per bin (units = % of day or minutes/day depending on tag config).
+
+export type HistogramKind = 'TAT' | 'TAD';
+
+export interface HistogramReading {
+  date: Date;
+  kind: HistogramKind;
+  /** Per-bin counts (typically % of day in each bin) */
+  counts: number[];
+}
+
+export interface HistogramSet {
+  /** Lower edges of TAT bins in °C (e.g. [8, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30]) */
+  tatBinEdges: number[];
+  /** Lower edges of TAD bins in meters (e.g. [1, 2, 5, 10, 20, 35, 65, 80, 100, 150, 300]) */
+  tadBinEdges: number[];
+  tat: HistogramReading[];
+  tad: HistogramReading[];
+}
+
 // ─── Daily Sensor Summary (DailyData.csv) ───
 // One row per UTC day. Pre-aggregated by the tag's firmware: min/max temp,
 // min/max depth, daily light delta. The diel temp range (MaxTemp - MinTemp)
@@ -630,6 +653,7 @@ export type FileType =
   | 'corrupt'
   | 'lightloc'
   | 'dailydata'
+  | 'histos'
   | 'unknown';
 
 export interface DetectedFile {

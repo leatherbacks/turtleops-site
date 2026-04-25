@@ -3,6 +3,7 @@ import type {
   TagStatus,
   DeploySummary,
   DailySummary,
+  HistogramSet,
   BurialDetection,
   BurialVerdict,
 } from '@/lib/types';
@@ -42,7 +43,11 @@ export function detectBurial(
    *  this is preferred over computing diel amplitude from raw Series readings —
    *  the tag's firmware computes it cleanly, and a single DailyData row covers
    *  a full UTC day even when Series gaps exist. */
-  dailySummaries: DailySummary[] = []
+  dailySummaries: DailySummary[] = [],
+  /** Time-At-Depth histograms from Histos.csv. When post-release TAD rows
+   *  show ~100% of the day in Bin 1 (depth 0–1 m), the tag has been
+   *  continuously dry — strong corroboration for beach burial vs floating. */
+  histograms: HistogramSet | null = null
 ): BurialDetection {
   const releaseTime = summary?.releaseDate?.getTime() ?? null;
 
@@ -68,8 +73,12 @@ export function detectBurial(
       d.maxTemp !== null
   );
 
+  // Compute TAD signal if available — % of post-release time spent in Bin 1
+  // (the shallowest bin, typically 0-1 m). 100% = always dry/buried.
+  const tadSignal = computeTadSignal(histograms, releaseTime);
+
   if (postReleaseDailies.length >= 2) {
-    return classifyFromDailies(postReleaseDailies, sources);
+    return classifyFromDailies(postReleaseDailies, sources, tadSignal);
   }
 
   // Fallback: bucket raw Series/Status readings into 24h windows ourselves.
@@ -207,6 +216,39 @@ export function detectBurial(
   };
 }
 
+interface TadSignal {
+  /** Mean % of post-release time in the shallowest TAD bin */
+  bin1Pct: number;
+  /** Bin 1 upper edge (m) — typically 1 m */
+  bin1UpperM: number;
+  /** Number of post-release TAD rows used */
+  daysAnalyzed: number;
+}
+
+/** % of time in the shallowest TAD bin across post-release TAD rows.
+ *  Returns null when histograms aren't available or no post-release rows exist. */
+function computeTadSignal(
+  histograms: HistogramSet | null,
+  releaseTime: number
+): TadSignal | null {
+  if (!histograms || histograms.tad.length === 0) return null;
+  const postReleaseTAD = histograms.tad.filter(
+    (r) => r.date.getTime() > releaseTime - 12 * 60 * 60 * 1000
+  );
+  if (postReleaseTAD.length === 0) return null;
+  const bin1Upper = histograms.tadBinEdges[0] ?? 1;
+  const bin1Pcts = postReleaseTAD
+    .map((r) => r.counts[0] ?? 0)
+    .filter((v) => !isNaN(v));
+  if (bin1Pcts.length === 0) return null;
+  const meanBin1 = bin1Pcts.reduce((s, v) => s + v, 0) / bin1Pcts.length;
+  return {
+    bin1Pct: meanBin1,
+    bin1UpperM: bin1Upper,
+    daysAnalyzed: bin1Pcts.length,
+  };
+}
+
 /** Classify burial directly from DailyData rows. Tag firmware already gave
  *  us per-day MinTemp/MaxTemp + MinDepth/MaxDepth, so we read both signals
  *  off without bucketing.
@@ -223,7 +265,8 @@ export function detectBurial(
  *  the verdict still goes through but with lower confidence. */
 function classifyFromDailies(
   dailies: DailySummary[],
-  sources: { airTempC: number | null; sstTempC: number | null }
+  sources: { airTempC: number | null; sstTempC: number | null },
+  tad: TadSignal | null
 ): BurialDetection {
   const amplitudes = dailies.map((d) => (d.maxTemp as number) - (d.minTemp as number));
   const meanTemps = dailies.map((d) => ((d.maxTemp as number) + (d.minTemp as number)) / 2);
@@ -271,6 +314,10 @@ function classifyFromDailies(
 
   const dayCount = dailies.length;
   const sourceNote = `(${dayCount} day${dayCount === 1 ? '' : 's'} of DailyData.csv)`;
+  const tadDryNote =
+    tad && tad.bin1Pct > 95
+      ? ` Time-at-Depth shows ${tad.bin1Pct.toFixed(0)}% of post-release time in the shallowest bin (0–${tad.bin1UpperM} m) across ${tad.daysAnalyzed} days — tag has been continuously dry, corroborating beach burial.`
+      : '';
   const depthNote =
     depthSignal === 'sand_pressure'
       ? ` Pressure sensor reads ${medianDepth!.toFixed(2)} m of constant pseudo-depth — the tag's sensor is being squeezed by sand pressure, not water column. This is the same signature seen on PTT 285932 (Caminada Headland buried turtle tag, 1.35 m).`
@@ -295,22 +342,25 @@ function classifyFromDailies(
         airDelta !== null
           ? ` Mean (${medianTemp.toFixed(1)} °C) tracks local air (${sources.airTempC!.toFixed(1)} °C, Δ=${airDelta.toFixed(1)} °C).`
           : '';
-      reasoning = `Diel amplitude only ${medianAmp.toFixed(1)} °C — in the 0.3–1.4 °C range published for sea turtle nest loggers at sand depth.${meanNote}${depthNote} ${sourceNote}.`;
-      // Both signals agreeing → bump confidence
-      confidence = depthSignal === 'sand_pressure' ? 0.95 : 0.9;
+      reasoning = `Diel amplitude only ${medianAmp.toFixed(1)} °C — in the 0.3–1.4 °C range published for sea turtle nest loggers at sand depth.${meanNote}${depthNote}${tadDryNote} ${sourceNote}.`;
+      // Each independent corroborating signal raises confidence
+      const corroborators =
+        (depthSignal === 'sand_pressure' ? 1 : 0) +
+        (tad && tad.bin1Pct > 95 ? 1 : 0);
+      confidence = Math.min(0.98, 0.85 + 0.05 * corroborators);
     }
   } else if (medianAmp > HIGH_AMPLITUDE) {
     verdict = 'surface_exposed';
-    reasoning = `Diel amplitude ${medianAmp.toFixed(1)} °C — surface-exposed under direct sun/shade cycles ${sourceNote}.${depthNote}`;
+    reasoning = `Diel amplitude ${medianAmp.toFixed(1)} °C — surface-exposed under direct sun/shade cycles ${sourceNote}.${depthNote}${tadDryNote}`;
     confidence = 0.85;
-  } else if (depthSignal === 'sand_pressure') {
-    // Temperature is ambiguous but depth strongly suggests burial — call it
+  } else if (depthSignal === 'sand_pressure' || (tad && tad.bin1Pct > 95)) {
+    // Temperature is ambiguous but depth or TAD strongly suggests burial — call it
     verdict = 'buried_in_sand';
-    reasoning = `Diel temperature amplitude is ${medianAmp.toFixed(1)} °C (between thresholds) but depth sensor reads ${medianDepth!.toFixed(2)} m of constant pseudo-depth. Constant non-zero pressure = sand pressure, not water. Same signature as PTT 285932 (Caminada Headland buried turtle, 1.35 m). Likely buried ${sourceNote}.`;
+    reasoning = `Diel temperature amplitude is ${medianAmp.toFixed(1)} °C (between thresholds), but${depthSignal === 'sand_pressure' ? ` depth sensor reads ${medianDepth!.toFixed(2)} m of constant pseudo-depth (sand pressure, like PTT 285932 at Caminada Headland: 1.35 m).` : ''}${tadDryNote} Likely buried ${sourceNote}.`;
     confidence = 0.8;
   } else {
     verdict = 'unknown';
-    reasoning = `Diel amplitude ${medianAmp.toFixed(1)} °C — between sand-buried (<3 °C) and surface-exposed (>5 °C) thresholds. Ambiguous ${sourceNote}.${depthNote}`;
+    reasoning = `Diel amplitude ${medianAmp.toFixed(1)} °C — between sand-buried (<3 °C) and surface-exposed (>5 °C) thresholds. Ambiguous ${sourceNote}.${depthNote}${tadDryNote}`;
     confidence = 0.4;
   }
 

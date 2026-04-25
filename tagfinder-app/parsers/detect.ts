@@ -26,6 +26,10 @@ const WC_PATTERNS: { fileType: FileType; required: string[] }[] = [
     required: ['MinTemp', 'MaxTemp', 'DeltaLight'],
   },
   {
+    fileType: 'histos',
+    required: ['HistType', 'NumBins', 'Bin1', 'Bin72'],
+  },
+  {
     fileType: 'corrupt',
     required: ['Reason', 'Possible Type'],
   },
@@ -72,6 +76,7 @@ export function detectFile(file: File, headers: string[]): DetectedFile {
   if (name.includes('sst')) return { file, manufacturer: 'wildlife_computers', fileType: 'sst' };
   if (name.includes('minmaxdepth')) return { file, manufacturer: 'wildlife_computers', fileType: 'minmaxdepth' };
   if (name.includes('dailydata')) return { file, manufacturer: 'wildlife_computers', fileType: 'dailydata' };
+  if (name.includes('histos')) return { file, manufacturer: 'wildlife_computers', fileType: 'histos' };
   if (name.includes('corrupt')) return { file, manufacturer: 'wildlife_computers', fileType: 'corrupt' };
   if (name.includes('lightloc')) return { file, manufacturer: 'wildlife_computers', fileType: 'lightloc' };
   if (name.includes('location') && !name.includes('lightloc')) return { file, manufacturer: 'wildlife_computers', fileType: 'locations' };

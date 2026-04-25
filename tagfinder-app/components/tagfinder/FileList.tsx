@@ -18,6 +18,7 @@ const FILE_TYPE_LABELS: Record<string, string> = {
   corrupt: 'Corrupted Messages',
   lightloc: 'Light Levels',
   dailydata: 'Daily Summary',
+  histos: 'Depth/Temp Histograms',
   unknown: 'Not recognized',
 };
 

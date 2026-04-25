@@ -18,6 +18,7 @@ import { parseMinMaxDepth } from '@/parsers/wc/minMaxDepth';
 import { parseCorrupt } from '@/parsers/wc/corrupt';
 import { parseLightLoc } from '@/parsers/wc/lightLoc';
 import { parseDailyData } from '@/parsers/wc/dailyData';
+import { parseHistos } from '@/parsers/wc/histos';
 import { classifyDrift } from '@/analysis/drift';
 import { markOutliers } from '@/analysis/outliers';
 import { computePosition } from '@/analysis/position';
@@ -46,6 +47,7 @@ interface UseAnalysisReturn {
   series: import('@/lib/types').SeriesReading[];
   passes: import('@/lib/types').ArgosPass[];
   dailySummaries: import('@/lib/types').DailySummary[];
+  histograms: import('@/lib/types').HistogramSet | null;
   error: string | null;
   analyzing: boolean;
   analyze: (files: File[]) => Promise<void>;
@@ -59,6 +61,7 @@ export function useAnalysis(): UseAnalysisReturn {
   const [series, setSeries] = useState<import('@/lib/types').SeriesReading[]>([]);
   const [passesState, setPassesState] = useState<import('@/lib/types').ArgosPass[]>([]);
   const [dailySummariesState, setDailySummariesState] = useState<import('@/lib/types').DailySummary[]>([]);
+  const [histogramsState, setHistogramsState] = useState<import('@/lib/types').HistogramSet | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
 
@@ -104,10 +107,12 @@ export function useAnalysis(): UseAnalysisReturn {
       const corruptMsgs = parsedData.corrupt ? parseCorrupt(parsedData.corrupt) : [];
       const lightCurves = parsedData.lightloc ? parseLightLoc(parsedData.lightloc) : [];
       const dailySummaries = parsedData.dailydata ? parseDailyData(parsedData.dailydata) : [];
+      const histograms = parsedData.histos ? parseHistos(parsedData.histos) : null;
       setStatuses(parsedStatuses);
       setSeries(seriesReadings);
       setPassesState(passes);
       setDailySummariesState(dailySummaries);
+      setHistogramsState(histograms);
 
       if (fixes.length === 0) {
         setError('No valid Argos fixes found in the Locations file.');
@@ -252,6 +257,7 @@ export function useAnalysis(): UseAnalysisReturn {
     setSeries([]);
     setPassesState([]);
     setDailySummariesState([]);
+    setHistogramsState(null);
     setError(null);
     setAnalyzing(false);
   }, []);
@@ -263,6 +269,7 @@ export function useAnalysis(): UseAnalysisReturn {
     series,
     passes: passesState,
     dailySummaries: dailySummariesState,
+    histograms: histogramsState,
     error,
     analyzing,
     analyze,
