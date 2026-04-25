@@ -29,7 +29,7 @@ import EmailGate from '@/components/tagfinder/EmailGate';
 import FeedbackWidget from '@/components/tagfinder/FeedbackWidget';
 import { useUpcomingPasses } from '@/hooks/useUpcomingPasses';
 import { useTagFinderAuth } from '@/hooks/useTagFinderAuth';
-import { RotateCcw, Loader2, Printer } from 'lucide-react';
+import { RotateCcw, Loader2, Printer, Share2, Check } from 'lucide-react';
 
 // Leaflet must be loaded client-side only
 const TagMap = dynamic(() => import('@/components/tagfinder/TagMap'), {
@@ -50,6 +50,10 @@ export default function TagFinderPage() {
   const [brief, setBrief] = useState<string | null>(null);
   const [briefLoading, setBriefLoading] = useState(false);
   const [briefError, setBriefError] = useState<string | null>(null);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [sharing, setSharing] = useState(false);
+  const [shareError, setShareError] = useState<string | null>(null);
+  const [shareCopied, setShareCopied] = useState(false);
 
   // Fetch environment once we have a position
   const { data: envData, loading: envLoading } = useEnvironment(
@@ -234,6 +238,64 @@ export default function TagFinderPage() {
     setAntennaExposure(null);
     setBrief(null);
     setBriefError(null);
+    setShareUrl(null);
+    setShareError(null);
+  };
+
+  const handleShareReport = async () => {
+    if (!displayResult) return;
+    setSharing(true);
+    setShareError(null);
+    try {
+      const res = await fetch('/api/reports', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          analysis: displayResult,
+          environment: envData,
+          brief,
+          upcomingPasses: upcoming.passes,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setShareError(data.error || 'Failed to create share link');
+        return;
+      }
+      const fullUrl = `${window.location.origin}${data.url}`;
+      setShareUrl(fullUrl);
+      // Try the native share sheet first; fall back to clipboard
+      const nav = typeof navigator !== 'undefined' ? navigator : null;
+      if (nav && typeof nav.share === 'function') {
+        try {
+          await nav.share({
+            title: `TurtleTag${displayResult.ptt ? ` ${displayResult.ptt}` : ''} — Recovery report`,
+            url: fullUrl,
+          });
+        } catch {
+          // user cancelled — that's fine, link is still on screen
+        }
+      } else if (nav && nav.clipboard) {
+        await nav.clipboard.writeText(fullUrl);
+        setShareCopied(true);
+        setTimeout(() => setShareCopied(false), 2000);
+      }
+    } catch {
+      setShareError('Failed to reach the report service');
+    } finally {
+      setSharing(false);
+    }
+  };
+
+  const copyShareUrl = async () => {
+    if (!shareUrl) return;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 2000);
+    } catch {
+      // ignore
+    }
   };
 
   return (
@@ -274,6 +336,20 @@ export default function TagFinderPage() {
                 Print report
               </button>
               <button
+                onClick={handleShareReport}
+                disabled={sharing}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg border border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 transition-colors disabled:opacity-50"
+              >
+                {sharing ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : shareCopied ? (
+                  <Check className="w-3.5 h-3.5" />
+                ) : (
+                  <Share2 className="w-3.5 h-3.5" />
+                )}
+                {shareUrl ? 'Re-share' : 'Share with team'}
+              </button>
+              <button
                 onClick={handleReset}
                 className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg border border-border hover:bg-surface-elevated transition-colors"
               >
@@ -283,6 +359,42 @@ export default function TagFinderPage() {
             </div>
           )}
         </div>
+        {(shareUrl || shareError) && (
+          <div className="max-w-7xl mx-auto px-6 pb-3">
+            {shareUrl && (
+              <div className="flex items-center gap-2 text-xs bg-success/10 border border-success/30 rounded-lg px-3 py-2">
+                <Check className="w-3.5 h-3.5 text-success flex-shrink-0" />
+                <span className="text-muted">Shareable link:</span>
+                <a
+                  href={shareUrl}
+                  target="_blank"
+                  rel="noopener"
+                  className="font-mono text-primary hover:underline truncate"
+                >
+                  {shareUrl}
+                </a>
+                <button
+                  onClick={copyShareUrl}
+                  className="ml-auto flex items-center gap-1 px-2 py-1 rounded hover:bg-surface-elevated"
+                >
+                  {shareCopied ? (
+                    <Check className="w-3 h-3 text-success" />
+                  ) : (
+                    <>
+                      <Share2 className="w-3 h-3" />
+                      Copy
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+            {shareError && (
+              <div className="text-xs bg-error/10 border border-error/30 rounded-lg px-3 py-2 text-error">
+                {shareError}
+              </div>
+            )}
+          </div>
+        )}
       </header>
 
       <main className="max-w-7xl mx-auto px-6 py-8">
