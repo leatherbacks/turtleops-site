@@ -261,6 +261,16 @@ function ReportView({ report }: { report: ReportPayload }) {
         {/* Map */}
         <section className="bg-surface rounded-xl border border-border p-2 overflow-hidden">
           <TagMap result={a} />
+          <div className="flex flex-wrap gap-3 mt-3 justify-center text-[11px] text-muted px-2 pb-1">
+            <LegendItem color="#d32f2f" label="Best estimate" />
+            {a.popoff && <LegendItem color="#fbc02d" label="Popoff (P₀)" />}
+            <LegendItem color="#1565c0" label="Q3 fix" />
+            <LegendItem color="#0097a7" label="Q2 fix" />
+            <LegendItem color="#7b1fa2" label="Q1/A fix" />
+            {a.outlierFixes && a.outlierFixes.length > 0 && (
+              <LegendItem color="#999999" label="Outlier" />
+            )}
+          </div>
         </section>
 
         <footer className="text-center text-xs text-muted py-6">
@@ -276,6 +286,18 @@ function ReportView({ report }: { report: ReportPayload }) {
           </p>
         </footer>
       </main>
+    </div>
+  );
+}
+
+function LegendItem({ color, label }: { color: string; label: string }) {
+  return (
+    <div className="flex items-center gap-1">
+      <div
+        className="w-2 h-2 rounded-full border border-white/60"
+        style={{ backgroundColor: color }}
+      />
+      <span>{label}</span>
     </div>
   );
 }
