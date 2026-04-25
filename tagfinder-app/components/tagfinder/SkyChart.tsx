@@ -57,6 +57,20 @@ export default function SkyChart({ passes, exposure }: SkyChartProps) {
             </span>
           </div>
           <p className="text-xs text-muted">{exposure.reasoning}</p>
+          {exposure.orientation && exposure.orientation.confidence > 0.3 && (
+            <div className="mt-2 pt-2 border-t border-border">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-xs font-semibold uppercase tracking-wide text-muted">
+                  Likely physical orientation
+                </span>
+                <span className="text-xs text-muted">
+                  {(exposure.orientation.confidence * 100).toFixed(0)}% confidence ·{' '}
+                  {exposure.orientation.passCount} passes
+                </span>
+              </div>
+              <p className="text-xs text-muted">{exposure.orientation.description}</p>
+            </div>
+          )}
         </div>
       )}
 

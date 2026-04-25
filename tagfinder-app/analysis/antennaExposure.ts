@@ -1,4 +1,8 @@
-import type { AnnotatedPass, AntennaExposure } from '@/lib/types';
+import type {
+  AnnotatedPass,
+  AntennaExposure,
+  AntennaOrientation,
+} from '@/lib/types';
 
 /**
  * Diagnose antenna exposure from the received-vs-missed pass pattern.
@@ -26,6 +30,7 @@ export function analyzeAntennaExposure(passes: AnnotatedPass[]): AntennaExposure
       azimuthBias: null,
       reasoning: 'Not enough passes to diagnose antenna exposure with confidence.',
       confidence: 0,
+      orientation: null,
     };
   }
 
@@ -80,6 +85,13 @@ export function analyzeAntennaExposure(passes: AnnotatedPass[]): AntennaExposure
     reasoning = `Reception rate is low but no clear elevation or directional pattern emerges. The antenna may have intermittent obstruction, or the tag is transmitting at low power.`;
   }
 
+  // Try to fit a physical antenna orientation (tilt + heading) to the pattern.
+  // Needs ≥6 received and ≥3 missed passes to be meaningful.
+  const orientation =
+    received.length >= 6 && missed.length >= 3
+      ? inferAntennaOrientation(received, missed)
+      : null;
+
   return {
     pattern,
     minReceivedElevation: minReceived,
@@ -90,7 +102,120 @@ export function analyzeAntennaExposure(passes: AnnotatedPass[]): AntennaExposure
     azimuthBias,
     reasoning,
     confidence,
+    orientation,
   };
+}
+
+/**
+ * Fit a whip antenna orientation (tilt from vertical, compass heading of tilt)
+ * to the elevation/azimuth pattern of received vs missed passes.
+ *
+ * Whip antenna gain pattern (idealized): proportional to sin²(angle between
+ * antenna axis and the satellite direction). Maximum gain perpendicular to
+ * the wire, zero gain along the wire (the "blind cone").
+ *
+ * We grid-search candidate (tilt, heading) values and pick the orientation
+ * whose predicted gains best match received-vs-missed (high gain → received,
+ * low gain → missed) under a Bernoulli log-likelihood.
+ */
+function inferAntennaOrientation(
+  received: AnnotatedPass[],
+  missed: AnnotatedPass[]
+): AntennaOrientation {
+  type Sample = { el: number; az: number; received: 0 | 1 };
+  const samples: Sample[] = [
+    ...received.map((p) => ({ el: p.maxElevation, az: p.peakAzimuth, received: 1 as const })),
+    ...missed.map((p) => ({ el: p.maxElevation, az: p.peakAzimuth, received: 0 as const })),
+  ];
+
+  let bestScore = -Infinity;
+  let bestTilt = 0;
+  let bestHeading = 0;
+
+  // Grid search: tilt 0..90° step 5°, heading 0..330° step 30°.
+  // Heading doesn't matter when tilt is 0, so skip the inner loop there.
+  for (let tilt = 0; tilt <= 90; tilt += 5) {
+    const headings = tilt < 5 ? [0] : Array.from({ length: 12 }, (_, i) => i * 30);
+    for (const heading of headings) {
+      const score = scoreOrientation(samples, tilt, heading);
+      if (score > bestScore) {
+        bestScore = score;
+        bestTilt = tilt;
+        bestHeading = heading;
+      }
+    }
+  }
+
+  // Confidence: compare best fit's likelihood to a chance-baseline (50/50).
+  // A perfect fit would saturate at 0 (max log-likelihood for binary outcomes).
+  const uniformScore = samples.length * Math.log(0.5);
+  const lift = bestScore - uniformScore;
+  const maxLift = -uniformScore; // perfect fit
+  const confidence = Math.max(0, Math.min(1, lift / Math.max(maxLift, 0.01)));
+
+  const tiltHeading = bestTilt < 15 ? null : bestHeading;
+  const description = describeOrientation(bestTilt, tiltHeading);
+
+  return {
+    tiltDeg: bestTilt,
+    tiltHeadingDeg: tiltHeading,
+    description,
+    confidence,
+    passCount: samples.length,
+  };
+}
+
+/** Bernoulli log-likelihood that an orientation explains the data. */
+function scoreOrientation(
+  samples: { el: number; az: number; received: 0 | 1 }[],
+  tiltDeg: number,
+  headingDeg: number
+): number {
+  const tiltRad = (tiltDeg * Math.PI) / 180;
+  const headingRad = (headingDeg * Math.PI) / 180;
+  // Antenna axis unit vector in (East, North, Up) coords
+  const axis = {
+    e: Math.sin(tiltRad) * Math.sin(headingRad),
+    n: Math.sin(tiltRad) * Math.cos(headingRad),
+    u: Math.cos(tiltRad),
+  };
+
+  let logLik = 0;
+  const eps = 0.05; // floor probability so log doesn't blow up
+  for (const s of samples) {
+    const elRad = (s.el * Math.PI) / 180;
+    const azRad = (s.az * Math.PI) / 180;
+    // Satellite direction unit vector (from tag toward sat)
+    const sat = {
+      e: Math.cos(elRad) * Math.sin(azRad),
+      n: Math.cos(elRad) * Math.cos(azRad),
+      u: Math.sin(elRad),
+    };
+    const cos = axis.e * sat.e + axis.n * sat.n + axis.u * sat.u;
+    const gain = 1 - cos * cos; // sin²(angle between)
+    // Map gain (0–1) to reception probability with a soft floor
+    const p = eps + (1 - 2 * eps) * gain;
+    logLik += s.received === 1 ? Math.log(p) : Math.log(1 - p);
+  }
+  return logLik;
+}
+
+function describeOrientation(tilt: number, heading: number | null): string {
+  if (tilt < 15) {
+    return `Antenna near-vertical (tilt ${tilt}°) — normal upright orientation.`;
+  }
+  if (tilt < 45) {
+    return `Antenna tilted ${tilt}° from vertical, leaning ${headingToCompass(heading!)}. Tag may be partially propped or wedged.`;
+  }
+  if (tilt < 75) {
+    return `Antenna at a steep tilt (${tilt}°), oriented roughly ${headingToCompass(heading!)}. Tag is on its side or significantly tipped.`;
+  }
+  return `Antenna lying nearly horizontal (tilt ${tilt}°), pointing ${headingToCompass(heading!)}. Tag is flat on the ground with the wire parallel to the surface.`;
+}
+
+function headingToCompass(deg: number): string {
+  const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+  return dirs[Math.round(deg / 45) % 8];
 }
 
 // ─── helpers ─────────────────────────────────────────────

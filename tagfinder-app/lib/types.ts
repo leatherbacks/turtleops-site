@@ -456,6 +456,22 @@ export type ExposurePattern =
   | 'too_few_passes'     // Not enough data to conclude
   | 'unknown';
 
+/** Best-fit physical orientation of the tag's whip antenna, inferred from
+ *  the elevation/azimuth pattern of received vs missed passes. */
+export interface AntennaOrientation {
+  /** Angle from vertical, 0=upright, 90=lying flat */
+  tiltDeg: number;
+  /** Compass heading the tilt is in (only meaningful when tilted >15°);
+   *  null when antenna is essentially vertical */
+  tiltHeadingDeg: number | null;
+  /** Plain-English summary, e.g. "Antenna near-vertical (tilt 12°)" */
+  description: string;
+  /** Confidence 0–1 based on how well the best fit explains the data */
+  confidence: number;
+  /** Number of passes used to fit */
+  passCount: number;
+}
+
 export interface AntennaExposure {
   pattern: ExposurePattern;
   /** Minimum peak elevation (°) among received passes */
@@ -474,6 +490,9 @@ export interface AntennaExposure {
   reasoning: string;
   /** Confidence 0-1 */
   confidence: number;
+  /** Best-fit physical orientation of the antenna whip (tilt + heading).
+   *  Null when there aren't enough received passes to fit reliably. */
+  orientation: AntennaOrientation | null;
 }
 
 // ─── Satellite Coverage Analysis ───
