@@ -17,6 +17,7 @@ import { parseSST } from '@/parsers/wc/sst';
 import { parseMinMaxDepth } from '@/parsers/wc/minMaxDepth';
 import { parseCorrupt } from '@/parsers/wc/corrupt';
 import { parseLightLoc } from '@/parsers/wc/lightLoc';
+import { parseDailyData } from '@/parsers/wc/dailyData';
 import { classifyDrift } from '@/analysis/drift';
 import { markOutliers } from '@/analysis/outliers';
 import { computePosition } from '@/analysis/position';
@@ -44,6 +45,7 @@ interface UseAnalysisReturn {
   statuses: import('@/lib/types').TagStatus[];
   series: import('@/lib/types').SeriesReading[];
   passes: import('@/lib/types').ArgosPass[];
+  dailySummaries: import('@/lib/types').DailySummary[];
   error: string | null;
   analyzing: boolean;
   analyze: (files: File[]) => Promise<void>;
@@ -56,6 +58,7 @@ export function useAnalysis(): UseAnalysisReturn {
   const [statuses, setStatuses] = useState<import('@/lib/types').TagStatus[]>([]);
   const [series, setSeries] = useState<import('@/lib/types').SeriesReading[]>([]);
   const [passesState, setPassesState] = useState<import('@/lib/types').ArgosPass[]>([]);
+  const [dailySummariesState, setDailySummariesState] = useState<import('@/lib/types').DailySummary[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
 
@@ -100,9 +103,11 @@ export function useAnalysis(): UseAnalysisReturn {
       const dailyDives = parsedData.minmaxdepth ? parseMinMaxDepth(parsedData.minmaxdepth) : [];
       const corruptMsgs = parsedData.corrupt ? parseCorrupt(parsedData.corrupt) : [];
       const lightCurves = parsedData.lightloc ? parseLightLoc(parsedData.lightloc) : [];
+      const dailySummaries = parsedData.dailydata ? parseDailyData(parsedData.dailydata) : [];
       setStatuses(parsedStatuses);
       setSeries(seriesReadings);
       setPassesState(passes);
+      setDailySummariesState(dailySummaries);
 
       if (fixes.length === 0) {
         setError('No valid Argos fixes found in the Locations file.');
@@ -246,11 +251,23 @@ export function useAnalysis(): UseAnalysisReturn {
     setStatuses([]);
     setSeries([]);
     setPassesState([]);
+    setDailySummariesState([]);
     setError(null);
     setAnalyzing(false);
   }, []);
 
-  return { detectedFiles, result, statuses, series, passes: passesState, error, analyzing, analyze, reset };
+  return {
+    detectedFiles,
+    result,
+    statuses,
+    series,
+    passes: passesState,
+    dailySummaries: dailySummariesState,
+    error,
+    analyzing,
+    analyze,
+    reset,
+  };
 }
 
 /** Convert our ArgosFix to the Nault module's ArgosFix format */

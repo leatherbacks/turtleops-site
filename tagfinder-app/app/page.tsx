@@ -42,7 +42,7 @@ const TagMap = dynamic(() => import('@/components/tagfinder/TagMap'), {
 });
 
 export default function TagFinderPage() {
-  const { detectedFiles, result, statuses, series, passes, error, analyzing, analyze, reset } = useAnalysis();
+  const { detectedFiles, result, statuses, series, passes, dailySummaries, error, analyzing, analyze, reset } = useAnalysis();
   const { session, email, loading: authLoading, signOut } = useTagFinderAuth();
 
   const [satCoverage, setSatCoverage] = useState<SatCoverage | null>(null);
@@ -154,11 +154,17 @@ export default function TagFinderPage() {
       result.sst && result.sst.length > 0
         ? result.sst[result.sst.length - 1].temperature
         : null;
-    return detectBurial(series, statuses, result.summary, {
-      airTempC: envData.weather?.temperature ?? null,
-      sstTempC: latestSST,
-    });
-  }, [result, series, statuses, envData.weather]);
+    return detectBurial(
+      series,
+      statuses,
+      result.summary,
+      {
+        airTempC: envData.weather?.temperature ?? null,
+        sstTempC: latestSST,
+      },
+      dailySummaries
+    );
+  }, [result, series, statuses, envData.weather, dailySummaries]);
 
   // Merge fused tag state + satellite coverage into result for display
   const displayResult = useMemo(() => {

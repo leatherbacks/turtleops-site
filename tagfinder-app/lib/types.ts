@@ -107,6 +107,21 @@ export interface LightCurve {
   attenDeep: number | null;
 }
 
+// ─── Daily Sensor Summary (DailyData.csv) ───
+// One row per UTC day. Pre-aggregated by the tag's firmware: min/max temp,
+// min/max depth, daily light delta. The diel temp range (MaxTemp - MinTemp)
+// is the cleanest possible input to burial detection — no need to re-bucket
+// raw Series readings ourselves.
+
+export interface DailySummary {
+  date: Date;
+  minTemp: number | null;
+  maxTemp: number | null;
+  minDepth: number | null;
+  maxDepth: number | null;
+  deltaLight: number | null;
+}
+
 // ─── Daily Dive Summary (MinMaxDepth.csv) ───
 
 export interface DailyDiveSummary {
@@ -614,6 +629,7 @@ export type FileType =
   | 'minmaxdepth'
   | 'corrupt'
   | 'lightloc'
+  | 'dailydata'
   | 'unknown';
 
 export interface DetectedFile {

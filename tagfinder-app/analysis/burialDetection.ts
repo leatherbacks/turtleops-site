@@ -2,6 +2,7 @@ import type {
   SeriesReading,
   TagStatus,
   DeploySummary,
+  DailySummary,
   BurialDetection,
   BurialVerdict,
 } from '@/lib/types';
@@ -36,7 +37,12 @@ export function detectBurial(
   sources: {
     airTempC: number | null;
     sstTempC: number | null;
-  }
+  },
+  /** Pre-aggregated daily MinTemp/MaxTemp from DailyData.csv. When available
+   *  this is preferred over computing diel amplitude from raw Series readings —
+   *  the tag's firmware computes it cleanly, and a single DailyData row covers
+   *  a full UTC day even when Series gaps exist. */
+  dailySummaries: DailySummary[] = []
 ): BurialDetection {
   const releaseTime = summary?.releaseDate?.getTime() ?? null;
 
@@ -52,6 +58,21 @@ export function detectBurial(
     };
   }
 
+  // Preferred path: use DailyData rows if any post-release ones exist. The
+  // tag's firmware has already computed MinTemp/MaxTemp per UTC day, so the
+  // diel amplitude is read off directly with no bucketing logic needed.
+  const postReleaseDailies = dailySummaries.filter(
+    (d) =>
+      d.date.getTime() > releaseTime - 12 * 60 * 60 * 1000 &&
+      d.minTemp !== null &&
+      d.maxTemp !== null
+  );
+
+  if (postReleaseDailies.length >= 2) {
+    return classifyFromDailies(postReleaseDailies, sources);
+  }
+
+  // Fallback: bucket raw Series/Status readings into 24h windows ourselves.
   // Assemble post-release temperature readings with timestamps.
   const readings: { t: number; temp: number }[] = [];
 
@@ -182,6 +203,70 @@ export function detectBurial(
     medianDielAmplitudeC: Number(medianAmp.toFixed(2)),
     medianTempC: Number(medianTemp.toFixed(2)),
     windowsAnalyzed: windows.length,
+    confidence,
+  };
+}
+
+/** Classify burial directly from DailyData rows. Tag firmware already gave
+ *  us per-day MinTemp/MaxTemp, so we read amplitude off without bucketing. */
+function classifyFromDailies(
+  dailies: DailySummary[],
+  sources: { airTempC: number | null; sstTempC: number | null }
+): BurialDetection {
+  const amplitudes = dailies.map((d) => (d.maxTemp as number) - (d.minTemp as number));
+  const meanTemps = dailies.map((d) => ((d.maxTemp as number) + (d.minTemp as number)) / 2);
+  const medianAmp = median(amplitudes);
+  const medianTemp = median(meanTemps);
+
+  const airDelta =
+    sources.airTempC !== null ? Math.abs(medianTemp - sources.airTempC) : null;
+  const sstDelta =
+    sources.sstTempC !== null ? Math.abs(medianTemp - sources.sstTempC) : null;
+
+  const LOW_AMPLITUDE = 3;
+  const HIGH_AMPLITUDE = 5;
+
+  let verdict: BurialVerdict;
+  let reasoning: string;
+  let confidence: number;
+
+  const dayCount = dailies.length;
+  const sourceNote = `(direct from DailyData.csv, ${dayCount} day${dayCount === 1 ? '' : 's'})`;
+
+  if (medianAmp < LOW_AMPLITUDE) {
+    if (sstDelta !== null && sstDelta < 2) {
+      verdict = 'in_water';
+      reasoning = `Diel amplitude only ${medianAmp.toFixed(1)} °C and mean (${medianTemp.toFixed(1)} °C) matches SST (${sources.sstTempC!.toFixed(1)} °C). Tag is in or just below the sea surface ${sourceNote}.`;
+      confidence = 0.9;
+    } else if (airDelta !== null && airDelta > 8) {
+      verdict = 'insulated_indoor';
+      reasoning = `Low diel amplitude (${medianAmp.toFixed(1)} °C) but mean (${medianTemp.toFixed(1)} °C) is ${airDelta.toFixed(1)} °C from ambient air — climate-controlled enclosure ${sourceNote}.`;
+      confidence = 0.85;
+    } else {
+      verdict = 'buried_in_sand';
+      const meanNote =
+        airDelta !== null
+          ? ` Mean (${medianTemp.toFixed(1)} °C) tracks local air (${sources.airTempC!.toFixed(1)} °C, Δ=${airDelta.toFixed(1)} °C).`
+          : '';
+      reasoning = `Diel amplitude only ${medianAmp.toFixed(1)} °C — in the 0.3–1.4 °C range published for sea turtle nest loggers at sand depth.${meanNote} Tag is likely buried in sand or shallow sediment ${sourceNote}.`;
+      confidence = 0.9;
+    }
+  } else if (medianAmp > HIGH_AMPLITUDE) {
+    verdict = 'surface_exposed';
+    reasoning = `Diel amplitude ${medianAmp.toFixed(1)} °C — surface-exposed under direct sun/shade cycles ${sourceNote}.`;
+    confidence = 0.85;
+  } else {
+    verdict = 'unknown';
+    reasoning = `Diel amplitude ${medianAmp.toFixed(1)} °C — between sand-buried (<3 °C) and surface-exposed (>5 °C) thresholds. Ambiguous ${sourceNote}.`;
+    confidence = 0.4;
+  }
+
+  return {
+    verdict,
+    reasoning,
+    medianDielAmplitudeC: Number(medianAmp.toFixed(2)),
+    medianTempC: Number(medianTemp.toFixed(2)),
+    windowsAnalyzed: dayCount,
     confidence,
   };
 }

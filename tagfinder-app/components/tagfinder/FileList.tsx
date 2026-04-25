@@ -17,6 +17,7 @@ const FILE_TYPE_LABELS: Record<string, string> = {
   minmaxdepth: 'Daily Dive Range',
   corrupt: 'Corrupted Messages',
   lightloc: 'Light Levels',
+  dailydata: 'Daily Summary',
   unknown: 'Not recognized',
 };
 
