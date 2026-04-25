@@ -10,9 +10,9 @@ import { createSupabaseAdminClient } from '@/lib/supabase';
  */
 export async function GET(
   _request: NextRequest,
-  context: { params: Promise<{ id: string }> }
+  context: { params: { id: string } }
 ) {
-  const { id } = await context.params;
+  const { id } = context.params;
   if (!/^[a-z0-9]{6,16}$/.test(id)) {
     return NextResponse.json({ error: 'Invalid report ID' }, { status: 400 });
   }
