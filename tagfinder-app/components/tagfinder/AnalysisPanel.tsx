@@ -500,8 +500,6 @@ function FixTable({ result }: { result: AnalysisResult }) {
 }
 
 function LightAnalysisCard({ light }: { light: LightAnalysis }) {
-  if (light.pattern === 'unknown' || light.pattern === 'insufficient') return null;
-
   const patternLabels: Record<string, { label: string; color: string }> = {
     normal_diurnal: {
       label: 'Normal day/night cycle',
@@ -523,10 +521,17 @@ function LightAnalysisCard({ light }: { light: LightAnalysis }) {
       label: 'Fully dark',
       color: 'text-error bg-error/10 border-error/20',
     },
+    insufficient: {
+      label: 'Insufficient data',
+      color: 'text-muted bg-surface-elevated border-border',
+    },
+    unknown: {
+      label: 'Unknown',
+      color: 'text-muted bg-surface-elevated border-border',
+    },
   };
 
-  const info = patternLabels[light.pattern];
-  if (!info) return null;
+  const info = patternLabels[light.pattern] ?? patternLabels.unknown;
 
   return (
     <div className="bg-surface rounded-xl border border-border p-5">
@@ -565,8 +570,6 @@ function LightAnalysisCard({ light }: { light: LightAnalysis }) {
 }
 
 function TempComparisonCard({ temp }: { temp: TempComparison }) {
-  if (temp.environment === 'unknown' || temp.environment === 'insufficient') return null;
-
   const envLabels: Record<string, { label: string; color: string }> = {
     in_water: {
       label: 'In water',
@@ -588,10 +591,17 @@ function TempComparisonCard({ temp }: { temp: TempComparison }) {
       label: 'Anomalously hot',
       color: 'text-error bg-error/10 border-error/20',
     },
+    insufficient: {
+      label: 'Insufficient data',
+      color: 'text-muted bg-surface-elevated border-border',
+    },
+    unknown: {
+      label: 'Unknown',
+      color: 'text-muted bg-surface-elevated border-border',
+    },
   };
 
-  const info = envLabels[temp.environment];
-  if (!info) return null;
+  const info = envLabels[temp.environment] ?? envLabels.unknown;
 
   return (
     <div className="bg-surface rounded-xl border border-border p-5">
@@ -650,8 +660,6 @@ function TempComparisonCard({ temp }: { temp: TempComparison }) {
 }
 
 function BurialDetectionCard({ burial }: { burial: BurialDetection }) {
-  if (burial.verdict === 'unknown' || burial.verdict === 'insufficient') return null;
-
   const verdictMeta: Record<string, { label: string; color: string }> = {
     buried_in_sand: {
       label: 'Buried in sand',
@@ -669,10 +677,17 @@ function BurialDetectionCard({ burial }: { burial: BurialDetection }) {
       label: 'In water',
       color: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/20',
     },
+    insufficient: {
+      label: 'Insufficient data',
+      color: 'text-muted bg-surface-elevated border-border',
+    },
+    unknown: {
+      label: 'Unknown',
+      color: 'text-muted bg-surface-elevated border-border',
+    },
   };
 
-  const info = verdictMeta[burial.verdict];
-  if (!info) return null;
+  const info = verdictMeta[burial.verdict] ?? verdictMeta.unknown;
 
   return (
     <div className="bg-surface rounded-xl border border-border p-5">
