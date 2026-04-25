@@ -208,7 +208,19 @@ export function detectBurial(
 }
 
 /** Classify burial directly from DailyData rows. Tag firmware already gave
- *  us per-day MinTemp/MaxTemp, so we read amplitude off without bucketing. */
+ *  us per-day MinTemp/MaxTemp + MinDepth/MaxDepth, so we read both signals
+ *  off without bucketing.
+ *
+ *  Two independent burial signals are used:
+ *  1. Temperature: tiny diel amplitude (<3 °C, vs 10+ °C for surface)
+ *  2. Depth: a buried tag's pressure sensor registers SAND PRESSURE as
+ *     fake "depth" — typically 0.5–2 m of constant pseudo-depth. Real
+ *     case: 285932 (turtle, beached on Caminada Headland LA) read 1.35 m
+ *     of "depth" while buried with antenna up. The tell is depth that is
+ *     consistently NON-ZERO with very low day-to-day variance.
+ *
+ *  When both signals agree, confidence is very high. When only one fires,
+ *  the verdict still goes through but with lower confidence. */
 function classifyFromDailies(
   dailies: DailySummary[],
   sources: { airTempC: number | null; sstTempC: number | null }
@@ -217,6 +229,33 @@ function classifyFromDailies(
   const meanTemps = dailies.map((d) => ((d.maxTemp as number) + (d.minTemp as number)) / 2);
   const medianAmp = median(amplitudes);
   const medianTemp = median(meanTemps);
+
+  // Depth signal: median per-day mean depth + day-to-day variability
+  const depthCapableDays = dailies.filter(
+    (d) => d.minDepth !== null && d.maxDepth !== null
+  );
+  let depthSignal: 'sand_pressure' | 'dry' | 'tidal' | 'unavailable' = 'unavailable';
+  let medianDepth: number | null = null;
+  if (depthCapableDays.length >= 2) {
+    const meanDepths = depthCapableDays.map(
+      (d) => ((d.minDepth as number) + (d.maxDepth as number)) / 2
+    );
+    medianDepth = median(meanDepths);
+    const dailyDepthRanges = depthCapableDays.map(
+      (d) => (d.maxDepth as number) - (d.minDepth as number)
+    );
+    const medianDepthRange = median(dailyDepthRanges);
+    // Sand-pressure signature: median depth > 0.3 m AND daily range < 0.5 m
+    // (constant pressure means it's not water — water levels would change
+    // diurnally with tides and waves).
+    if (medianDepth > 0.3 && medianDepthRange < 0.5) {
+      depthSignal = 'sand_pressure';
+    } else if (medianDepth < 0.2) {
+      depthSignal = 'dry';
+    } else {
+      depthSignal = 'tidal';
+    }
+  }
 
   const airDelta =
     sources.airTempC !== null ? Math.abs(medianTemp - sources.airTempC) : null;
@@ -231,7 +270,15 @@ function classifyFromDailies(
   let confidence: number;
 
   const dayCount = dailies.length;
-  const sourceNote = `(direct from DailyData.csv, ${dayCount} day${dayCount === 1 ? '' : 's'})`;
+  const sourceNote = `(${dayCount} day${dayCount === 1 ? '' : 's'} of DailyData.csv)`;
+  const depthNote =
+    depthSignal === 'sand_pressure'
+      ? ` Pressure sensor reads ${medianDepth!.toFixed(2)} m of constant pseudo-depth — the tag's sensor is being squeezed by sand pressure, not water column. This is the same signature seen on PTT 285932 (Caminada Headland buried turtle tag, 1.35 m).`
+      : depthSignal === 'dry'
+        ? ` Pressure sensor reads ~0 m (dry, no pressure on the tag).`
+        : depthSignal === 'tidal'
+          ? ` Depth varies day-to-day (medianDepth ${medianDepth!.toFixed(2)} m) — possibly tidal flooding rather than burial.`
+          : '';
 
   if (medianAmp < LOW_AMPLITUDE) {
     if (sstDelta !== null && sstDelta < 2) {
@@ -240,7 +287,7 @@ function classifyFromDailies(
       confidence = 0.9;
     } else if (airDelta !== null && airDelta > 8) {
       verdict = 'insulated_indoor';
-      reasoning = `Low diel amplitude (${medianAmp.toFixed(1)} °C) but mean (${medianTemp.toFixed(1)} °C) is ${airDelta.toFixed(1)} °C from ambient air — climate-controlled enclosure ${sourceNote}.`;
+      reasoning = `Low diel amplitude (${medianAmp.toFixed(1)} °C) but mean (${medianTemp.toFixed(1)} °C) is ${airDelta.toFixed(1)} °C from ambient air — climate-controlled enclosure ${sourceNote}.${depthNote}`;
       confidence = 0.85;
     } else {
       verdict = 'buried_in_sand';
@@ -248,16 +295,22 @@ function classifyFromDailies(
         airDelta !== null
           ? ` Mean (${medianTemp.toFixed(1)} °C) tracks local air (${sources.airTempC!.toFixed(1)} °C, Δ=${airDelta.toFixed(1)} °C).`
           : '';
-      reasoning = `Diel amplitude only ${medianAmp.toFixed(1)} °C — in the 0.3–1.4 °C range published for sea turtle nest loggers at sand depth.${meanNote} Tag is likely buried in sand or shallow sediment ${sourceNote}.`;
-      confidence = 0.9;
+      reasoning = `Diel amplitude only ${medianAmp.toFixed(1)} °C — in the 0.3–1.4 °C range published for sea turtle nest loggers at sand depth.${meanNote}${depthNote} ${sourceNote}.`;
+      // Both signals agreeing → bump confidence
+      confidence = depthSignal === 'sand_pressure' ? 0.95 : 0.9;
     }
   } else if (medianAmp > HIGH_AMPLITUDE) {
     verdict = 'surface_exposed';
-    reasoning = `Diel amplitude ${medianAmp.toFixed(1)} °C — surface-exposed under direct sun/shade cycles ${sourceNote}.`;
+    reasoning = `Diel amplitude ${medianAmp.toFixed(1)} °C — surface-exposed under direct sun/shade cycles ${sourceNote}.${depthNote}`;
     confidence = 0.85;
+  } else if (depthSignal === 'sand_pressure') {
+    // Temperature is ambiguous but depth strongly suggests burial — call it
+    verdict = 'buried_in_sand';
+    reasoning = `Diel temperature amplitude is ${medianAmp.toFixed(1)} °C (between thresholds) but depth sensor reads ${medianDepth!.toFixed(2)} m of constant pseudo-depth. Constant non-zero pressure = sand pressure, not water. Same signature as PTT 285932 (Caminada Headland buried turtle, 1.35 m). Likely buried ${sourceNote}.`;
+    confidence = 0.8;
   } else {
     verdict = 'unknown';
-    reasoning = `Diel amplitude ${medianAmp.toFixed(1)} °C — between sand-buried (<3 °C) and surface-exposed (>5 °C) thresholds. Ambiguous ${sourceNote}.`;
+    reasoning = `Diel amplitude ${medianAmp.toFixed(1)} °C — between sand-buried (<3 °C) and surface-exposed (>5 °C) thresholds. Ambiguous ${sourceNote}.${depthNote}`;
     confidence = 0.4;
   }
 
