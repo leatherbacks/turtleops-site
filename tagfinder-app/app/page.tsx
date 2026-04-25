@@ -51,6 +51,8 @@ export default function TagFinderPage() {
   const [briefLoading, setBriefLoading] = useState(false);
   const [briefError, setBriefError] = useState<string | null>(null);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [shareId, setShareId] = useState<string | null>(null);
+  const [shareViews, setShareViews] = useState<number | null>(null);
   const [sharing, setSharing] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
   const [shareCopied, setShareCopied] = useState(false);
@@ -239,8 +241,35 @@ export default function TagFinderPage() {
     setBrief(null);
     setBriefError(null);
     setShareUrl(null);
+    setShareId(null);
+    setShareViews(null);
     setShareError(null);
   };
+
+  // Poll the report's view count every 30 seconds while a share is active
+  useEffect(() => {
+    if (!shareId) return;
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const res = await fetch(`/api/reports/${shareId}?stats=1`, {
+          cache: 'no-store',
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled && typeof data.viewCount === 'number') {
+          setShareViews(data.viewCount);
+        }
+      } catch {
+        // ignore polling errors
+      }
+    };
+    const interval = setInterval(tick, 30_000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [shareId]);
 
   const handleShareReport = async () => {
     if (!displayResult) return;
@@ -264,6 +293,8 @@ export default function TagFinderPage() {
       }
       const fullUrl = `${window.location.origin}${data.url}`;
       setShareUrl(fullUrl);
+      setShareId(data.id);
+      setShareViews(0);
       // Try the native share sheet first; fall back to clipboard
       const nav = typeof navigator !== 'undefined' ? navigator : null;
       if (nav && typeof nav.share === 'function') {
@@ -373,6 +404,14 @@ export default function TagFinderPage() {
                 >
                   {shareUrl}
                 </a>
+                {shareViews !== null && (
+                  <span
+                    className="text-muted ml-2 flex-shrink-0"
+                    title="Updated every 30 seconds"
+                  >
+                    · {shareViews} view{shareViews === 1 ? '' : 's'}
+                  </span>
+                )}
                 <button
                   onClick={copyShareUrl}
                   className="ml-auto flex items-center gap-1 px-2 py-1 rounded hover:bg-surface-elevated"

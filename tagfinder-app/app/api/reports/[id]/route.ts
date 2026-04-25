@@ -9,10 +9,13 @@ import { createSupabaseAdminClient } from '@/lib/supabase';
  * Increments view_count on each fetch.
  */
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   context: { params: { id: string } }
 ) {
   const { id } = context.params;
+  // ?stats=1 returns the row without incrementing view_count — used by the
+  // creator's own UI to poll the counter without inflating it.
+  const statsOnly = request.nextUrl.searchParams.get('stats') === '1';
   if (!/^[a-z0-9]{6,16}$/.test(id)) {
     return NextResponse.json({ error: 'Invalid report ID' }, { status: 400 });
   }
@@ -39,12 +42,26 @@ export async function GET(
     return NextResponse.json({ error: 'Report expired' }, { status: 410 });
   }
 
-  // Best-effort view counter increment (don't block the response)
-  admin
-    .from('tag_reports')
-    .update({ view_count: (data.view_count ?? 0) + 1 })
-    .eq('id', id)
-    .then(() => {});
+  const currentCount = data.view_count ?? 0;
+  const reportedCount = statsOnly ? currentCount : currentCount + 1;
+
+  if (!statsOnly) {
+    // Best-effort view counter increment (don't block the response)
+    admin
+      .from('tag_reports')
+      .update({ view_count: currentCount + 1 })
+      .eq('id', id)
+      .then(() => {});
+  }
+
+  // Stats-only response is lean (count only); avoids re-shipping the entire
+  // payload every poll.
+  if (statsOnly) {
+    return NextResponse.json(
+      { id: data.id, viewCount: reportedCount, expiresAt: data.expires_at },
+      { headers: { 'Cache-Control': 'no-store' } }
+    );
+  }
 
   return NextResponse.json(
     {
@@ -52,7 +69,7 @@ export async function GET(
       ptt: data.ptt,
       createdAt: data.created_at,
       expiresAt: data.expires_at,
-      viewCount: (data.view_count ?? 0) + 1,
+      viewCount: reportedCount,
       analysis: data.analysis,
       environment: data.environment,
       brief: data.brief,
