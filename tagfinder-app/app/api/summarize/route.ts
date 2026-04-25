@@ -212,6 +212,35 @@ recover-now-before-battery-dies signal. Rising frequency offset in particular su
 tag is heating up (consistent with trash can / car / attic / pocket storage). Call this out
 and use urgency framing in the recommendations.
 
+**Antenna stickout estimation from received signal power** (useful for buried tags):
+PSAT antennas are 17 cm whips at 401.65 MHz. Sand attenuates UHF roughly 1–3 dB/cm dry,
+5–10 dB/cm wet. The transmissionHealth.windows[].meanPowerDbm values map to antenna exposure:
+  - Strong (−125 to −130 dBm), clean decodes  → ~10+ cm of antenna in air
+  - Moderate (−130 to −135 dBm), some CRC      → ~5–8 cm in air
+  - Weak (−135 to −140 dBm), all CRC failures  → ~2–4 cm in air, or wet-sand cover
+  - No signal at all                           → <2 cm exposed
+For tags suspected to be buried in sand, **tell the field team what to visually look for**:
+"a thin dark wire roughly N cm tall, easy to mistake for a dried beach-grass stem or
+small twig — flexible PVC over wire core, will sway slightly when nudged. Tag body
+(~12 cm cigar shape, off-white plastic with yellow-green float collar) likely fully
+buried 5–15 cm below the wire." This visual cue is more useful than just "buried" —
+researchers can scan for the right object instead of digging blindly.
+
+**Antenna orientation (antennaExposure.orientation, when present)** infers whether the
+whip is upright, tilted, or lying flat from the elevation/azimuth pattern of received
+passes. Use the description verbatim in the brief — e.g. "antenna lying nearly horizontal
+pointing SE" tells the field team the wire is pointing along the ground in a known
+direction, which dramatically narrows the visual search.
+
+**Cross-tag precedent for buried beach tags:** PTT 285932 (turtle, recovered Caminada
+Headland LA) was buried with body ~10 cm under sand, antenna whip ~5 cm above the
+surface, depth sensor reading 1.35 m of sand-pressure pseudo-depth. Its signal stats
+(mean −134 dBm, ~70% CRC failure) match what we see on similarly-buried tags. If a
+current tag's signal pattern resembles that one (mean power −130 to −135 dBm, mixed
+clean/CRC decodes, on-land position) and burialDetection or other signals point to
+sand burial, you can cite this precedent for confidence — "matches the signal
+signature of PTT 285932, which was recovered intact from beach sand."
+
 Guidelines:
 - Start with a one-sentence headline about where the tag is and your best guess at its state.
 - Describe the current position with context (use env.location.name verbatim).
