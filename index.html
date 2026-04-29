@@ -3,8 +3,76 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TurtleOps - Sea Turtle Conservation Platform</title>
-  <meta name="description" content="One app for your entire sea turtle conservation team. Beach tagging, in-water studies, and everything in between - built for nighttime fieldwork.">
+  <title>TurtleOps — Sea Turtle Tagging &amp; Field Data App for Research Teams</title>
+  <meta name="description" content="The field data app built for sea turtle tagging programs. Track PIT and flipper tags, run nesting surveys, and coordinate your team — leatherbacks, greens, loggerheads, hawksbills, ridleys.">
+  <meta name="keywords" content="sea turtle tagging, PIT tag tracking, flipper tag, nesting survey app, leatherback tagging, sea turtle research software, beach survey data, turtle conservation app">
+  <link rel="canonical" href="https://turtleops.org/">
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://turtleops.org/">
+  <meta property="og:title" content="TurtleOps — Sea Turtle Tagging &amp; Field Data App for Research Teams">
+  <meta property="og:description" content="The field data app built for sea turtle tagging programs. PIT and flipper tags, nesting surveys, and team coordination — designed for nighttime fieldwork.">
+  <meta property="og:image" content="https://turtleops.org/assets/home.png">
+  <meta property="og:site_name" content="TurtleOps">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="TurtleOps — Sea Turtle Tagging &amp; Field Data App">
+  <meta name="twitter:description" content="The field data app built for sea turtle tagging programs. PIT and flipper tags, nesting surveys, team coordination.">
+  <meta name="twitter:image" content="https://turtleops.org/assets/home.png">
+
+  <!-- Structured data: SoftwareApplication + Organization -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "SoftwareApplication",
+        "name": "TurtleOps",
+        "url": "https://turtleops.org/",
+        "applicationCategory": "BusinessApplication",
+        "applicationSubCategory": "Field Research Software",
+        "operatingSystem": "iOS, Android, Web",
+        "description": "Field data app for sea turtle tagging programs. Track PIT and flipper tags, run nesting surveys, coordinate research teams.",
+        "offers": [
+          {
+            "@type": "Offer",
+            "name": "Free",
+            "price": "0",
+            "priceCurrency": "USD"
+          },
+          {
+            "@type": "Offer",
+            "name": "Pro",
+            "price": "69",
+            "priceCurrency": "USD",
+            "priceSpecification": {
+              "@type": "UnitPriceSpecification",
+              "price": "69",
+              "priceCurrency": "USD",
+              "unitText": "MONTH"
+            }
+          }
+        ],
+        "featureList": [
+          "PIT and flipper tag tracking with three-state inspection",
+          "Nesting survey workflow with body-pitting times and egg counts",
+          "Offline-first with cloud sync",
+          "Multi-tenant team management",
+          "AI-powered team chat and morning summaries"
+        ]
+      },
+      {
+        "@type": "Organization",
+        "name": "TurtleOps",
+        "url": "https://turtleops.org/",
+        "logo": "https://turtleops.org/assets/turtleoops_notext.png"
+      }
+    ]
+  }
+  </script>
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -1018,32 +1086,32 @@
         <p class="screenshots-subtitle">Designed for the dark, built for the field</p>
         <div class="screenshots-grid">
           <div class="screenshot-item">
-            <img src="assets/home.png" alt="">
+            <img src="assets/home.png" alt="TurtleOps dashboard showing tonight's survey overview, team check-ins, and recent encounters" loading="lazy">
             <h3>Dashboard</h3>
             <p>Check in to your survey, see current conditions, and get team updates at a glance.</p>
           </div>
           <div class="screenshot-item">
-            <img src="assets/new_encounter.png" alt="">
+            <img src="assets/new_encounter.png" alt="New encounter form with tag inspection, GPS, weather, and nesting fields for a sea turtle observation" loading="lazy">
             <h3>New Encounter</h3>
             <p>Quick data entry with turtle lookup, GPS capture, and photo documentation.</p>
           </div>
           <div class="screenshot-item">
-            <img src="assets/observations.png" alt="">
+            <img src="assets/observations.png" alt="Observations list showing recent sea turtle encounters with names, tags, and survey dates" loading="lazy">
             <h3>Observations</h3>
             <p>Browse all encounters with filtering and search. Tap any entry for full details.</p>
           </div>
           <div class="screenshot-item">
-            <img src="assets/injuru_tracking.png" alt="">
+            <img src="assets/injuru_tracking.png" alt="Injury tracking screen with anatomical diagram for marking boat strike, entanglement, and shark bite locations on a sea turtle" loading="lazy">
             <h3>Injury Tracking</h3>
             <p>Document injuries with location details and track healing across seasons.</p>
           </div>
           <div class="screenshot-item">
-            <img src="assets/note_issue_tracking.png" alt="">
+            <img src="assets/note_issue_tracking.png" alt="Team notes and turtle alerts surfaced for survey volunteers in the field" loading="lazy">
             <h3>Team Notes</h3>
             <p>Share survey conditions, equipment updates, and important notices with your team.</p>
           </div>
           <div class="screenshot-item">
-            <img src="assets/admin_operations.png" alt="">
+            <img src="assets/admin_operations.png" alt="Admin operations dashboard for sea turtle research teams with member management and project settings" loading="lazy">
             <h3>Operations</h3>
             <p>Team stats, turtle alerts, data import/export, and project configuration.</p>
           </div>

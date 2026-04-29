@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /admin.turtleops.org-*
+
+Sitemap: https://turtleops.org/sitemap.xml
