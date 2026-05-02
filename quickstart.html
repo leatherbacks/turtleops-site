@@ -228,6 +228,10 @@
       <h1>Quick Start Guide</h1>
       <p class="subtitle">From download to your first observation in 10 minutes.</p>
 
+      <div class="tip" style="margin-bottom: 40px;">
+        <p><strong>Free vs Pro:</strong> TurtleOps is free for individual surveyors and small teams &mdash; sign in, check in, and log observations at no cost. Pro features (Bob the AI assistant, Beach Chat, daily morning digest, per-observation PDF email, web admin dashboard, AI name suggestions, turtle merge tool, fuzzy tag search) require a subscription &mdash; see <a href="/#pricing">pricing</a>.</p>
+      </div>
+
       <!-- Step 1 -->
       <div class="step">
         <div class="step-header">
@@ -253,7 +257,7 @@
           <li><strong>Start a new project:</strong> Enter your organization name and you'll become the admin. You can invite your team later.</li>
         </ul>
         <div class="tip">
-          <p><strong>Team coordinators:</strong> Generate invite codes from the Operations tab. You can set the role (volunteer, coordinator, or admin) for each code.</p>
+          <p><strong>Team coordinators:</strong> Generate invite codes from <strong>Settings &gt; Team Invite Codes</strong>. You can set the role (volunteer, coordinator, or admin) for each code.</p>
         </div>
       </div>
 
@@ -263,16 +267,16 @@
           <div class="step-number">3</div>
           <h2>Configure Your Project (Admins)</h2>
         </div>
-        <p>If you created a new organization, the onboarding wizard walks you through the basics on first launch &mdash; species, beach location, naming convention (names vs. tags), Bob enablement, Beach Chat, and your photo requirements. You can revisit anything later in <strong>Operations &gt; Project Setup</strong>:</p>
+        <p>If you created a new organization, the onboarding wizard walks you through the basics on first launch in six quick steps:</p>
         <ul>
-          <li><strong>Species:</strong> Enable the species your team monitors and set a primary species</li>
-          <li><strong>Beach location:</strong> Set your coordinates for automatic weather, tide, and moon data</li>
+          <li><strong>Beach location:</strong> Beach name, GPS, and timezone &mdash; powers automatic weather, tide, and moon data</li>
+          <li><strong>Beach sectors:</strong> The parts of the beach your team surveys (e.g. North End, Center, South End)</li>
+          <li><strong>Species:</strong> Pick a primary species and any others you also track</li>
           <li><strong>Naming convention:</strong> Decide whether your turtles get human-readable names or are identified purely by tag number</li>
-          <li><strong>Nesting season:</strong> Define your start and end dates</li>
-          <li><strong>Data requirements:</strong> Choose which photos are required, whether to require measurements (CCL/CCW), and your survey mode (walking or ATV)</li>
-          <li><strong>Bob &amp; Beach Chat (Pro):</strong> Toggle on the team bot and chat tab, and pick Bob&rsquo;s tone &mdash; professional, casual, or playful</li>
-          <li><strong>Contact info:</strong> Add coordinator name and emergency contact for your team</li>
+          <li><strong>Bob &amp; Beach Chat (Pro):</strong> Toggle on the team bot and chat tab, set Bob&rsquo;s tone (professional, casual, or playful), and add a region description for his replies</li>
+          <li><strong>Photo &amp; measurement requirements:</strong> Choose which photos are required and whether to require CCL/CCW measurements</li>
         </ul>
+        <p>Every step is skippable, and you can revisit anything later from <strong>Settings &gt; Project Setup</strong> &mdash; including options the wizard doesn&rsquo;t cover (nesting season dates, survey mode, and team contact info).</p>
         <div class="tip">
           <p><strong>Skip this if you joined a team.</strong> Your admin has already configured these settings.</p>
         </div>
@@ -315,6 +319,9 @@
         <div class="tip">
           <p><strong>Auto-save:</strong> Your observation auto-saves as a draft every 30 seconds. If you get interrupted, find it in the <strong>Drafts</strong> tab later.</p>
         </div>
+        <div class="tip">
+          <p><strong>One-page PDF email (Pro):</strong> Opt in from <strong>Settings &gt; Daily Email Digest &gt; PDF for each new observation</strong> to get a single-page form-style PDF emailed every time someone on your team submits. Useful for archiving, printing, or sharing with partners.</p>
+        </div>
       </div>
 
       <!-- Step 6 -->
@@ -323,7 +330,7 @@
           <div class="step-number">6</div>
           <h2>Invite Your Team</h2>
         </div>
-        <p>From the <strong>Operations</strong> tab, admins can generate invite codes for team members. Share the code and have them enter it during signup.</p>
+        <p>From the <strong>Settings</strong> tab, admins can generate invite codes for team members. Share the code and have them enter it during signup.</p>
         <table class="role-table">
           <thead>
             <tr>
@@ -362,7 +369,7 @@
             </tr>
           </tbody>
         </table>
-        <p style="font-size: 13px; color: var(--text-muted); margin-top: 8px;">*Pro features (Bob, Beach Chat, daily digest, activity feed, web dashboard, observation map, AI drafts, merge tool, fuzzy tag search) require a TurtleOps Pro subscription.</p>
+        <p style="font-size: 13px; color: var(--text-muted); margin-top: 8px;">*Pro features (Bob the AI assistant, Beach Chat, daily morning digest, per-observation PDF email, web admin dashboard, observation map, AI name suggestions for unnamed turtles, turtle merge tool, fuzzy tag search) require a TurtleOps Pro subscription.</p>
       </div>
 
       <hr class="divider">
@@ -376,7 +383,9 @@
           <li><strong>Dark theme:</strong> The red-on-black interface is designed to preserve your night vision during surveys.</li>
           <li><strong>Relayed sightings:</strong> Admins can record observations reported by other surveyors without needing to check in themselves.</li>
           <li><strong>Turtle alerts:</strong> Admins can create alerts for specific turtles (injured, research interest, do not disturb) that appear when any team member selects that turtle.</li>
-          <li><strong>CSV import:</strong> Have historical data? Admins can import turtles and observations from spreadsheets.</li>
+          <li><strong>Bob can act on your behalf (Pro):</strong> Ask Bob in chat to pin a message to a turtle, add a research note, or attach a recent photo &mdash; he&rsquo;ll handle it. He&rsquo;ll also be honest when something is outside his abilities and flag it for the admin.</li>
+          <li><strong>Backfill historical observations:</strong> Admins can add historical encounters one at a time from the web dashboard, useful for getting paper datasheets into the system.</li>
+          <li><strong>Data export:</strong> Admins can export observations and turtles as CSV from the web dashboard.</li>
         </ul>
       </div>
 
