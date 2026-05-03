@@ -279,13 +279,17 @@
             params = new URLSearchParams(window.location.search);
         }
 
-        // Old implicit-flow links carry access_token/refresh_token directly.
-        // Modern PKCE-flow links (which Supabase started defaulting to) carry
-        // token_hash + type instead, and the page has to call verifyOtp to
-        // exchange for a session. Switched to let so the PKCE bootstrap
-        // below can populate these from the verifyOtp response.
+        // Three possible link formats:
+        //  1. Old implicit flow: #access_token=xxx&refresh_token=xxx&type=recovery
+        //  2. Custom-SMTP PKCE-verify flow: ?code=xxx&type=recovery
+        //     (Supabase's /auth/v1/verify endpoint server-verifies the pkce_*
+        //     token from the email then redirects here with an auth code)
+        //  3. token_hash + type (older PKCE; client-side verifyOtp)
+        // Switched to let so the PKCE bootstrap below can populate these
+        // from exchangeCodeForSession / verifyOtp responses.
         let accessToken = params.get('access_token');
         let refreshToken = params.get('refresh_token');
+        const code = params.get('code');
         const tokenHash = params.get('token_hash');
         const type = params.get('type');
         const error = params.get('error');
@@ -295,7 +299,7 @@
         console.log('URL:', window.location.href);
         console.log('Hash:', window.location.hash);
         console.log('Search:', window.location.search);
-        console.log('Parsed params:', { accessToken: accessToken ? 'present' : 'missing', refreshToken: refreshToken ? 'present' : 'missing', tokenHash: tokenHash ? 'present' : 'missing', type, error });
+        console.log('Parsed params:', { accessToken: accessToken ? 'present' : 'missing', refreshToken: refreshToken ? 'present' : 'missing', code: code ? 'present' : 'missing', tokenHash: tokenHash ? 'present' : 'missing', type, error });
 
         const statusEl = document.getElementById('status');
         const openAppBtn = document.getElementById('openAppBtn');
@@ -447,7 +451,30 @@
             // exchange when modern Supabase links arrive without
             // access_token/refresh_token in the URL.
             (async () => {
-                if (!accessToken && tokenHash && type) {
+                // PKCE auth-code flow (custom-SMTP default): Supabase's
+                // /auth/v1/verify redirected here with ?code=xxx.
+                if (!accessToken && code) {
+                    try {
+                        const { data, error: exErr } = await supabaseClient.auth.exchangeCodeForSession(code);
+                        if (exErr) throw exErr;
+                        if (data && data.session) {
+                            accessToken = data.session.access_token;
+                            refreshToken = data.session.refresh_token;
+                        }
+                    } catch (e) {
+                        console.error('exchangeCodeForSession failed:', e);
+                        const msg = String(e && e.message || '').toLowerCase();
+                        if (msg.includes('expired')) {
+                            showError('This link has expired. Password reset links are valid for 1 hour — please request a new one from the app.');
+                        } else if (msg.includes('used') || msg.includes('invalid') || msg.includes('not found')) {
+                            showError('This link has already been used or is no longer valid. Please request a new one from the app.');
+                        } else {
+                            showError(e && e.message ? e.message : 'Could not verify this link. Please request a new one from the app.');
+                        }
+                        return;
+                    }
+                } else if (!accessToken && tokenHash && type) {
+                    // Older client-side PKCE: verifyOtp with token_hash.
                     try {
                         const { data, error: verifyErr } = await supabaseClient.auth.verifyOtp({
                             type,
@@ -472,7 +499,15 @@
                     }
                 }
 
-                if (type === 'recovery' && accessToken) {
+                // After exchange, if Supabase didn't preserve `type` in the
+                // redirect, infer recovery from the session: a recovery
+                // session has the PASSWORD_RECOVERY auth event but we can't
+                // observe that here, so fall back to "if there's a session
+                // and no explicit type, assume recovery" (the only other
+                // entry path is signup confirmation, which sets type=signup).
+                const isRecovery = type === 'recovery' || (!type && accessToken && code);
+
+                if (isRecovery && accessToken) {
                     statusEl.className = 'status';
                     statusEl.innerHTML = 'Reset Your Password';
                     resetForm.style.display = 'block';
