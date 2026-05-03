@@ -279,8 +279,14 @@
             params = new URLSearchParams(window.location.search);
         }
 
-        const accessToken = params.get('access_token');
-        const refreshToken = params.get('refresh_token');
+        // Old implicit-flow links carry access_token/refresh_token directly.
+        // Modern PKCE-flow links (which Supabase started defaulting to) carry
+        // token_hash + type instead, and the page has to call verifyOtp to
+        // exchange for a session. Switched to let so the PKCE bootstrap
+        // below can populate these from the verifyOtp response.
+        let accessToken = params.get('access_token');
+        let refreshToken = params.get('refresh_token');
+        const tokenHash = params.get('token_hash');
         const type = params.get('type');
         const error = params.get('error');
         const errorDescription = params.get('error_description');
@@ -289,7 +295,7 @@
         console.log('URL:', window.location.href);
         console.log('Hash:', window.location.hash);
         console.log('Search:', window.location.search);
-        console.log('Parsed params:', { accessToken: accessToken ? 'present' : 'missing', refreshToken: refreshToken ? 'present' : 'missing', type, error });
+        console.log('Parsed params:', { accessToken: accessToken ? 'present' : 'missing', refreshToken: refreshToken ? 'present' : 'missing', tokenHash: tokenHash ? 'present' : 'missing', type, error });
 
         const statusEl = document.getElementById('status');
         const openAppBtn = document.getElementById('openAppBtn');
@@ -436,16 +442,46 @@
             } else {
                 showError(errorDescription || error);
             }
-        } else if (type === 'recovery' && accessToken) {
-            // Password reset flow
-            statusEl.className = 'status';
-            statusEl.innerHTML = 'Reset Your Password';
-            resetForm.style.display = 'block';
-        } else if (accessToken && refreshToken && type !== 'recovery') {
-            // Email confirmation flow
-            showSuccess();
         } else {
-            showError('Invalid confirmation link. Please try again or contact support.');
+            // Wrap dispatch in an async IIFE so we can await the PKCE
+            // exchange when modern Supabase links arrive without
+            // access_token/refresh_token in the URL.
+            (async () => {
+                if (!accessToken && tokenHash && type) {
+                    try {
+                        const { data, error: verifyErr } = await supabaseClient.auth.verifyOtp({
+                            type,
+                            token_hash: tokenHash,
+                        });
+                        if (verifyErr) throw verifyErr;
+                        if (data && data.session) {
+                            accessToken = data.session.access_token;
+                            refreshToken = data.session.refresh_token;
+                        }
+                    } catch (e) {
+                        console.error('verifyOtp failed:', e);
+                        const msg = String(e && e.message || '').toLowerCase();
+                        if (msg.includes('expired')) {
+                            showError('This link has expired. Password reset links are valid for 1 hour — please request a new one from the app.');
+                        } else if (msg.includes('used') || msg.includes('invalid')) {
+                            showError('This link has already been used or is no longer valid. Please request a new one from the app.');
+                        } else {
+                            showError(e && e.message ? e.message : 'Could not verify this link. Please request a new one from the app.');
+                        }
+                        return;
+                    }
+                }
+
+                if (type === 'recovery' && accessToken) {
+                    statusEl.className = 'status';
+                    statusEl.innerHTML = 'Reset Your Password';
+                    resetForm.style.display = 'block';
+                } else if (accessToken && refreshToken && type !== 'recovery') {
+                    showSuccess();
+                } else {
+                    showError('Invalid confirmation link. Please try again or contact support.');
+                }
+            })();
         }
     </script>
 </body>
