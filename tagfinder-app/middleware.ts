@@ -17,6 +17,8 @@ const RATE_LIMITED_ROUTES = [
   '/api/tides',
   '/api/geocode',
   '/api/tles',
+  '/api/forecast',
+  '/api/bathymetry',
 ];
 
 export async function middleware(request: NextRequest) {
