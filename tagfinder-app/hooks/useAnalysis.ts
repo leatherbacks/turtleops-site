@@ -33,6 +33,7 @@ import { checkMirrorSolutions } from '@/analysis/mirrorCheck';
 import { interpretReleaseType } from '@/analysis/releaseType';
 import { detectCrushDepthEvent } from '@/analysis/crushDepth';
 import { analyzeLightLevel } from '@/analysis/lightLevel';
+import { detectTrackerShed } from '@/analysis/trackerShed';
 import { analyzeTransmissionHealth } from '@/analysis/transmissionHealth';
 import {
   estimatePopoffLocation,
@@ -120,31 +121,52 @@ export function useAnalysis(): UseAnalysisReturn {
         return;
       }
 
+      // Detect tag category early so we know whether to look for tracker
+      // separation (a live tracker tag that has been removed from the animal
+      // and is now sitting in a fixed location, behaving like a PSAT popoff).
+      const tagCategory = detectTagCategory(summary);
+
+      // For tracker tags, check if the tag has stopped moving — i.e. been
+      // shed, removed, or recovered. When this fires we narrow the working
+      // fix set to just the stationary period so downstream analyzers
+      // (drift, outliers, position, mirror check, etc.) see the tag as
+      // stationary instead of being thrown off by the 700+ days of historic
+      // animal movement.
+      const trackerShed =
+        tagCategory.category === 'tracker' && fixes.length >= 5
+          ? detectTrackerShed(fixes)
+          : null;
+
+      let workingFixes = fixes;
+      if (trackerShed?.verdict === 'separated' && trackerShed.separatedSinceISO) {
+        const cutoff = new Date(trackerShed.separatedSinceISO).getTime();
+        workingFixes = fixes.filter((f) => f.date.getTime() >= cutoff);
+      }
+
       // 4. Preliminary drift classification (before outlier removal)
-      const prelimDrift = classifyDrift(fixes);
+      const prelimDrift = classifyDrift(workingFixes);
 
       // 5. Mark outliers based on drift state
       const effectiveLabel =
         prelimDrift.recent !== 'insufficient' ? prelimDrift.recent : prelimDrift.allTime;
-      markOutliers(fixes, effectiveLabel === 'insufficient' ? 'stuck' : effectiveLabel);
+      markOutliers(workingFixes, effectiveLabel === 'insufficient' ? 'stuck' : effectiveLabel);
 
       // 6. Final drift classification (after outlier removal)
-      const driftState = classifyDrift(fixes);
+      const driftState = classifyDrift(workingFixes);
 
       // 7. Compute position
       const finalLabel =
         driftState.recent !== 'insufficient' ? driftState.recent : driftState.allTime;
-      const pos = computePosition(fixes, finalLabel === 'insufficient' ? 'stuck' : finalLabel);
+      const pos = computePosition(workingFixes, finalLabel === 'insufficient' ? 'stuck' : finalLabel);
 
       // 8. Search radius
-      const { primaryM, expandedM } = computeSearchRadius(fixes);
+      const { primaryM, expandedM } = computeSearchRadius(workingFixes);
 
       // 9. Drift prediction (only for drifting tags)
       const driftPrediction =
-        finalLabel === 'drifting' ? predictDrift(fixes) : null;
+        finalLabel === 'drifting' ? predictDrift(workingFixes) : null;
 
-      // Detect tag category (PSAT vs Tracker)
-      const tagCategory = detectTagCategory(summary);
+      // tagCategory already detected above (before tracker-shed check)
 
       // 10. Popoff estimation — only for PSAT tags
       let popoff: PopoffResult | null = null;
@@ -206,14 +228,18 @@ export function useAnalysis(): UseAnalysisReturn {
       const transmissionHealth = passes.length > 0 ? analyzeTransmissionHealth(passes, summary) : null;
 
       // 12. Build result
-      const validFixes = fixes.filter((f) => !f.isOutlier);
-      const outlierFixes = fixes.filter((f) => f.isOutlier);
+      // For separated trackers, scope the map + fix table to the stationary
+      // period (workingFixes) — otherwise we'd render thousands of historic
+      // points and obscure the actual recovery target.
+      const reportedFixes = trackerShed?.verdict === 'separated' ? workingFixes : fixes;
+      const validFixes = reportedFixes.filter((f) => !f.isOutlier);
+      const outlierFixes = reportedFixes.filter((f) => f.isOutlier);
 
       setResult({
         summary,
         ptt: summary?.ptt || null,
         tagCategory,
-        allFixes: fixes,
+        allFixes: reportedFixes,
         validFixes,
         outlierFixes,
         bestLat: pos.lat,
@@ -242,6 +268,7 @@ export function useAnalysis(): UseAnalysisReturn {
         bathymetry: null, // computed async in the page after environment fetch
         transmissionHealth,
         burialDetection: null, // computed async in the page after environment fetch
+        trackerShed,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Analysis failed');

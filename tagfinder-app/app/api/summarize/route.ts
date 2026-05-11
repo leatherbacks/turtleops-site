@@ -130,7 +130,16 @@ Possible tag scenarios to consider:
    - Transmission history is short (ended shortly after the tag reached this location)
    - Temperature readings anomalously high (> 35°C) suggest indoor/car/window — not natural sun-on-sand
    - Location name suggests residential area, urban, not coastal natural feature
-6. **Indoors on a windowsill / near a window** — a specific sub-case of "recovered by a person."
+6. **Tracker tag stopped moving** — a LIVE TRACKER tag (instrument='UT' or similar
+   non-PSAT) that has been removed from the animal, shed naturally, or recovered and is
+   now sitting in a fixed location. Detected when trackerShed.verdict is 'separated'.
+   In this case treat the tag exactly like a popped-off PSAT for recovery purposes: same
+   field-search advice, same goniometer recommendation, same beach/landward/indoor
+   considerations apply. Use the trackerShed.separatedSinceISO timestamp to frame how
+   long the tag has been at this location. The analysis is already scoped to the
+   stationary period, so position/state/burial cards reflect the CURRENT location, not
+   the historic animal track.
+7. **Indoors on a windowsill / near a window** — a specific sub-case of "recovered by a person."
    Key signature: position is on land AND antennaExposure.pattern is 'directional' (reception
    biased to one compass quadrant, with passes from the opposite direction consistently missed).
    When this combination appears, the tag is almost certainly indoors near a window, and
@@ -138,7 +147,9 @@ Possible tag scenarios to consider:
    analysis shows 'shaded' or 'indoor' and temp comparison shows 'in_air_insulated' or
    'anomalous_hot', that reinforces the windowsill interpretation. Recommend contacting the
    resident — call out the window direction explicitly so they can identify which window.
-7. **Still on animal** (for tracker-type tags) — depth varying with diving, temperature matching water.
+8. **Still on animal** (for tracker-type tags where trackerShed.verdict is not 'separated') —
+   depth varying with diving, temperature matching water, position changing day to day.
+   No recovery needed; framing should be "this is where your animal currently is."
 
 **Urban/developed beach considerations:**
 When the tag is beached near an urban, developed, or actively-maintained shoreline (boardwalks,
@@ -377,6 +388,9 @@ ${JSON.stringify(a.bathymetry, null, 2)}
 
 ## Burial detection (thermal signature — small diel temperature swing = buried in sand per sea turtle nest logger literature)
 ${JSON.stringify(a.burialDetection, null, 2)}
+
+## Tracker tag separation (live tracker that stopped moving — treat as recovery target if 'separated')
+${JSON.stringify(a.trackerShed, null, 2)}
 
 ## Transmission health trend (is the tag's signal degrading? Rising CRC rate, falling power, and rising frequency drift together diagnose a tag in trouble — e.g. buried, covered, overheating)
 ${JSON.stringify(a.transmissionHealth, null, 2)}

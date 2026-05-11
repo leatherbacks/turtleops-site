@@ -405,6 +405,34 @@ export interface Bathymetry {
   tagOnSeabed: boolean;
 }
 
+// ─── Tracker Tag Separation Detection ───
+// For LIVE tracker tags (instrument=UT etc) that aren't PSATs and don't pop
+// off — when the tag is removed from the animal or sheds spontaneously, it
+// starts behaving like a PSAT post-popoff: stationary, transmitting from a
+// fixed location, needs to be physically recovered. This detector spots that
+// transition so the tool can switch from "where is this animal" to "where
+// is this tag sitting now" — and all the existing recovery-brief / burial /
+// transmission-health analyzers apply to the stationary period.
+
+export type TrackerShedVerdict = 'separated' | 'still_moving' | 'insufficient';
+
+export interface TrackerShedDetection {
+  verdict: TrackerShedVerdict;
+  reasoning: string;
+  /** Hours of continuous stationary behavior detected (0 if not separated) */
+  stationaryHours: number;
+  /** Spread of fixes during the stationary period, in meters */
+  recentSpreadM: number;
+  /** Historic spread (last 30d, or all-time if shorter) — proves the tag DID move before */
+  historicSpreadKm: number;
+  /** Centroid of the stationary cluster, if detected */
+  stationaryLat: number | null;
+  stationaryLon: number | null;
+  /** Timestamp of the first fix in the stationary cluster — when separation likely happened */
+  separatedSinceISO: string | null;
+  confidence: number;
+}
+
 // ─── Transmission Health Trend ───
 // Tracks whether the tag's signal is degrading post-release. CRC failure rate,
 // transmit power, and frequency drift each carry independent diagnostic signal
@@ -557,6 +585,7 @@ export interface AnalysisResult {
   bathymetry: Bathymetry | null;
   transmissionHealth: TransmissionHealth | null;
   burialDetection: BurialDetection | null;
+  trackerShed: TrackerShedDetection | null;
 
   // Fixes
   allFixes: ArgosFix[];

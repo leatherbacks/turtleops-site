@@ -536,16 +536,32 @@ export default function TagFinderPage() {
             </div>
 
             {/* Tag category banner */}
-            {displayResult.tagCategory.category === 'tracker' && (
-              <div className="flex items-start gap-3 p-4 rounded-lg bg-info/10 border border-info/20">
-                <div className="text-info text-xl">🛰️</div>
+            {displayResult.tagCategory.category === 'tracker' &&
+              displayResult.trackerShed?.verdict !== 'separated' && (
+                <div className="flex items-start gap-3 p-4 rounded-lg bg-info/10 border border-info/20">
+                  <div className="text-info text-xl">🛰️</div>
+                  <div className="text-sm">
+                    <div className="font-semibold text-info mb-0.5">Live tracker mode</div>
+                    <div className="text-muted">
+                      Detected a non-PSAT tag ({displayResult.tagCategory.instrument || 'type unknown'}). Showing animal
+                      tracking analysis. Popoff estimation is skipped since there&apos;s no release event.
+                    </div>
+                  </div>
+                </div>
+              )}
+
+            {/* Tracker has been removed / shed — switched to recovery mode */}
+            {displayResult.trackerShed?.verdict === 'separated' && (
+              <div className="flex items-start gap-3 p-4 rounded-lg bg-warning/10 border border-warning/30">
+                <div className="text-warning text-xl">🎯</div>
                 <div className="text-sm">
-                  <div className="font-semibold text-info mb-0.5">
-                    Live tracker mode
+                  <div className="font-semibold text-warning mb-0.5">
+                    Tracker tag stopped moving — recovery mode
                   </div>
                   <div className="text-muted">
-                    Detected a non-PSAT tag ({displayResult.tagCategory.instrument || 'type unknown'}). Showing animal
-                    tracking analysis. Popoff estimation is skipped since there&apos;s no release event.
+                    {displayResult.trackerShed.reasoning} Map and analyzers
+                    scoped to the stationary period only; historic animal track
+                    is hidden to keep the recovery target visible.
                   </div>
                 </div>
               </div>
