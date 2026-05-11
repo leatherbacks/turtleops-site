@@ -198,29 +198,84 @@ export default function TagFinderPage() {
     setBriefLoading(true);
     setBriefError(null);
     try {
+      // Slim the payload — only send fields the AI brief actually consumes.
+      // Without this, tags with multi-year deployments (700+ days of SST/dive
+      // readings, thousands of upcoming pass predictions with trackPoints)
+      // can blow past Vercel's 4.5 MB request body limit.
+      const slim = {
+        ptt: displayResult.ptt,
+        tagCategory: displayResult.tagCategory,
+        summary: displayResult.summary,
+        bestLat: displayResult.bestLat,
+        bestLon: displayResult.bestLon,
+        positionMethod: displayResult.positionMethod,
+        primaryRadiusM: displayResult.primaryRadiusM,
+        expandedRadiusM: displayResult.expandedRadiusM,
+        validFixes: displayResult.validFixes?.map((f) => ({
+          date: f.date,
+          quality: f.quality,
+          latitude: f.latitude,
+          longitude: f.longitude,
+        })) ?? [],
+        allFixes: { length: displayResult.allFixes?.length ?? 0 },
+        driftState: displayResult.driftState,
+        driftPrediction: displayResult.driftPrediction,
+        tagState: displayResult.tagState,
+        tidalIntrusion: displayResult.tidalIntrusion,
+        satCoverage: stripTrackPoints(displayResult.satCoverage),
+        mirrorCheck: displayResult.mirrorCheck,
+        antennaExposure: displayResult.antennaExposure,
+        popoff: displayResult.popoff,
+        popoffSkipReason: displayResult.popoffSkipReason,
+        bathymetry: displayResult.bathymetry,
+        lightAnalysis: displayResult.lightAnalysis,
+        tempComparison: displayResult.tempComparison,
+        burialDetection: displayResult.burialDetection,
+        transmissionHealth: displayResult.transmissionHealth,
+        trackerShed: displayResult.trackerShed,
+        releaseInterpretation: displayResult.releaseInterpretation,
+        crushDepthEvent: displayResult.crushDepthEvent,
+        diveProfile: displayResult.diveProfile,
+        dataQuality: displayResult.dataQuality,
+        upcomingPasses: (upcoming.passes ?? []).slice(0, 12).map((p) => ({
+          satelliteName: p.satelliteName,
+          riseTime: p.riseTime,
+          maxElevation: p.maxElevation,
+          peakAzimuth: p.peakAzimuth,
+          direction: p.direction,
+        })),
+      };
+
       const res = await fetch('/api/summarize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          analysis: {
-            ...displayResult,
-            upcomingPasses: upcoming.passes,
-          },
-          environment: envData,
-        }),
+        body: JSON.stringify({ analysis: slim, environment: envData }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({} as { error?: string }));
       if (!res.ok) {
-        setBriefError(data.error || 'Failed to generate brief');
-      } else {
+        setBriefError(data.error || `Summary service returned HTTP ${res.status}`);
+      } else if (data.brief) {
         setBrief(data.brief);
+      } else {
+        setBriefError('Summary service returned an empty response');
       }
-    } catch {
-      setBriefError('Failed to reach the summary service');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setBriefError(`Failed to reach the summary service: ${msg}`);
     } finally {
       setBriefLoading(false);
     }
   };
+
+  function stripTrackPoints(sc: SatCoverage | null): SatCoverage | null {
+    if (!sc) return sc;
+    return {
+      ...sc,
+      // Per-pass sky trajectories are useful for the UI but huge in JSON.
+      // The AI brief doesn't read them — strip before serializing.
+      passes: sc.passes.map((p) => ({ ...p, trackPoints: [] })),
+    };
+  }
 
   useEffect(() => {
     if (!displayResult || !envReady || brief || briefLoading) return;
