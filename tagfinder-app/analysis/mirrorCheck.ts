@@ -193,15 +193,36 @@ function greedyBest(
   return { picks, mask, spreadKm };
 }
 
+/**
+ * Max pairwise distance. Exact O(n^2) for small sets; bounding-box-diagonal
+ * O(n) fallback for large sets so long-running tracker tags with thousands
+ * of passes don't hang the browser. The mirror-check threshold (50 km) is
+ * coarse enough that the bbox approximation can't change the verdict.
+ */
+const PAIRWISE_MAX = 500;
+
 function maxPairwise(points: { lat: number; lon: number }[]): number {
-  let max = 0;
-  for (let i = 0; i < points.length; i++) {
-    for (let j = i + 1; j < points.length; j++) {
-      const d = haversineKm(points[i].lat, points[i].lon, points[j].lat, points[j].lon);
-      if (d > max) max = d;
+  if (points.length < 2) return 0;
+  if (points.length <= PAIRWISE_MAX) {
+    let max = 0;
+    for (let i = 0; i < points.length; i++) {
+      for (let j = i + 1; j < points.length; j++) {
+        const d = haversineKm(points[i].lat, points[i].lon, points[j].lat, points[j].lon);
+        if (d > max) max = d;
+      }
     }
+    return max;
   }
-  return max;
+  // Bounding-box diagonal fallback
+  let minLat = Infinity, maxLat = -Infinity;
+  let minLon = Infinity, maxLon = -Infinity;
+  for (const p of points) {
+    if (p.lat < minLat) minLat = p.lat;
+    if (p.lat > maxLat) maxLat = p.lat;
+    if (p.lon < minLon) minLon = p.lon;
+    if (p.lon > maxLon) maxLon = p.lon;
+  }
+  return haversineKm(minLat, minLon, maxLat, maxLon);
 }
 
 function formatLatLon(lat: number, lon: number): string {

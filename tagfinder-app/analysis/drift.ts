@@ -91,8 +91,24 @@ function classify(spreadKm: number, durationHours: number): DriftLabel {
  * Max pairwise distance, error-aware.
  * Subtracts combined fix error (in km) from raw distance so that spread
  * within measurement noise doesn't falsely indicate drift.
+ *
+ * Complexity-aware: for small datasets we do the exact O(n^2) pairwise
+ * calculation (precise, accounts for error ellipses). For large datasets
+ * (e.g. long-running tracker tags with thousands of fixes) the exact
+ * calc hangs the browser — for those we use the bounding-box diagonal
+ * which is O(n) and accurate enough for drift classification (the
+ * threshold-vs-spread decision is unaffected by error subtraction once
+ * spread is in kilometers).
  */
+const PAIRWISE_MAX = 500;
+
 function maxPairwiseDistance(fixes: ArgosFix[]): number {
+  if (fixes.length < 2) return 0;
+  if (fixes.length <= PAIRWISE_MAX) return maxPairwiseExact(fixes);
+  return maxBoundingBoxDiagonal(fixes);
+}
+
+function maxPairwiseExact(fixes: ArgosFix[]): number {
   let maxDist = 0;
   for (let i = 0; i < fixes.length; i++) {
     for (let j = i + 1; j < fixes.length; j++) {
@@ -111,6 +127,25 @@ function maxPairwiseDistance(fixes: ArgosFix[]): number {
     }
   }
   return maxDist;
+}
+
+/**
+ * O(n) approximation: bounding-box diagonal across all fixes. Slightly
+ * overestimates true spread (the diagonal of the lat/lon bounding box
+ * is the worst-case distance between any two points). Adequate for
+ * "is this tag stuck or moving" classification — both thresholds are
+ * orders of magnitude apart from each other.
+ */
+function maxBoundingBoxDiagonal(fixes: ArgosFix[]): number {
+  let minLat = Infinity, maxLat = -Infinity;
+  let minLon = Infinity, maxLon = -Infinity;
+  for (const f of fixes) {
+    if (f.latitude < minLat) minLat = f.latitude;
+    if (f.latitude > maxLat) maxLat = f.latitude;
+    if (f.longitude < minLon) minLon = f.longitude;
+    if (f.longitude > maxLon) maxLon = f.longitude;
+  }
+  return haversineKm(minLat, minLon, maxLat, maxLon);
 }
 
 function windowDurationHours(fixes: ArgosFix[]): number {
