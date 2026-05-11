@@ -18,6 +18,9 @@ export function parseStatus(rows: Record<string, string>[]): TagStatus[] {
     // Temperature and Depth columns vary — try common positions
     const temp = parseFloat(row['Temperature'] || row['Temp'] || '');
     const depth = parseFloat(row['Depth'] || '');
+    const wetDry = parseFloat(row['WetDry'] || '');
+    const minWetDry = parseFloat(row['MinWetDry'] || '');
+    const maxWetDry = parseFloat(row['MaxWetDry'] || '');
 
     statuses.push({
       date,
@@ -26,6 +29,9 @@ export function parseStatus(rows: Record<string, string>[]): TagStatus[] {
       temperature: isNaN(temp) ? null : temp,
       depth: isNaN(depth) ? null : depth,
       type: (row['Type'] || '').trim(),
+      wetDry: isNaN(wetDry) ? null : wetDry,
+      minWetDry: isNaN(minWetDry) ? null : minWetDry,
+      maxWetDry: isNaN(maxWetDry) ? null : maxWetDry,
     });
   }
 

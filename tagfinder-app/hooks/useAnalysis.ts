@@ -133,8 +133,8 @@ export function useAnalysis(): UseAnalysisReturn {
       // stationary instead of being thrown off by the 700+ days of historic
       // animal movement.
       const trackerShed =
-        tagCategory.category === 'tracker' && fixes.length >= 5
-          ? detectTrackerShed(fixes)
+        tagCategory.category === 'tracker' && (fixes.length >= 5 || parsedStatuses.length > 0)
+          ? detectTrackerShed(fixes, parsedStatuses)
           : null;
 
       let workingFixes = fixes;

@@ -70,6 +70,17 @@ export interface TagStatus {
   temperature: number | null;
   depth: number | null;
   type: string;
+  /** Wet/dry sensor readings from WC Status.csv. Range 0–255 where lower
+   *  values = wetter (sensor saturated by water), higher values = drier.
+   *  - wetDry: instantaneous reading at the time of the status report
+   *  - minWetDry: min over the report's accumulation window
+   *  - maxWetDry: max over the report's accumulation window
+   *  When minWetDry stays near 255 across multiple reports, the tag has
+   *  been continuously dry — strong signal that it's off the animal/water.
+   */
+  wetDry: number | null;
+  minWetDry: number | null;
+  maxWetDry: number | null;
 }
 
 // ─── Time-Series Depth/Temp (Series.csv) ───
