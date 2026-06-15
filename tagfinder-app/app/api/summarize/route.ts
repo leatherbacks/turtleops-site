@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { createSupabaseRouteClient } from '@/lib/supabase';
 import { checkRateLimit } from '@/lib/rateLimit';
+import { notifyAnalysis } from '@/lib/notifyAnalysis';
 
 const MAX_ANALYSES_PER_DAY = 10;
 
@@ -82,6 +83,20 @@ export async function POST(request: NextRequest) {
         { status: 502 }
       );
     }
+
+    // Fire-and-forget real-time alert to hello@turtleops.org.
+    // Skips operator's own addresses internally so this doesn't ping on
+    // self-testing. Not awaited — never block or fail the brief response on it.
+    const a = body.analysis as Record<string, unknown> | undefined;
+    notifyAnalysis({
+      userEmail: user.email,
+      ptt: typeof a?.ptt === 'number' ? (a.ptt as number) : null,
+      briefExcerpt: textBlock.text,
+      bestLat: typeof a?.bestLat === 'number' ? (a.bestLat as number) : null,
+      bestLon: typeof a?.bestLon === 'number' ? (a.bestLon as number) : null,
+      inputTokens: response.usage.input_tokens,
+      outputTokens: response.usage.output_tokens,
+    }).catch(() => {});
 
     return NextResponse.json(
       {
