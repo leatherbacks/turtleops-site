@@ -550,6 +550,9 @@ last good position is evidence the tag did NOT continue on its previous heading.
 ${JSON.stringify((a as Record<string, unknown>).recentFixesAnyQuality, null, 2)}
 
 ## Predicted landfall (where the drift path first meets land)
+When landfall.projectable is false the drift vector is too old to extrapolate and NO
+strand point exists. Do not compute one, do not name a town, and do not describe the
+tag as "likely ashore" — report the last confirmed position and search outward from it.
 ${JSON.stringify(a.landfall, null, 2)}
 
 ## Wind and current cross-check on the drift vector

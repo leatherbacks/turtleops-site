@@ -269,6 +269,9 @@ export interface DriftForcing {
 
 export interface LandfallPrediction {
   willStrand: boolean;
+  /** False when the drift vector is too old to extrapolate — the projection
+   *  declined to answer rather than naming a strand point from stale data. */
+  projectable: boolean;
   lat: number | null;
   lon: number | null;
   /** Hours after the last fix at which the path reaches land. */

@@ -167,11 +167,13 @@ export default function PositionCard({ result, hero = false }: PositionCardProps
                 result.landfall.willStrand ? 'text-warning' : 'text-info'
               }`}
             >
-              {!result.landfall.willStrand
-                ? 'Not predicted to strand'
-                : result.landfall.alreadyPassed
-                  ? 'Likely already ashore'
-                  : 'Predicted landfall'}
+              {!result.landfall.projectable
+                ? 'Landfall not projected'
+                : !result.landfall.willStrand
+                  ? 'Not predicted to strand'
+                  : result.landfall.alreadyPassed
+                    ? 'Likely already ashore'
+                    : 'Predicted landfall'}
             </span>
             {result.landfall.lat !== null && result.landfall.lon !== null && (
               <span className="font-mono text-sm">
