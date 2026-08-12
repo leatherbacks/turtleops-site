@@ -349,6 +349,38 @@ export interface DataQuality {
 
 // ─── Tidal Intrusion (post-release) ───
 
+// ─── Lotek activity-health message (decoded from the raw Argos payload) ───
+
+/**
+ * One activity-health record from a Lotek PSAT+.
+ *
+ * The only post-release sensor data these tags produce: the Day Log and Dive
+ * Log stop when the archive schedule ends, which can be days before the tag
+ * releases. Temperature, light and depth after pop-off arrive only here.
+ */
+export interface LotekHealthRecord {
+  /** When the satellite received it. */
+  date: Date;
+  /** The tag's own clock, seconds, to 1/256 s. */
+  tagSeconds: number;
+  /** Raw status byte. 0x80 is the only value yet observed on a valid record. */
+  statusByte: number;
+  /** Bit 7 of the status byte. Lotek renders 0x80 as "Wet Schedule", but the
+   *  field has never varied, so it cannot yet distinguish a live conductivity
+   *  reading from a latched enum. Do not present it as current wet/dry state. */
+  wetFlag: boolean;
+  serial: number;
+  depthM: number;
+  messageCounter: number;
+  /** Latched from the release event — constant, not live telemetry. */
+  corrosionTimeS: number;
+  corrosionStartV: number;
+  corrosionEndV: number;
+  temperatureC: number;
+  /** Raw counts; full scale is uncalibrated, so read as relative. */
+  light: number;
+}
+
 // ─── Argos pass geometry / mirror solutions ───
 
 /** Geometry of the satellite pass that produced one Doppler fix. */
@@ -764,6 +796,10 @@ export interface AnalysisResult {
   tempComparison: TempComparison | null;
   bathymetry: Bathymetry | null;
   transmissionHealth: TransmissionHealth | null;
+  /** Post-release sensor records decoded from Lotek activity-health payloads. */
+  lotekHealth: LotekHealthRecord[] | null;
+  /** True if the health status byte ever changed — see LotekHealthRecord.wetFlag. */
+  lotekHealthStatusChanged: boolean;
   burialDetection: BurialDetection | null;
   trackerShed: TrackerShedDetection | null;
 

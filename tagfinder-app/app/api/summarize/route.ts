@@ -606,6 +606,20 @@ ${JSON.stringify(a.transmissionHealth, null, 2)}
 ## Reception vs tide (does the tag get heard preferentially on a falling or rising tide?)
 ${JSON.stringify((a as Record<string, unknown>).tidePhase, null, 2)}
 
+## Lotek activity-health records (post-release sensor data, decoded from raw payloads)
+For a PSAT these are the ONLY post-release sensor readings that exist — the Day Log and
+Dive Log stop when the archive schedule ends, often days before release. Temperature and
+light here describe the tag's current situation, not the animal's dive record.
+Read temperature against air and sea-surface temperature: a tag tracking water is
+immersed, a tag swinging 10-20C daily is dry and exposed, and a tag tracking air with a
+damped swing is at the waterline, part in and part out. Light with a clean diurnal cycle
+and no downward trend means the tag is not buried or under canopy.
+Do NOT present wetFlag as current wet/dry state — see lotekHealthStatusChanged. If that
+is false the status byte has never varied and cannot distinguish "wet now" from "always
+reports wet".
+${JSON.stringify(((a as Record<string, unknown>).lotekHealth as unknown[] | null)?.slice(-15) ?? null, null, 2)}
+Status byte ever changed: ${JSON.stringify((a as Record<string, unknown>).lotekHealthStatusChanged)}
+
 ## Argos pass geometry (why each fix is good or bad, and where its mirror solution lies — last 20 fixes)
 ${JSON.stringify((a as Record<string, unknown>).passGeometry, null, 2)}
 

@@ -10,6 +10,10 @@ import { parseCSV } from '@/parsers/csv';
 import { detectFile, detectTextFile, detectSpreadsheet } from '@/parsers/detect';
 import { parseArgosDS, type ArgosDSResult } from '@/parsers/argos/ds';
 import { parseArgosMessages, type ArgosMessagesResult } from '@/parsers/argos/messages';
+import {
+  parseLotekHealthMessages,
+  type LotekHealthResult,
+} from '@/parsers/lotek/healthMessage';
 import { parseLotekDayLog } from '@/parsers/lotek/dayLog';
 import { parseLotekDiveLog } from '@/parsers/lotek/diveLog';
 import { parseLocations } from '@/parsers/wc/locations';
@@ -132,8 +136,15 @@ export function useAnalysis(): UseAnalysisReturn {
       //     because it arrives as an ordinary CSV and so only becomes
       //     identifiable after header detection.
       let argosMessages: ArgosMessagesResult | null = null;
+      let lotekHealth: LotekHealthResult | null = null;
       if (parsedData.argos_messages) {
         argosMessages = parseArgosMessages(parsedData.argos_messages);
+        // Lotek activity-health records ride inside the same payloads. Decoding
+        // them here is the only way to get post-release temperature, light and
+        // depth: the Day Log and Dive Log stop when the archive schedule ends,
+        // which can be days before the tag releases.
+        const health = parseLotekHealthMessages(parsedData.argos_messages);
+        if (health.records.length > 0) lotekHealth = health;
         const d = detected.find((f) => f.fileType === 'argos_messages');
         if (d && argosMessages.fixes.length === 0) {
           d.warning =
@@ -179,9 +190,29 @@ export function useAnalysis(): UseAnalysisReturn {
       const fixes = parsedData.locations
         ? parseLocations(parsedData.locations)
         : argosMessages?.fixes ?? argosDS?.fixes ?? [];
-      const summary: DeploySummary | null = parsedData.summary
+      let summary: DeploySummary | null = parsedData.summary
         ? parseSummary(parsedData.summary)
         : null;
+
+      // A PSAT only transmits once it has released, so its first activity-health
+      // message bounds the release from above. Lotek ships no Summary.csv, and
+      // without a release date tag state, temperature environment and burial
+      // detection all refuse to run — they cannot tell the animal's dive record
+      // from the tag's current situation. Deriving it here unblocks all three
+      // from data we already hold, and it is marked derived rather than read.
+      if (!summary && lotekHealth && lotekHealth.records.length > 0) {
+        summary = {
+          deployId: '',
+          ptt: argosMessages?.ptt ?? 0,
+          instrument: '',
+          software: '',
+          percentDecoded: 0,
+          passes: 0,
+          releaseDate: lotekHealth.records[0].date,
+          releaseType: '',
+          deployDate: null,
+        };
+      }
       const parsedStatuses = parsedData.status ? parseStatus(parsedData.status) : [];
       const passes = parsedData.argos
         ? parseArgos(parsedData.argos)
@@ -189,7 +220,21 @@ export function useAnalysis(): UseAnalysisReturn {
       const seriesReadings = parsedData.series
         ? parseSeries(parsedData.series)
         : lotekDive?.readings ?? [];
-      const sstReadings = parsedData.sst ? parseSST(parsedData.sst) : lotekDay?.sst ?? [];
+      // Health-message temperatures are post-release by construction and are
+      // the tag's own external sensor, so they are the right input for the
+      // temperature-environment check. Prefer a real SST export where one
+      // exists; fall back to the Day Log only when neither is available.
+      const healthSst = (lotekHealth?.records ?? []).map((r) => ({
+        date: r.date,
+        depth: r.depthM,
+        temperature: r.temperatureC,
+        source: 'lotek_health',
+      }));
+      const sstReadings = parsedData.sst
+        ? parseSST(parsedData.sst)
+        : healthSst.length > 0
+          ? healthSst
+          : lotekDay?.sst ?? [];
       const dailyDives = parsedData.minmaxdepth
         ? parseMinMaxDepth(parsedData.minmaxdepth)
         : lotekDay?.dailyDives ?? [];
@@ -334,6 +379,8 @@ export function useAnalysis(): UseAnalysisReturn {
       const validFixes = reportedFixes.filter((f) => !f.isOutlier);
       const outlierFixes = reportedFixes.filter((f) => f.isOutlier);
 
+      // Post-release sensor data decoded from the raw payloads.
+
       setResult({
         summary,
         ptt: summary?.ptt || null,
@@ -369,6 +416,8 @@ export function useAnalysis(): UseAnalysisReturn {
         tempComparison: null, // computed async in the page after environment fetch
         bathymetry: null, // computed async in the page after environment fetch
         transmissionHealth,
+        lotekHealth: lotekHealth?.records ?? null,
+        lotekHealthStatusChanged: lotekHealth?.statusChanged ?? false,
         burialDetection: null, // computed async in the page after environment fetch
         trackerShed,
       });
