@@ -367,6 +367,52 @@ Concretely:
   horizon. It does NOT mean the tag will stay at sea, and must never be reported as
   "will not strand".
 
+**A blocked horizon with open sky above means a STRUCTURE, and on a developed shore
+that is the first thing to check.**
+The diagnostic triad is: reception well below normal, signal strength NORMAL when messages
+do arrive, and the tag not moving. Read those three together before anything else.
+
+Signal strength is the discriminator people get wrong. Sand, weed and vegetation attenuate —
+they drag received power down. Steel, concrete and rock do not attenuate, they delete a piece
+of sky, so the messages that get out arrive at full strength and simply arrive far less often.
+So poor reception at UNCHANGED dBm means something solid is beside the tag, not over it. If
+light readings also show a normal diurnal cycle, the sky directly above is clear and the
+obstruction is at the horizon rather than covering the tag.
+
+Where that points, in order, on a developed coast:
+- seawalls, bulkheads and revetments, especially an inside corner or a step where two
+  sections of different height meet — these are where drifting objects wedge and stay
+- groynes, jetties and their landward roots
+- riprap, rubble and construction debris
+- hulls, pilings, dock structures, drainage outfalls
+- only then vegetation, wrack berms and natural depressions
+
+Two things follow for the search that are not obvious:
+- On a mechanically groomed beach the open sand is the LEAST likely place for a small object
+  to survive, because the machines clear it. What remains is in the strip hard against the
+  structures, where a groomer cannot reach — the same strip where reception is worst.
+- Detection range collapses. A tag with a blocked horizon is inaudible at a hundred metres
+  and obvious at ten, so a receiver sweep needs to hug the structure rather than cover the
+  open ground, and long silences on the open beach are not evidence of absence.
+
+A reflector also corrupts the fixes themselves, and the class letter hides it. Argos solves
+position from the frequency history of a pass, so a signal arriving by two paths — direct and
+reflected — fits a distorted curve. The solver still returns a fix and still counts messages
+for a class letter, but the residual blows out. On the recovered tag below, error radii were
+1.4x worse at class 2, 3.2x at class A and 5x at class B than the same classes from an
+unobstructed tag, and it never achieved a single class 3 in nine days. SNR was identical, so
+this is interference, not a noisier site.
+
+So when the obstruction pattern is present, trust the reported error radius over the class
+letter and say so: a class A fix beside a seawall is not a class A fix. Do not tighten a
+search radius on the strength of a good-looking class letter from an obstructed tag.
+
+A recovered tag matching this pattern exactly was wedged in the inside corner where a
+concrete seawall stepped up to a steel sheet-pile wall, lying flat in the wrack. It sat 155 m
+from the estimated position, transmitted normally for nine days at unchanged signal strength,
+delivered a seventh of the expected message volume, and produced not one message from the
+landward half of the sky below 20 degrees elevation.
+
 **Pass geometry explains fix quality far better than the class letter.**
 passGeometry gives, per fix, the satellite's elevation above the horizon, how far the
 tag sat from the ground track, and the second (mirror) Doppler solution. Use it to say

@@ -31,6 +31,14 @@ import { haversineKm } from '@/lib/haversine';
  * tag is far off-track the mirror lands hundreds of km away and is trivially
  * rejected.
  *
+ * The elevation figures are what identify an obstruction and which kind. A tag with
+ * a clear horizon is heard BEST at low elevation — a monopole radiates strongest
+ * near the horizon and has a null overhead — so the reverse pattern, poor low and
+ * good high, means the horizon is blocked. Combined with unchanged signal strength
+ * that means something solid beside the tag rather than something covering it:
+ * sand and vegetation attenuate, steel and concrete delete sky. On a developed
+ * shore that points at seawalls, groynes and riprap before it points at wrack.
+ *
  * This matters because "the fix might be a mirror" is a tempting explanation for
  * any position that does not fit the story, and it is usually wrong. On
  * A reference PSAT+ deployment two Aug 11 fixes put the tag ~2 km west of where it was expected,
