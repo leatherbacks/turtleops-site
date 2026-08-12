@@ -1,13 +1,14 @@
 'use client';
 
 import type { DetectedFile } from '@/lib/types';
-import { CheckCircle2, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, XCircle } from 'lucide-react';
 
 interface FileListProps {
   files: DetectedFile[];
 }
 
 const FILE_TYPE_LABELS: Record<string, string> = {
+  // Wildlife Computers
   locations: 'Locations',
   argos: 'Argos Passes',
   status: 'Tag Status',
@@ -19,7 +20,18 @@ const FILE_TYPE_LABELS: Record<string, string> = {
   lightloc: 'Light Levels',
   dailydata: 'Daily Summary',
   histos: 'Depth/Temp Histograms',
+  // Lotek
+  lotek_daylog: 'Day Log',
+  lotek_divelog: 'Dive Log',
+  // Argos / CLS
+  argos_ds: 'Argos Raw (CLS)',
   unknown: 'Not recognized',
+};
+
+const SOURCE_LABELS: Record<string, string> = {
+  wildlife_computers: 'Wildlife Computers',
+  lotek: 'Lotek',
+  argos_cls: 'Argos / CLS',
 };
 
 export default function FileList({ files }: FileListProps) {
@@ -35,13 +47,26 @@ export default function FileList({ files }: FileListProps) {
       </h3>
       <div className="space-y-1">
         {recognized.map((f) => (
-          <div
-            key={f.file.name}
-            className="flex items-center gap-2 text-sm py-1"
-          >
-            <CheckCircle2 className="w-4 h-4 text-success flex-shrink-0" />
-            <span className="font-medium">{FILE_TYPE_LABELS[f.fileType]}</span>
-            <span className="text-muted truncate">{f.file.name}</span>
+          <div key={f.file.name} className="py-1">
+            <div className="flex items-center gap-2 text-sm">
+              {f.warning ? (
+                <AlertTriangle className="w-4 h-4 text-warning flex-shrink-0" />
+              ) : (
+                <CheckCircle2 className="w-4 h-4 text-success flex-shrink-0" />
+              )}
+              <span className="font-medium">
+                {FILE_TYPE_LABELS[f.fileType] ?? f.fileType}
+              </span>
+              {SOURCE_LABELS[f.source] && (
+                <span className="text-xs text-muted opacity-70">
+                  {SOURCE_LABELS[f.source]}
+                </span>
+              )}
+              <span className="text-muted truncate">{f.file.name}</span>
+            </div>
+            {f.warning && (
+              <p className="text-xs text-warning/90 ml-6 mt-0.5">{f.warning}</p>
+            )}
           </div>
         ))}
         {unrecognized.map((f) => (

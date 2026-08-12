@@ -91,8 +91,9 @@ export function compareTemperatures(
   // Heuristic classification
   // In-water: tag temp closely tracks SST (±2°C)
   // In-air exposed: tag temp tracks air temp (±3°C), diurnal swing visible
-  // In-air insulated: tag temp warmer than both air and SST by several °C (vehicle, pocket, building)
-  // Anomalous hot: tag is much warmer than any ambient — animal body heat, or inside a warm enclosure
+  // In-air insulated: tag temp warmer than both air and SST by several °C (vehicle, pocket,
+  // building) Anomalous hot: tag is much warmer than any ambient — animal body heat, or inside a
+  // warm enclosure
 
   if (sources.sstTempC === null && sources.airTempC === null) {
     environment = 'unknown';

@@ -37,8 +37,20 @@ function markOutliersStuck(fixes: ArgosFix[]): void {
 }
 
 /**
- * Drifting tag: flag any fix whose apparent speed from previous good fix
+ * Drifting tag: flag any fix whose apparent speed from the previous good fix
  * exceeds the plausible cap (5 km/h).
+ *
+ * The separation between two fixes is only evidence of movement to the extent
+ * it exceeds their combined positional error. Comparing raw coordinates treats
+ * a class-B fix as if it were surveyed, which inverts the result on exactly the
+ * tags that need it most: on a reference PSAT+ deployment a 24 km-error fix passed the gate on
+ * its own (a long gap makes any speed look slow), became the reference, and
+ * then flagged the genuinely good 1535 m fix 22 minutes later as an impossible
+ * 10.9 km/h jump. The best position in the file was discarded by the worst.
+ *
+ * Charging displacement only for the part that outruns the error means two
+ * fixes that cannot be told apart never accuse each other, while a real jump
+ * between two tight fixes still trips the cap.
  */
 function markOutliersDrifting(fixes: ArgosFix[]): void {
   const sorted = [...fixes].sort((a, b) => a.date.getTime() - b.date.getTime());
@@ -59,7 +71,10 @@ function markOutliersDrifting(fixes: ArgosFix[]): void {
         (fix.date.getTime() - lastGood.date.getTime()) / (1000 * 60 * 60);
 
       if (hours > 0) {
-        const speed = dist / hours;
+        const combinedErrorKm =
+          (finiteError(lastGood.effectiveError) + finiteError(fix.effectiveError)) / 1000;
+        const resolvableDist = Math.max(0, dist - combinedErrorKm);
+        const speed = resolvableDist / hours;
         if (speed > MAX_DRIFT_SPEED_KMH) {
           fix.isOutlier = true;
           continue;
@@ -69,6 +84,11 @@ function markOutliersDrifting(fixes: ArgosFix[]): void {
 
     lastGood = fix;
   }
+}
+
+/** Class Z carries an Infinite empirical error, which would swallow every test. */
+function finiteError(metres: number): number {
+  return Number.isFinite(metres) ? metres : 0;
 }
 
 function median(values: number[]): number {

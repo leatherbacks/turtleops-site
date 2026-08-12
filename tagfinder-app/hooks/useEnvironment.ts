@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import type { EnvironmentData } from '@/lib/types';
-import { LAND_THRESHOLD_M } from '@/lib/constants';
+import { LAND_THRESHOLD_M, INTERTIDAL_MAX_DEPTH_M } from '@/lib/constants';
 
 interface UseEnvironmentReturn {
   data: EnvironmentData;
@@ -50,18 +50,16 @@ export function useEnvironment(
       .then((r) => (r.ok ? r.json() : null))
       .then((res) => {
         if (res && typeof res.meters === 'number') {
-          const classification =
-            res.meters > LAND_THRESHOLD_M
-              ? 'land'
-              : res.meters >= 0
-                ? 'intertidal'
-                : 'water';
+          // Provisional only. Terrain models clamp to 0 over the sea, so
+          // elevation alone cannot tell open water from the intertidal zone —
+          // the final call is made below, once bathymetry has resolved.
           setData((d) => ({
             ...d,
             elevation: {
               meters: res.meters,
               source: res.source,
-              classification,
+              classification:
+                res.meters > LAND_THRESHOLD_M ? 'land' : 'intertidal',
             },
           }));
         }
@@ -179,5 +177,31 @@ export function useEnvironment(
       .finally(() => setLoading((l) => ({ ...l, location: false })));
   }, [lat, lon]);
 
-  return { data, loading };
+  /**
+   * Final land / intertidal / water call.
+   *
+   * Elevation on its own cannot make it: USGS and Open-Elevation are terrain
+   * models and return 0 over the sea, so every offshore position came back
+   * "intertidal". PTT 41008 sat ~40 km off the Keys in 16 m of water and the
+   * report told the reader it "may wash up at high tide".
+   *
+   * GEBCO bathymetry is the discriminator — if there is real water depth under
+   * the position, it is not the intertidal zone.
+   */
+  const classified = useMemo<EnvironmentData>(() => {
+    const el = data.elevation;
+    if (!el) return data;
+
+    if (el.meters > LAND_THRESHOLD_M) {
+      return { ...data, elevation: { ...el, classification: 'land' } };
+    }
+
+    const seabed = data.bathymetry?.seabedDepthM ?? null;
+    const classification =
+      seabed !== null && seabed > INTERTIDAL_MAX_DEPTH_M ? 'water' : 'intertidal';
+
+    return { ...data, elevation: { ...el, classification } };
+  }, [data]);
+
+  return { data: classified, loading };
 }

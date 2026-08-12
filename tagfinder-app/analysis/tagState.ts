@@ -119,6 +119,30 @@ export function analyzeTagState(
     };
   }
 
+  // Depth/temperature series with no release date cannot be split into
+  // pre-release (the animal diving) and post-release (the tag's current
+  // situation). Reporting the animal's dive record as the tag's present state
+  // is confidently wrong: a reference PSAT+ deployment came back "SUBMERGED, 40 m" off 3,222 July
+  // readings while the tag had actually been ashore for three days.
+  //
+  // Status.csv readings are exempt — a tag self-reporting status is describing
+  // itself, not the animal. This mirrors the guard tempComparison and
+  // burialDetection already apply.
+  const hasReleaseDate = Boolean(summary?.releaseDate);
+  if (!hasReleaseDate && statuses.length === 0 && series && series.length > 0) {
+    return {
+      // 0 reports used — the series exists but none of it could be attributed
+      // to the post-release period, so none of it informed a verdict.
+      ...emptyFields(0),
+      phase: 'unknown',
+      reasoning:
+        'No release date available, so the depth/temperature series cannot be ' +
+        'split into pre-release (animal diving) and post-release (current tag ' +
+        'environment) readings. Classifying the whole series would describe the ' +
+        'animal, not where the tag is now.',
+    };
+  }
+
   // Combine Series.csv + Status.csv data — Series is much richer when present
   type DepthPoint = { date: Date; depth: number };
   type TempPoint = { date: Date; temp: number };

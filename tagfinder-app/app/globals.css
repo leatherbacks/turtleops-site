@@ -37,6 +37,17 @@ body {
     display: block !important;
   }
 
+  /* Keep the map whole. At 500px it lands mid-page and the page break slices
+     it, so the printed report shows a fragment with the tag's own position
+     below the cut. Shrink slightly and forbid splitting: it now either fits in
+     the remaining space or moves to the next page intact. Height needs
+     !important because MapContainer sets it inline. */
+  .leaflet-container {
+    height: 360px !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
   /* Force light backgrounds and legible text on panels */
   .bg-surface,
   .bg-surface-elevated,

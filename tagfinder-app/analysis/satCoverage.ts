@@ -38,20 +38,38 @@ function matchPass(
 }
 
 /**
- * Normalize satellite names across Argos.csv values and CelesTrak TLE names.
- * e.g., "NP" → NOAA-19, "NN" → NOAA-20 (Argos short codes).
- * Falls back to prefix matching.
+ * Normalize satellite names across Argos short codes and CelesTrak TLE names
+ * onto one canonical key, so received passes can be matched to predicted ones.
+ *
+ * Argos data uses two-character codes ("MC", "SR", "3D"); CelesTrak uses display
+ * names ("METOP-C", "SARAL", "KINEIS-3D"). The Kinéis codes are of the form
+ * <plane 1-5><slot A-E> and map directly onto the CelesTrak name.
  */
-function normalizeSatName(name: string): string {
+export function normalizeSatName(name: string): string {
   const n = (name || '').trim().toUpperCase();
+
+  // Kinéis short code, e.g. "3D" → KINEIS-3D
+  if (/^[1-5][A-E]$/.test(n)) return `KINEIS-${n}`;
+  // Any KIN-prefixed spelling: the DS dump and the CLS message export both
+  // write "KIN2B", which matched nothing before and silently dropped 21 of the
+  // 25 satellites in a CLS dataset out of coverage analysis entirely.
+  const kineis = n.match(/^KIN(?:EIS)?[\s-]*([1-5][A-E])$/);
+  if (kineis) return `KINEIS-${kineis[1]}`;
+
   const map: Record<string, string> = {
-    NP: 'NOAA-19',
+    NK: 'NOAA-15',
     NN: 'NOAA-20',
+    NP: 'NOAA-19',
+    MA: 'METOP-A',
     MB: 'METOP-B',
     MC: 'METOP-C',
     SR: 'SARAL',
+    O3: 'OCEANSAT-3',
   };
   if (map[n]) return map[n];
+
+  // CelesTrak names Oceansat-3 "EOS-6 (OCEANSAT-3)"
+  if (n.includes('OCEANSAT-3') || n.startsWith('EOS-6')) return 'OCEANSAT-3';
   // Already full-name?
   if (n.startsWith('NOAA')) return n.replace(' ', '-');
   if (n.startsWith('METOP')) return n.replace(' ', '-');

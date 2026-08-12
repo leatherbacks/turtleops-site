@@ -59,15 +59,17 @@ export default function TransmissionHealthPanel({
 
       {health.windows.length >= 2 && (
         <div className="space-y-3">
-          <MetricRow
-            label="CRC failure"
-            unit="%"
-            windows={health.windows}
-            valueFn={(w) => w.corruptPct}
-            slope={health.corruptPctSlopePerDay}
-            slopeUnit="%/d"
-            slopeDirection="down-is-good"
-          />
+          {health.overallCorruptPct !== null && (
+            <MetricRow
+              label="CRC failure"
+              unit="%"
+              windows={health.windows}
+              valueFn={(w) => w.corruptPct}
+              slope={health.corruptPctSlopePerDay}
+              slopeUnit="%/d"
+              slopeDirection="down-is-good"
+            />
+          )}
           {health.powerSlopePerDayDbm !== null && (
             <MetricRow
               label="Signal power"

@@ -23,7 +23,8 @@ export interface ArgosPass {
   satellite: string;
   msgCount: number;
   duplicates: number;
-  corrupt: number;
+  /** null when the source format does not report CRC failures (e.g. Argos DS). */
+  corrupt: number | null;
   avgInterval: number;
   locationQuality: string;
   /** Primary (picked) lat/lon */
@@ -216,12 +217,72 @@ export interface DriftState {
 export interface DriftPrediction {
   speedKmH: number;
   headingDeg: number; // degrees from north
+  /** Track window the vector was fitted over — needed to ask what the wind was
+   *  doing while the tag was actually moving, versus what it will do next. */
+  fitFrom: Date;
+  fitTo: Date;
   predictions: {
     hoursAhead: number;
     lat: number;
     lon: number;
     uncertaintyRadiusKm: number; // cone width
   }[];
+}
+
+// ─── Drift Forcing Cross-Check ───
+// Modelled wind and current beside the measured drift vector. Used to validate
+// the extrapolation, never added to it — the vector already contains whatever
+// forcing acted while the tag was moving.
+
+export interface ForcingSample {
+  time: Date;
+  /** Direction the wind blows FROM (meteorological convention). */
+  windFromDeg: number | null;
+  windSpeedMs: number | null;
+  /** Direction the current flows TOWARD (oceanographic convention). */
+  currentTowardDeg: number | null;
+  currentKmH: number | null;
+}
+
+export interface DriftForcing {
+  current: { speedKmH: number; towardDeg: number } | null;
+  windDuringFit: { speedMs: number; fromDeg: number } | null;
+  windAhead: { speedMs: number; fromDeg: number } | null;
+  /** Angle between measured drift heading and modelled current set, 0-180. */
+  currentAgreementDeg: number | null;
+  /** Measured drift speed as a fraction of modelled current speed. */
+  currentSpeedRatio: number | null;
+  /** Wind materially different now versus during the fit. */
+  windShifted: boolean;
+  windShiftDeg: number | null;
+  windSpeedChangeMs: number | null;
+  /** How much to trust extrapolating the measured vector forward. */
+  confidence: 'good' | 'caution' | 'low';
+  reasoning: string;
+}
+
+// ─── Landfall Prediction ───
+// Where a drifting tag's predicted path first meets land. Straight-line drift
+// extrapolation is land-blind, so without this the app can project a floating
+// tag inland. For a recovery the crossing point is the more useful answer than
+// an arbitrary +24h position.
+
+export interface LandfallPrediction {
+  willStrand: boolean;
+  lat: number | null;
+  lon: number | null;
+  /** Hours after the last fix at which the path reaches land. */
+  hoursFromLastFix: number | null;
+  /** True when that moment is already in the past — tag is likely ashore now. */
+  alreadyPassed: boolean;
+  distanceKm: number | null;
+  /** Drift-cone width at the landfall time, i.e. along-shore search spread. */
+  uncertaintyKm: number | null;
+  /** Spacing between path samples — the resolution of this answer. */
+  resolutionKm: number;
+  /** How far ahead the path was sampled. */
+  horizonHours: number;
+  reasoning: string;
 }
 
 // ─── Tag Category ───
@@ -270,7 +331,8 @@ export interface DataQuality {
   totalMessages: number;
   totalDuplicates: number;
   totalCorrupt: number;
-  corruptPct: number;
+  /** null when the source format does not report CRC failures (Argos DS). */
+  corruptPct: number | null;
   avgMsgPerPass: number;
   firstPass: Date | null;
   lastPass: Date | null;
@@ -283,6 +345,105 @@ export interface DataQuality {
 // ─── Analysis Result ───
 
 // ─── Tidal Intrusion (post-release) ───
+
+// ─── Argos pass geometry / mirror solutions ───
+
+/** Geometry of the satellite pass that produced one Doppler fix. */
+export interface PassGeometry {
+  date: Date;
+  satellite: string;
+  quality: string;
+  latitude: number;
+  longitude: number;
+  /** Satellite elevation above the horizon as seen from the fix, degrees. */
+  elevationDeg: number;
+  slantRangeKm: number;
+  /** How far the tag sat from the satellite's ground track. */
+  crossTrackKm: number;
+  /** The other Doppler solution — reflection across the orbital plane. */
+  mirrorLat: number;
+  mirrorLon: number;
+  mirrorSeparationKm: number;
+  /** Distance from the trusted fix cluster; null when there is no cluster. */
+  primaryClusterKm: number | null;
+  mirrorClusterKm: number | null;
+  /** The two solutions are close enough that CLS could have swapped them. */
+  ambiguous: boolean;
+  /** Ambiguous AND the mirror fits the rest of the track better. */
+  suspect: boolean;
+}
+
+export interface PassGeometryAnalysis {
+  fixes: PassGeometry[];
+  ambiguousCount: number;
+  suspectCount: number;
+  /** Fixes below 15 degrees elevation, where Doppler geometry is weak. */
+  lowElevationCount: number;
+  medianElevationDeg: number;
+  medianCrossTrackKm: number;
+  /** Passes skipped because no TLE matched the satellite. */
+  tlesMissing: number;
+  reasoning: string;
+}
+
+// ─── Tide-phase transmission analysis ───
+
+/** One NOAA predicted high or low water. */
+export interface TideExtreme {
+  time: Date;
+  type: 'H' | 'L';
+  /** Metres relative to MLLW. */
+  height: number;
+}
+
+/** Messages received in one band of the tidal range, split by direction. */
+export interface TidePhaseBin {
+  /** e.g. "0–20% (low)" — fraction of the tidal range above low water. */
+  label: string;
+  fallingMessages: number;
+  risingMessages: number;
+}
+
+/**
+ * Whether reception tracks the tide, and when to be standing there with a
+ * receiver. Counts are exposure-corrected: passes are the denominator, so a
+ * clustering of satellite passes on one phase cannot masquerade as a tidal
+ * effect.
+ */
+export interface TidePhaseAnalysis {
+  fallingMessages: number;
+  risingMessages: number;
+  /** Satellite passes in each phase — the exposure baseline. */
+  fallingPasses: number;
+  risingPasses: number;
+  messagesPerPassFalling: number;
+  messagesPerPassRising: number;
+  /** How much better the dominant phase is, per pass. null when one phase had none. */
+  excessRatio: number | null;
+  dominant: 'falling' | 'rising' | 'neither';
+  strength: 'strong' | 'moderate' | 'none';
+  /** True only when every window tested agreed. A finding that appears at one
+   *  cutoff and not others is an artefact of that cutoff, not a result. */
+  robust: boolean;
+  /** Min and max excess across the windows tested — the honest error bar. */
+  excessRange: [number, number] | null;
+  bins: TidePhaseBin[];
+  /** Next stretch of the productive phase, narrowed to its best level band. */
+  bestWindow: {
+    legFrom: Date;
+    legTo: Date;
+    peakFrom: Date;
+    peakTo: Date;
+    peakBandLabel: string;
+  } | null;
+  /** Fraction of passes that fell inside the tide table. */
+  coverage: number;
+  /** Days of history analysed, or null when the whole record was used. */
+  windowDays: number | null;
+  analyzedFrom: Date;
+  analyzedTo: Date;
+  reasoning: string;
+}
 
 export interface TidalIntrusion {
   /** Is the tag being flooded/drained by tides? */
@@ -472,8 +633,9 @@ export interface TransmissionHealth {
   reasoning: string;
   /** Rolling-window buckets — ordered by time, suitable for a sparkline */
   windows: TransmissionHealthWindow[];
-  /** Overall CRC % across all post-release passes */
-  overallCorruptPct: number;
+  /** Overall CRC % across all post-release passes; null when the source
+   *  format does not report CRC failures at all (e.g. the Argos DS dump). */
+  overallCorruptPct: number | null;
   /** Trend in corrupt % (negative = improving, positive = worsening) — per day */
   corruptPctSlopePerDay: number;
   /** Trend in mean power — negative = weakening, per day, dBm/day */
@@ -611,10 +773,16 @@ export interface AnalysisResult {
   // Drift
   driftState: DriftState;
   driftPrediction: DriftPrediction | null; // null if stuck
+  /** Predicted first land crossing; computed async once elevations resolve. */
+  landfall: LandfallPrediction | null;
+  /** Modelled wind/current cross-check on the drift vector; computed async. */
+  driftForcing: DriftForcing | null;
 
   // Search area
   primaryRadiusM: number;
   expandedRadiusM: number;
+  /** Plain-English account of what the radius is made of. */
+  searchRadiusBasis: string;
 
   // Popoff
   popoff: PopoffResult | null;
@@ -700,8 +868,21 @@ export interface ForecastDay {
 
 // ─── File Detection ───
 
-export type Manufacturer = 'wildlife_computers';
+/** What built the tag. */
+export type Manufacturer = 'wildlife_computers' | 'lotek';
+
+/**
+ * Who produced the *file*, which is not the same question as who made the tag.
+ * Wildlife Computers and Lotek both emit their own sensor exports, but the
+ * Argos/CLS products (the DS text dump, the Doppler spreadsheet) are generated
+ * by CLS and look identical whatever hardware is transmitting. A DS file alone
+ * therefore tells us nothing about the manufacturer — and doesn't need to,
+ * since every analyzer downstream of it works off normalized Argos types.
+ */
+export type FileSource = 'wildlife_computers' | 'lotek' | 'argos_cls';
+
 export type FileType =
+  // Wildlife Computers
   | 'locations'
   | 'argos'
   | 'status'
@@ -713,12 +894,46 @@ export type FileType =
   | 'lightloc'
   | 'dailydata'
   | 'histos'
+  // Lotek
+  | 'lotek_daylog'
+  | 'lotek_divelog'
+  // Argos / CLS — manufacturer-agnostic
+  | 'argos_ds'
+  | 'argos_messages'
   | 'unknown';
 
 export interface DetectedFile {
   file: File;
+  /** Inferred tag manufacturer; 'unknown' for manufacturer-agnostic Argos files. */
   manufacturer: Manufacturer | 'unknown';
+  /** Who produced this file. */
+  source: FileSource | 'unknown';
   fileType: FileType;
+  /** Set when a file was recognised but could not be parsed safely. */
+  warning?: string;
+}
+
+/**
+ * What a parsed dataset can actually support, so the UI can skip analyzers
+ * instead of rendering their "unknown" verdicts as though they were findings.
+ * An absent capability is a statement about the data, not about the tag.
+ */
+export interface DatasetCapabilities {
+  manufacturer: Manufacturer | 'unknown';
+  /** Argos fixes with per-fix error ellipses (WC Locations; not the CLS DS dump). */
+  errorEllipses: boolean;
+  /** Secondary ("mirror") Argos solutions — needed by mirrorCheck. */
+  mirrorSolutions: boolean;
+  /** Wet/dry conductivity readings — needed by tagState. */
+  wetDry: boolean;
+  /** Raw light-level curves — needed by lightLevel. */
+  lightCurves: boolean;
+  /** Per-pass CRC/corrupt counts and received power — transmissionHealth detail. */
+  transmissionDiagnostics: boolean;
+  /** A deploy summary carrying ReleaseType/ReleaseDate — needed by popoff + releaseType. */
+  deploySummary: boolean;
+  /** Depth/temperature time series. */
+  depthSeries: boolean;
 }
 
 // ─── App State ───
