@@ -34,3 +34,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Field data fixtures — collaborators' unpublished tag exports. Tests resolve
+# these at run time and skip cleanly when absent; never commit the data itself.
+/parsers/__tests__/fixtures/

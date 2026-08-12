@@ -4,14 +4,24 @@ import dynamic from 'next/dynamic';
 import { useEffect, useMemo, useState } from 'react';
 import { useAnalysis } from '@/hooks/useAnalysis';
 import { useEnvironment } from '@/hooks/useEnvironment';
+import { useTidePhase } from '@/hooks/useTidePhase';
 import { analyzeTagState } from '@/analysis/tagState';
 import { predictPassesInWindow } from '@/analysis/satPrediction';
+import { analyzePassGeometry } from '@/analysis/passGeometry';
 import { analyzeSatCoverage } from '@/analysis/satCoverage';
 import { analyzeAntennaExposure } from '@/analysis/antennaExposure';
 import { compareTemperatures } from '@/analysis/tempComparison';
 import { analyzeBathymetry } from '@/analysis/bathymetry';
 import { detectBurial } from '@/analysis/burialDetection';
-import type { SatCoverage, AntennaExposure } from '@/lib/types';
+import { landfallProbePath, findLandfall, type ProbeSample } from '@/analysis/landfall';
+import { assessDriftForcing } from '@/analysis/driftForcing';
+import type {
+  SatCoverage,
+  AntennaExposure,
+  LandfallPrediction,
+  DriftForcing,
+  ForcingSample,
+} from '@/lib/types';
 import DropZone from '@/components/tagfinder/DropZone';
 import FileList from '@/components/tagfinder/FileList';
 import AnalysisPanel from '@/components/tagfinder/AnalysisPanel';
@@ -23,6 +33,7 @@ import SatCoveragePanel from '@/components/tagfinder/SatCoveragePanel';
 import SearchBriefPanel from '@/components/tagfinder/SearchBriefPanel';
 import MirrorCheckPanel from '@/components/tagfinder/MirrorCheckPanel';
 import TransmissionHealthPanel from '@/components/tagfinder/TransmissionHealthPanel';
+import TidePhasePanel from '@/components/tagfinder/TidePhasePanel';
 import SkyChart from '@/components/tagfinder/SkyChart';
 import UpcomingPassesPanel from '@/components/tagfinder/UpcomingPassesPanel';
 import EmailGate from '@/components/tagfinder/EmailGate';
@@ -43,10 +54,12 @@ const TagMap = dynamic(() => import('@/components/tagfinder/TagMap'), {
 
 export default function TagFinderPage() {
   const { detectedFiles, result, statuses, series, passes, dailySummaries, histograms, error, analyzing, analyze, reset } = useAnalysis();
-  const { session, email, loading: authLoading, signOut } = useTagFinderAuth();
+  const { session, email, loading: authLoading, authRequired, signOut } = useTagFinderAuth();
 
   const [satCoverage, setSatCoverage] = useState<SatCoverage | null>(null);
   const [antennaExposure, setAntennaExposure] = useState<AntennaExposure | null>(null);
+  const [landfall, setLandfall] = useState<LandfallPrediction | null>(null);
+  const [driftForcing, setDriftForcing] = useState<DriftForcing | null>(null);
   const [brief, setBrief] = useState<string | null>(null);
   const [briefLoading, setBriefLoading] = useState(false);
   const [briefError, setBriefError] = useState<string | null>(null);
@@ -59,6 +72,17 @@ export default function TagFinderPage() {
 
   // Fetch environment once we have a position
   const { data: envData, loading: envLoading } = useEnvironment(
+    result?.bestLat ?? null,
+    result?.bestLon ?? null
+  );
+
+  // Whether reception tracks the tide — tells a field team when to be standing
+  // there with a receiver. Needs the position, so it runs after the analysis.
+  const [passGeometry, setPassGeometry] =
+    useState<import('@/lib/types').PassGeometryAnalysis | null>(null);
+
+  const tidePhase = useTidePhase(
+    passes,
     result?.bestLat ?? null,
     result?.bestLon ?? null
   );
@@ -86,9 +110,17 @@ export default function TagFinderPage() {
 
   // Fetch TLEs and compute satellite coverage once we have a result
   useEffect(() => {
-    if (!result || passes.length === 0 || !result.summary) return;
+    // Deliberately does NOT require result.summary. Nothing below reads it, and
+    // Lotek exports have no equivalent file — gating on it would silently
+    // disable satellite coverage and antenna exposure for every Lotek dataset.
+    if (!result || passes.length === 0) return;
 
-    const earliest = result.summary.deployDate || result.allFixes[0]?.date;
+    // Start at the first Argos fix, NOT deployDate. For a PSAT the tag is on a
+    // diving animal for the whole deployment and cannot reach a satellite, so
+    // counting those passes as "missed" tanks receptionRate and makes
+    // interpretCoverage / antennaExposure report obstruction that isn't there.
+    // Coverage and exposure are diagnostics about the tag's exposed period.
+    const earliest = result.allFixes[0]?.date;
     const latest = result.allFixes[result.allFixes.length - 1]?.date;
     if (!earliest || !latest) return;
 
@@ -111,6 +143,9 @@ export default function TagFinderPage() {
         if (!cancelled) {
           setSatCoverage(coverage);
           setAntennaExposure(analyzeAntennaExposure(coverage.passes));
+          // Same TLEs, so this costs nothing extra: recover why each fix is as
+          // good or bad as it is, and where its mirror solution actually lies.
+          setPassGeometry(analyzePassGeometry(passes, data.entries));
         }
       } catch {
         // ignore
@@ -121,6 +156,101 @@ export default function TagFinderPage() {
       cancelled = true;
     };
   }, [result, passes]);
+
+  // Walk the predicted drift path and find where it first meets land.
+  // One batched elevation request — these routes are rate limited per IP, so
+  // probing point-by-point would burn a user's daily budget in one analysis.
+  useEffect(() => {
+    const pred = result?.driftPrediction;
+    if (!result || !pred) {
+      setLandfall(null);
+      return;
+    }
+    const path = landfallProbePath(pred, result.bestLat, result.bestLon);
+    if (path.length === 0) {
+      setLandfall(null);
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const points = path.map((p) => `${p.lat.toFixed(5)},${p.lon.toFixed(5)}`).join('|');
+        const res = await fetch(`/api/elevation?points=${encodeURIComponent(points)}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (cancelled || !Array.isArray(data.points)) return;
+
+        const samples: ProbeSample[] = path.map((p, i) => ({
+          ...p,
+          elevationM:
+            typeof data.points[i]?.meters === 'number' ? data.points[i].meters : null,
+        }));
+
+        const lastFix = result.allFixes[result.allFixes.length - 1];
+        const hoursSinceLastFix = lastFix
+          ? Math.max(0, (Date.now() - lastFix.date.getTime()) / 3_600_000)
+          : 0;
+
+        if (!cancelled) setLandfall(findLandfall(samples, pred, hoursSinceLastFix));
+      } catch {
+        // leave landfall null — the drift prediction still stands on its own
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [result]);
+
+  // Cross-check the measured drift vector against modelled wind and current.
+  // Validation only — never added to the vector, which already contains the
+  // forcing that acted while the tag was moving.
+  useEffect(() => {
+    const pred = result?.driftPrediction;
+    if (!result || !pred) {
+      setDriftForcing(null);
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/drift-forcing?lat=${result.bestLat}&lon=${result.bestLon}`
+        );
+        if (!res.ok) return;
+        const data = await res.json();
+        if (cancelled || !Array.isArray(data.hourly)) return;
+
+        const samples: ForcingSample[] = data.hourly.map(
+          (h: {
+            time: string;
+            windFromDeg: number | null;
+            windSpeedMs: number | null;
+            currentTowardDeg: number | null;
+            currentKmH: number | null;
+          }) => ({
+            time: new Date(h.time),
+            windFromDeg: h.windFromDeg,
+            windSpeedMs: h.windSpeedMs,
+            currentTowardDeg: h.currentTowardDeg,
+            currentKmH: h.currentKmH,
+          })
+        );
+
+        if (!cancelled) {
+          setDriftForcing(assessDriftForcing(pred, samples, new Date(), 24));
+        }
+      } catch {
+        // leave null — the measured vector stands on its own
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [result]);
 
   // Compute temperature comparison once environment loads (needs SST + air temp)
   const tempComparison = useMemo(() => {
@@ -180,11 +310,13 @@ export default function TagFinderPage() {
     if (fusedTagState) merged.tagState = fusedTagState;
     if (satCoverage) merged.satCoverage = satCoverage;
     if (antennaExposure) merged.antennaExposure = antennaExposure;
+    if (landfall) merged.landfall = landfall;
+    if (driftForcing) merged.driftForcing = driftForcing;
     if (tempComparison) merged.tempComparison = tempComparison;
     if (bathymetry) merged.bathymetry = bathymetry;
     if (burialDetection) merged.burialDetection = burialDetection;
     return merged;
-  }, [result, fusedTagState, satCoverage, antennaExposure, tempComparison, bathymetry, burialDetection]);
+  }, [result, fusedTagState, satCoverage, antennaExposure, landfall, driftForcing, tempComparison, bathymetry, burialDetection]);
 
   // Fetch AI brief once environment + sat coverage are loaded
   const envReady =
@@ -218,8 +350,11 @@ export default function TagFinderPage() {
           longitude: f.longitude,
         })) ?? [],
         allFixes: { length: displayResult.allFixes?.length ?? 0 },
+        searchRadiusBasis: displayResult.searchRadiusBasis,
         driftState: displayResult.driftState,
         driftPrediction: displayResult.driftPrediction,
+        landfall: displayResult.landfall,
+        driftForcing: displayResult.driftForcing,
         tagState: displayResult.tagState,
         tidalIntrusion: displayResult.tidalIntrusion,
         satCoverage: stripTrackPoints(displayResult.satCoverage),
@@ -232,6 +367,10 @@ export default function TagFinderPage() {
         tempComparison: displayResult.tempComparison,
         burialDetection: displayResult.burialDetection,
         transmissionHealth: displayResult.transmissionHealth,
+        tidePhase: tidePhase.analysis,
+        passGeometry: passGeometry
+          ? { ...passGeometry, fixes: passGeometry.fixes.slice(-20) }
+          : null,
         trackerShed: displayResult.trackerShed,
         releaseInterpretation: displayResult.releaseInterpretation,
         crushDepthEvent: displayResult.crushDepthEvent,
@@ -338,6 +477,7 @@ export default function TagFinderPage() {
           analysis: displayResult,
           environment: envData,
           brief,
+          tidePhase: tidePhase.analysis,
           upcomingPasses: upcoming.passes,
         }),
       });
@@ -506,7 +646,7 @@ export default function TagFinderPage() {
               </p>
             </div>
 
-            {!authLoading && !session ? (
+            {!authLoading && !session && authRequired ? (
               <EmailGate />
             ) : (
               <>
@@ -695,6 +835,15 @@ export default function TagFinderPage() {
                 )}
                 {displayResult.transmissionHealth && (
                   <TransmissionHealthPanel health={displayResult.transmissionHealth} />
+                )}
+
+                {/* Does reception track the tide — when to be there with a receiver */}
+                {tidePhase.analysis && (
+                  <TidePhasePanel
+                    analysis={tidePhase.analysis}
+                    station={tidePhase.station}
+                    stationDistanceKm={tidePhase.stationDistanceKm}
+                  />
                 )}
                 <AnalysisPanel result={displayResult} skipPositionCard />
                 {displayResult.tagCategory.category === 'psat' && (

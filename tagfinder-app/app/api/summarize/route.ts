@@ -68,12 +68,39 @@ export async function POST(request: NextRequest) {
 
   try {
     const response = await client.messages.create({
-      model: 'claude-opus-4-6',
-      max_tokens: 1500,
+      model: 'claude-opus-5',
+      // max_tokens caps thinking AND response text together, and adaptive
+      // thinking on a payload this size can take a large share of it. Sized so
+      // a 3-5 paragraph brief cannot be truncated mid-recommendation; this is a
+      // ceiling, not a target, so unused headroom costs nothing.
+      max_tokens: 8000,
       thinking: { type: 'adaptive' },
+      // Explicit rather than implicit: 'high' is the API default, but stating it
+      // makes this the obvious place to tune. Opus 5 performs unusually well at
+      // 'low'/'medium' — worth a sweep against real briefs if cost matters.
+      output_config: { effort: 'high' },
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: prompt }],
     });
+
+    // Opus 5 runs safety classifiers that can decline a request: HTTP 200, empty
+    // or partial content, and stop_reason 'refusal'. Check this BEFORE reading
+    // content — otherwise a refusal surfaces as the misleading "no text
+    // response" error below and looks like a service fault.
+    if (response.stop_reason === 'refusal') {
+      const category = response.stop_details?.type === 'refusal'
+        ? response.stop_details.category
+        : null;
+      return NextResponse.json(
+        {
+          error:
+            'The model declined to generate a brief for this dataset' +
+            (category ? ` (category: ${category})` : '') +
+            '. The analysis itself is unaffected — every panel above is computed locally.',
+        },
+        { status: 422 }
+      );
+    }
 
     // Extract the text response
     const textBlock = response.content.find((b) => b.type === 'text');
@@ -203,7 +230,10 @@ the physical state.
 
 **Light, temperature, and bathymetry signals (when available) are authoritative for physical state:**
 - **Light pattern 'buried' or 'fully_dark'** — the tag's light sensor is blocked. If on land, it's
-  under sand/sediment. If the elevation is at sea level, think intertidal burial.
+  under sand/sediment. Check bathymetry before calling it intertidal burial: elevation
+  models report 0 m over open sea, so a sea-level elevation with real water depth beneath it
+  is open water, not a beach. The app's land/intertidal/water classification already accounts
+  for this — trust it over the raw elevation number.
 - **Light pattern 'shaded'** — tree canopy, under a structure, inside a vehicle with tinted
   windows. Combined with elevated temperature, suggests indoor/vehicle storage.
 - **Light pattern 'indoor'** — artificial light at night is a strong signal the tag is indoors;
@@ -230,6 +260,103 @@ the physical state.
   is on the bottom; diving recovery may be needed, or the tag is unrecoverable if too deep.
 - **Bathymetry null seabedDepthM** — position is on land per GEBCO; combine with light/temp
   to distinguish stranded, buried, or recovered-by-person.
+
+**A drifting tag is a moving target — read the position fields together, not in isolation.**
+- **bestLat/bestLon is where the tag WAS at its last fixes, never where it is now.** It is
+  not advanced for elapsed time. On a tag that has been silent for days this can be many
+  kilometres from the truth. Always state how old the last fix is.
+- **searchRadiusBasis explains what primaryRadiusM is made of.** For a drifting tag the
+  radius is fix precision PLUS distance the tag could have drifted since the last fix, so it
+  grows with silence. A 20 km radius is not a broken number — it is an honest one. Quote the
+  basis string rather than the bare metres, and never describe a large radius as an error.
+- **landfall is usually the most actionable field for a drifting tag.** When
+  landfall.willStrand is true, the tag's path reaches land at that point.
+  landfall.alreadyPassed true means the predicted strand time is already in the past — the
+  tag is most likely ashore there NOW, and the strandline near landfall.lat/lon is a better
+  place to search than the last fix. Use landfall.uncertaintyKm (along-shore spread) as the
+  search extent, NOT primaryRadiusM, which measures distance from the last fix instead.
+  When willStrand is false, say so explicitly: the tag is heading for open water, it will not
+  beach itself, and recovery needs a vessel and is time-limited.
+- **Landfall carries no wind-leeway term.** It extrapolates the measured track in a straight
+  line. Under sustained onshore wind the real strand is usually closer to shore and earlier
+  along the path than predicted. Treat it as a strong lead, not a survey mark.
+
+**driftForcing validates the drift vector — it is a confidence signal, never an input.** The
+vector is measured from the tag's own positions and already contains whatever wind and
+current acted on it, so never add modelled forcing on top.
+- **confidence 'good'** — extrapolation is reasonable; state the drift direction plainly.
+- **confidence 'caution'** — the modelled current disagrees with the measured heading by more
+  than 90°. Something other than current is driving the tag, or the model does not resolve
+  its position. Widen the search and say why.
+- **confidence 'low'** — the wind has changed since the track was measured, so the vector
+  describes conditions that no longer apply. Say this outright and lean on the last known
+  position rather than the projection.
+- **currentSpeedRatio well below 1** means the tag is moving far slower than the modelled
+  current — it is inshore of the main flow, sheltered, or already partly grounded. That is a
+  useful physical clue about where it is sitting.
+
+**Transmit frequency is the single most actionable number for a field team.** When
+dataQuality.nominalFrequencyMHz is present, give it prominently in the recommendations —
+that is what a goniometer or RDF receiver must be tuned to, and it is often offset by tens of
+kHz from the 401.650 MHz nominal. A search on the wrong frequency finds nothing. Pair it with
+avgMsgPerPass to say roughly how often the tag transmits, so the team knows how long to dwell.
+
+**releaseInterpretation tells you why the tag came off, and some values are alerts.**
+'floater', 'sitter', and 'sinker' are mortality-associated: the animal likely died at or near
+the surface, was stationary, or sank. Surface these plainly and early — they change how the
+recovery and the surrounding science are framed. 'scheduled' and 'detachment' are normal.
+
+**diveProfile and crushDepthEvent describe the ANIMAL before release, not the tag now.**
+Never use dive depths to reason about where the tag is sitting today. If there is no release
+date, the app cannot separate the two periods and the state analyzers will say so.
+
+**Distinguish "not reported" from a measured zero.** Several fields are null when the source
+format does not carry them, and null never means good news:
+- **dataQuality.corruptPct null** and **transmissionHealth.overallCorruptPct null** mean CRC
+  was not reported at all (the Argos DS raw format carries no CRC counts). Do not say "0%
+  corrupt" or describe transmission as clean on that basis.
+- **powerSlopePerDayDbm null** means received power was not reported, so the power-based
+  burial-depth estimates below do not apply.
+- **tagState.phase 'unknown'** with a reasoning string about a missing release date means the
+  depth/temperature series could not be attributed to the post-release period. That is an
+  absence of evidence — do not read it as "the tag is fine" or invent a state.
+- **mirrorCheck 'no_secondaries'** means the source format carries no mirror solutions, not
+  that the primaries were verified.
+In every one of these cases, say what is missing and what file or export would supply it.
+
+**Pass geometry explains fix quality far better than the class letter.**
+passGeometry gives, per fix, the satellite's elevation above the horizon, how far the
+tag sat from the ground track, and the second (mirror) Doppler solution. Use it to say
+WHY a fix is weak — "taken at 12 degrees elevation, 900 km off the ground track" is
+actionable; "class B" is not.
+
+On mirrors, resist the tempting story. A position that does not fit the expected track
+is very rarely a mirror: **passGeometry.ambiguousCount is the number of fixes whose two
+solutions are close enough to have been swapped, and it is usually zero.** When it is
+zero, say plainly that mirror ambiguity cannot explain an awkward position — the tag
+really did move there. Only when a fix has suspect=true (its mirror sits closer to the
+rest of the track than the reported position) is it worth raising, and even then as a
+possibility to check rather than a conclusion. Never invoke mirroring to explain away a
+fix the geometry says is unambiguous.
+
+**Tide phase — check strength and robust before quoting any number.**
+tidePhase reports whether the tag is heard preferentially on the falling or rising
+tide. Two rules, both learned from getting this wrong during a live search:
+
+- Quote **tidePhase.excessRatio**, never a raw message ratio. Raw counts inherit the
+  satellite schedule. On a reference PSAT+ deployment the raw split was 3.7:1, but 1.7x of that was
+  simply more passes occurring on ebbing tides; the real effect was about 2.2x.
+  excessRatio is already corrected for that exposure.
+- If **tidePhase.robust is false, or strength is 'none', there is no tidal window.**
+  Say so plainly and tell the reader to search whenever suits. Do NOT reach into
+  tidePhase.bins or the message counts to construct a window the analysis declined to
+  give — a pattern that appears at one cutoff and not others is an artefact of the
+  cutoff. tidePhase.excessRange shows how far the answer moved across the windows
+  tested; a wide range means unstable.
+
+When strength is 'strong' or 'moderate' AND robust is true, tidePhase.bestWindow gives
+the next productive stretch — lead recovery timing with it, and warn that silence during
+the opposite phase is expected rather than evidence the tag has gone.
 
 **Transmission health trend is time-urgent.** If transmissionHealth.trend is 'degrading' or
 'failing', the tag's signal quality is worsening across the post-release window — rising CRC
@@ -296,6 +423,16 @@ Guidelines:
 
 Be confident but honest about uncertainty. Use plain English. Avoid jargon unless necessary.
 Don't restate raw numbers — interpret them. Don't include headers or bullet points unless the data warrants it.
+
+Lead with the outcome: the first sentence should say where to search and what state the tag
+is likely in. Supporting reasoning comes after, for the reader who wants it. Keep disclaimers
+and caveats brief so the bulk of the brief is the answer itself — a caveat that changes where
+someone searches is worth a sentence; one that doesn't is worth none.
+
+Deliver the brief and nothing else. Don't propose follow-up analyses, additional data
+products, or work beyond the brief. If a signal genuinely can't be assessed from the data
+provided, say so in one clause and name the file or export that would supply it.
+
 Keep the total response under 300 words.`;
 
 /** Strip the verbose trackPoints arrays from satCoverage before sending to the AI.
@@ -366,6 +503,7 @@ ${JSON.stringify(
     expandedRadiusM: a.expandedRadiusM,
     fixesUsed: (a.validFixes as unknown[])?.length,
     totalFixes: (a.allFixes as unknown[])?.length,
+    searchRadiusBasis: a.searchRadiusBasis,
   },
   null,
   2
@@ -376,6 +514,24 @@ ${JSON.stringify(a.driftState, null, 2)}
 
 ## Drift prediction (if drifting)
 ${JSON.stringify(a.driftPrediction, null, 2)}
+
+## Predicted landfall (where the drift path first meets land)
+${JSON.stringify(a.landfall, null, 2)}
+
+## Wind and current cross-check on the drift vector
+${JSON.stringify(a.driftForcing, null, 2)}
+
+## Release type (why the tag came off — mortality signals live here)
+${JSON.stringify(a.releaseInterpretation, null, 2)}
+
+## Data quality and transmit frequency (the RDF / goniometer tuning number)
+${JSON.stringify(a.dataQuality, null, 2)}
+
+## Dive profile (pre-release, describes the animal — not the tag's current state)
+${JSON.stringify(a.diveProfile, null, 2)}
+
+## Crush-depth event (pre-release descent near the tag's failsafe depth)
+${JSON.stringify(a.crushDepthEvent, null, 2)}
 
 ## Tag state (depth, submersion, physical condition)
 ${JSON.stringify(a.tagState, null, 2)}
@@ -409,6 +565,12 @@ ${JSON.stringify(a.trackerShed, null, 2)}
 
 ## Transmission health trend (is the tag's signal degrading? Rising CRC rate, falling power, and rising frequency drift together diagnose a tag in trouble — e.g. buried, covered, overheating)
 ${JSON.stringify(a.transmissionHealth, null, 2)}
+
+## Reception vs tide (does the tag get heard preferentially on a falling or rising tide?)
+${JSON.stringify((a as Record<string, unknown>).tidePhase, null, 2)}
+
+## Argos pass geometry (why each fix is good or bad, and where its mirror solution lies — last 20 fixes)
+${JSON.stringify((a as Record<string, unknown>).passGeometry, null, 2)}
 
 ## Upcoming satellite passes (next 48 hours over the tag's current position)
 ${JSON.stringify(summarizeUpcoming((a as Record<string, unknown>).upcomingPasses as unknown[] | undefined), null, 2)}
