@@ -40,12 +40,48 @@ import { haversineKm } from '@/lib/haversine';
  * sent a search team the wrong way; the geometry settled it in seconds.
  */
 
+/**
+ * How far a fix may sit from the TLE's epoch before its geometry is untrustworthy.
+ *
+ * A TLE describes an orbit at one instant and SGP4 degrades away from it, roughly
+ * 1-3 km/day along-track for LEO. Measured against real Kinéis elements that is
+ * about 3-8 seconds of timing error at 20 days, and a LEO satellite sweeps the sky
+ * at up to a degree per second near closest approach — so a fix a month from epoch
+ * can be several degrees wrong in elevation, enough to move it between bands.
+ *
+ * The threshold is set where that error stays inside one elevation bin. Bins are
+ * 15 degrees wide; at 14 days the error is roughly 2-6 degrees, at 21 days about
+ * 8, which is over half a bin and would start moving fixes between categories.
+ *
+ * That matters because there is no free source of historical elements: CelesTrak's
+ * archive stops in 2004 by law, and Space-Track needs credentials. So an old
+ * dataset gets analysed against today's TLEs or not at all, and quietly reporting
+ * "taken at 12 degrees elevation" from a month-stale element set is the same class
+ * of error as every other confident number this codebase has had to unlearn.
+ *
+ * Pass MATCHING tolerates far more than this — seconds of error against a
+ * 12-minute window — so satellite coverage is unaffected. It is per-fix geometry
+ * that has to stop.
+ */
+const MAX_TLE_AGE_DAYS = 14;
+/** Beyond this the numbers are still usable but worth flagging. */
+const TLE_AGE_WARN_DAYS = 5;
+
 /** Below this separation the two solutions are genuinely hard to tell apart. */
 const AMBIGUOUS_SEPARATION_KM = 100;
 /** A mirror must beat the primary by this much to be worth flagging. */
 const SUSPECT_MARGIN_KM = 5;
 /** Only fixes this good are trusted to define the reference cluster. */
 const CLUSTER_QUALITIES = ['3', '2', '1', 'A'];
+
+/** Epoch encoded in columns 19-32 of TLE line 1, as a Date. */
+export function tleEpoch(line1: string): Date | null {
+  const yy = parseInt(line1.slice(18, 20), 10);
+  const doy = parseFloat(line1.slice(20, 32));
+  if (!Number.isFinite(yy) || !Number.isFinite(doy)) return null;
+  const year = yy < 57 ? 2000 + yy : 1900 + yy;
+  return new Date(Date.UTC(year, 0, 1) + (doy - 1) * 86_400_000);
+}
 
 function median(xs: number[]): number {
   const s = xs.slice().sort((a, b) => a - b);
@@ -109,6 +145,8 @@ export function analyzePassGeometry(
 
   const fixes: PassGeometry[] = [];
   let noTle = 0;
+  let tooStale = 0;
+  let maxAgeDays = 0;
 
   for (const p of located) {
     const tle = byName.get(normalizeSatName(p.satellite));
@@ -123,6 +161,17 @@ export function analyzePassGeometry(
       noTle++;
       continue;
     }
+
+    // Refuse rather than extrapolate an element set past its useful life.
+    const epoch = tleEpoch(tle.line1);
+    const ageDays = epoch
+      ? Math.abs(p.date.getTime() - epoch.getTime()) / 86_400_000
+      : Infinity;
+    if (ageDays > MAX_TLE_AGE_DAYS) {
+      tooStale++;
+      continue;
+    }
+    maxAgeDays = Math.max(maxAgeDays, ageDays);
 
     const pv = propagate(satrec, p.date);
     if (!pv?.position || !pv?.velocity || typeof pv.position === 'boolean') continue;
@@ -199,13 +248,16 @@ export function analyzePassGeometry(
 
   return {
     fixes,
+    tlesTooStale: tooStale,
+    maxTleAgeDays: Math.round(maxAgeDays * 10) / 10,
+    tleAgeWarning: maxAgeDays > TLE_AGE_WARN_DAYS,
     ambiguousCount: ambiguous.length,
     suspectCount: suspect.length,
     lowElevationCount: lowElev.length,
     medianElevationDeg: median(fixes.map((f) => f.elevationDeg)),
     medianCrossTrackKm: median(fixes.map((f) => f.crossTrackKm)),
     tlesMissing: noTle,
-    reasoning: explain(fixes, ambiguous.length, suspect, lowElev.length, noTle),
+    reasoning: explain(fixes, ambiguous.length, suspect, lowElev.length, noTle, tooStale, maxAgeDays),
   };
 }
 
@@ -214,7 +266,9 @@ function explain(
   ambiguousCount: number,
   suspect: PassGeometry[],
   lowElevCount: number,
-  noTle: number
+  noTle: number,
+  tooStale: number,
+  maxAgeDays: number
 ): string {
   const parts: string[] = [];
 
@@ -254,6 +308,21 @@ function explain(
 
   if (noTle > 0) {
     parts.push(`${noTle} pass${noTle > 1 ? 'es' : ''} had no matching TLE and were skipped.`);
+  }
+
+  if (tooStale > 0) {
+    parts.push(
+      `${tooStale} fix${tooStale > 1 ? 'es were' : ' was'} skipped because the only available ` +
+        `orbital elements are more than ${MAX_TLE_AGE_DAYS} days from when they were taken. ` +
+        `Propagating that far introduces several degrees of elevation error, which is the ` +
+        `quantity being reported, so no geometry is given rather than a confident wrong one. ` +
+        `Historical elements would fix this; there is no free source for them.`
+    );
+  } else if (maxAgeDays > TLE_AGE_WARN_DAYS) {
+    parts.push(
+      `Orbital elements are up to ${maxAgeDays.toFixed(0)} days from these fixes, so elevation ` +
+        `and cross-track figures carry roughly a degree or two of extra uncertainty.`
+    );
   }
 
   return parts.join(' ');

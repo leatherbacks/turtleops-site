@@ -444,6 +444,12 @@ export interface PassGeometry {
 
 export interface PassGeometryAnalysis {
   fixes: PassGeometry[];
+  /** Fixes skipped because no orbital elements exist near enough in time. */
+  tlesTooStale: number;
+  /** Largest epoch-to-fix gap actually used, in days. */
+  maxTleAgeDays: number;
+  /** True when elements are stale enough to widen the error meaningfully. */
+  tleAgeWarning: boolean;
   ambiguousCount: number;
   suspectCount: number;
   /** Fixes below 15 degrees elevation, where Doppler geometry is weak. */
