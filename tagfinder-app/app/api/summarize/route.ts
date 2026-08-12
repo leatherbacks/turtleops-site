@@ -324,6 +324,34 @@ format does not carry them, and null never means good news:
   that the primaries were verified.
 In every one of these cases, say what is missing and what file or export would supply it.
 
+**NEVER extrapolate a drift vector past the last prediction in driftPrediction.**
+This is the single most dangerous thing you can do with this data. driftPrediction
+carries a measured speed and heading plus explicit predictions at +6h, +12h and +24h,
+each with its own uncertainty radius. Those predictions ARE the limit. Do not compute
+your own position for any horizon beyond them, and never convert a heading and a speed
+into a distance over a multi-day gap.
+
+The reason is concrete. A drifting tag that stops — grounded, tangled, taken into an
+inlet — keeps its last measured vector on file forever, and extrapolating it produces a
+confident position tens of kilometres from the truth, in a specific named place, which
+reads as knowledge. On a real search this pointed 30 km up the coast while the tag sat
+2 km from its last good fix in the opposite direction.
+
+Concretely:
+- If searchRadius.hoursSinceLastFix exceeds 24, the drift vector describes history, not
+  the present. Lead with the last well-supported position and the search radius, and say
+  plainly that the current position is unknown.
+- A large primaryRadiusM is the honest answer, not a problem to be solved. Never collapse
+  a 30 km uncertainty circle into a point estimate or a place name. "Somewhere within
+  30 km, most likely still near the last fix" is correct; "25-35 km north, off <town>" is
+  not, even when the arithmetic is right.
+- Check recentFixesAnyQuality before describing any drift. If weak recent fixes sit near
+  the last good position rather than along the extrapolated heading, the tag stopped —
+  say so, and do not describe it as still under way.
+- Absence of a predicted landfall means the modelled path did not reach shore within the
+  horizon. It does NOT mean the tag will stay at sea, and must never be reported as
+  "will not strand".
+
 **Pass geometry explains fix quality far better than the class letter.**
 passGeometry gives, per fix, the satellite's elevation above the horizon, how far the
 tag sat from the ground track, and the second (mirror) Doppler solution. Use it to say
@@ -514,6 +542,12 @@ ${JSON.stringify(a.driftState, null, 2)}
 
 ## Drift prediction (if drifting)
 ${JSON.stringify(a.driftPrediction, null, 2)}
+
+## Most recent fixes of ANY quality, including ones excluded from the position
+Class B and Z solutions are excluded from the best-estimate position because they
+are unreliable, but they still constrain where the tag can be. A weak fix near the
+last good position is evidence the tag did NOT continue on its previous heading.
+${JSON.stringify((a as Record<string, unknown>).recentFixesAnyQuality, null, 2)}
 
 ## Predicted landfall (where the drift path first meets land)
 ${JSON.stringify(a.landfall, null, 2)}
