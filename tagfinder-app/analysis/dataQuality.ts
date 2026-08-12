@@ -10,7 +10,7 @@ export function analyzeDataQuality(passes: ArgosPass[]): DataQuality {
       totalMessages: 0,
       totalDuplicates: 0,
       totalCorrupt: 0,
-      corruptPct: 0,
+      corruptPct: null,
       avgMsgPerPass: 0,
       firstPass: null,
       lastPass: null,
@@ -25,11 +25,13 @@ export function analyzeDataQuality(passes: ArgosPass[]): DataQuality {
   for (const pass of passes) {
     totalMessages += pass.msgCount;
     totalDuplicates += pass.duplicates;
-    totalCorrupt += pass.corrupt;
+    if (pass.corrupt !== null) totalCorrupt += pass.corrupt;
   }
 
+  // Distinguish "no messages failed CRC" from "this format never reports CRC".
+  const hasCrcData = passes.some((p) => p.corrupt !== null);
   const corruptPct =
-    totalMessages > 0 ? (totalCorrupt / totalMessages) * 100 : 0;
+    hasCrcData && totalMessages > 0 ? (totalCorrupt / totalMessages) * 100 : null;
   const avgMsgPerPass = totalMessages / passes.length;
 
   const sorted = [...passes].sort((a, b) => a.date.getTime() - b.date.getTime());

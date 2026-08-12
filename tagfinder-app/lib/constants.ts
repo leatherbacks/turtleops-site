@@ -64,6 +64,10 @@ export const DRIFT_TRAJECTORY_FIX_COUNT = 5;
 /** Above this elevation (meters) → likely on land */
 export const LAND_THRESHOLD_M = 0.5;
 
+/** Seabed depth beyond which a position is open water rather than intertidal.
+ *  Terrain models report 0 m over the sea, so bathymetry has to break the tie. */
+export const INTERTIDAL_MAX_DEPTH_M = 2;
+
 // ─── Rate Limits ───
 
 export const MAX_ANALYSES_PER_DAY = 10;

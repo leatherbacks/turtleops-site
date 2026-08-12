@@ -7,7 +7,11 @@ import type {
   PopoffResult,
 } from '@/lib/types';
 import { parseCSV } from '@/parsers/csv';
-import { detectFile } from '@/parsers/detect';
+import { detectFile, detectTextFile, detectSpreadsheet } from '@/parsers/detect';
+import { parseArgosDS, type ArgosDSResult } from '@/parsers/argos/ds';
+import { parseArgosMessages, type ArgosMessagesResult } from '@/parsers/argos/messages';
+import { parseLotekDayLog } from '@/parsers/lotek/dayLog';
+import { parseLotekDiveLog } from '@/parsers/lotek/diveLog';
 import { parseLocations } from '@/parsers/wc/locations';
 import { parseSummary } from '@/parsers/wc/summary';
 import { parseStatus } from '@/parsers/wc/status';
@@ -72,39 +76,123 @@ export function useAnalysis(): UseAnalysisReturn {
     setResult(null);
 
     try {
-      // 1. Parse and detect all files
+      // 1. Parse and detect all files.
+      //    CSVs go through Papa Parse and header matching. Anything else is
+      //    sniffed from its content first — the Argos DS dump is whitespace
+      //    delimited with hex continuation lines and would not survive a CSV
+      //    parse, so it never reaches header detection.
       const detected: DetectedFile[] = [];
       const parsedData: Record<string, Record<string, string>[]> = {};
+      let argosDS: ArgosDSResult | null = null;
 
       for (const file of files) {
-        if (!file.name.endsWith('.csv')) continue;
-        const { headers, rows } = await parseCSV(file);
-        const det = detectFile(file, headers);
-        detected.push(det);
-        if (det.fileType !== 'unknown') {
-          parsedData[det.fileType] = rows;
+        // Classify from content, never from the extension. Wildlife Computers
+        // and Lotek both ship .csv, CLS ships .txt, and users rename files.
+        const magic = new Uint8Array(await file.slice(0, 8).arrayBuffer());
+        const spreadsheet = detectSpreadsheet(file, magic);
+        if (spreadsheet) {
+          detected.push(spreadsheet);
+          continue;
+        }
+
+        const head = await file.slice(0, 64 * 1024).text();
+
+        const asText = detectTextFile(file, head);
+        if (asText) {
+          argosDS = parseArgosDS(await file.text());
+          detected.push({
+            ...asText,
+            warning:
+              argosDS.fixes.length === 0
+                ? 'Argos file recognised but contained no resolved positions.'
+                : undefined,
+          });
+          continue;
+        }
+
+        try {
+          const { headers, rows } = await parseCSV(file);
+          const det = detectFile(file, headers);
+          detected.push(det);
+          if (det.fileType !== 'unknown') {
+            parsedData[det.fileType] = rows;
+          }
+        } catch {
+          detected.push({
+            file,
+            manufacturer: 'unknown',
+            source: 'unknown',
+            fileType: 'unknown',
+            warning: 'Could not be read as a tag export.',
+          });
+        }
+      }
+
+      // 1b. CLS per-message export. Parsed here rather than inline above
+      //     because it arrives as an ordinary CSV and so only becomes
+      //     identifiable after header detection.
+      let argosMessages: ArgosMessagesResult | null = null;
+      if (parsedData.argos_messages) {
+        argosMessages = parseArgosMessages(parsedData.argos_messages);
+        const d = detected.find((f) => f.fileType === 'argos_messages');
+        if (d && argosMessages.fixes.length === 0) {
+          d.warning =
+            'Argos message export recognised but contained no resolved positions.';
+        }
+      }
+
+      // 2. Lotek sensor exports. Both refuse to parse rather than guess when a
+      //    file's date order is ambiguous, so surface that on the file itself.
+      const lotekDive = parsedData.lotek_divelog
+        ? parseLotekDiveLog(parsedData.lotek_divelog)
+        : null;
+      const lotekDay = parsedData.lotek_daylog
+        ? parseLotekDayLog(parsedData.lotek_daylog)
+        : null;
+
+      for (const d of detected) {
+        if (d.fileType === 'lotek_divelog' && lotekDive && !lotekDive.dateOrder) {
+          d.warning = lotekDive.dateNote;
+        }
+        if (d.fileType === 'lotek_daylog' && lotekDay && !lotekDay.dateOrder) {
+          d.warning = lotekDay.dateNote;
         }
       }
 
       setDetectedFiles(detected);
 
-      // 2. Must have Locations at minimum
-      if (!parsedData.locations) {
-        setError('No Locations file detected. Please include a Locations CSV with Argos fixes.');
+      // 3. Positions can come from a Wildlife Computers Locations export or
+      //    from the CLS DS dump, which carries no manufacturer of its own.
+      if (!parsedData.locations && !argosDS && !argosMessages) {
+        setError(
+          'No Argos positions found. Include a Wildlife Computers Locations CSV, ' +
+            'or the raw Argos file from CLS.'
+        );
         setAnalyzing(false);
         return;
       }
 
-      // 3. Parse typed data
-      const fixes = parseLocations(parsedData.locations);
+      // 4. Parse typed data, preferring whichever source carries real per-fix
+      //    error. Wildlife Computers Locations has full ellipses; the CLS
+      //    message export has a reported error radius; the DS dump has neither
+      //    and falls back to per-class averages, so it ranks last.
+      const fixes = parsedData.locations
+        ? parseLocations(parsedData.locations)
+        : argosMessages?.fixes ?? argosDS?.fixes ?? [];
       const summary: DeploySummary | null = parsedData.summary
         ? parseSummary(parsedData.summary)
         : null;
       const parsedStatuses = parsedData.status ? parseStatus(parsedData.status) : [];
-      const passes = parsedData.argos ? parseArgos(parsedData.argos) : [];
-      const seriesReadings = parsedData.series ? parseSeries(parsedData.series) : [];
-      const sstReadings = parsedData.sst ? parseSST(parsedData.sst) : [];
-      const dailyDives = parsedData.minmaxdepth ? parseMinMaxDepth(parsedData.minmaxdepth) : [];
+      const passes = parsedData.argos
+        ? parseArgos(parsedData.argos)
+        : argosMessages?.passes ?? argosDS?.passes ?? [];
+      const seriesReadings = parsedData.series
+        ? parseSeries(parsedData.series)
+        : lotekDive?.readings ?? [];
+      const sstReadings = parsedData.sst ? parseSST(parsedData.sst) : lotekDay?.sst ?? [];
+      const dailyDives = parsedData.minmaxdepth
+        ? parseMinMaxDepth(parsedData.minmaxdepth)
+        : lotekDay?.dailyDives ?? [];
       const corruptMsgs = parsedData.corrupt ? parseCorrupt(parsedData.corrupt) : [];
       const lightCurves = parsedData.lightloc ? parseLightLoc(parsedData.lightloc) : [];
       const dailySummaries = parsedData.dailydata ? parseDailyData(parsedData.dailydata) : [];
@@ -124,7 +212,9 @@ export function useAnalysis(): UseAnalysisReturn {
       // Detect tag category early so we know whether to look for tracker
       // separation (a live tracker tag that has been removed from the animal
       // and is now sitting in a fixed location, behaving like a PSAT popoff).
-      const tagCategory = detectTagCategory(summary);
+      const datasetManufacturer =
+        detected.find((d) => d.manufacturer !== 'unknown')?.manufacturer ?? 'unknown';
+      const tagCategory = detectTagCategory(summary, datasetManufacturer);
 
       // For tracker tags, check if the tag has stopped moving — i.e. been
       // shed, removed, or recovered. When this fires we narrow the working
@@ -159,12 +249,21 @@ export function useAnalysis(): UseAnalysisReturn {
         driftState.recent !== 'insufficient' ? driftState.recent : driftState.allTime;
       const pos = computePosition(workingFixes, finalLabel === 'insufficient' ? 'stuck' : finalLabel);
 
-      // 8. Search radius
-      const { primaryM, expandedM } = computeSearchRadius(workingFixes);
-
-      // 9. Drift prediction (only for drifting tags)
+      // 8. Drift prediction (only for drifting tags). Computed before the
+      //    search radius because the radius depends on how far the tag could
+      //    have travelled since the last fix.
       const driftPrediction =
         finalLabel === 'drifting' ? predictDrift(workingFixes) : null;
+
+      // 9. Search radius — fix precision, widened by drift since the last fix
+      const {
+        primaryM,
+        expandedM,
+        basis: searchRadiusBasis,
+      } = computeSearchRadius(workingFixes, {
+        driftLabel: finalLabel,
+        speedKmH: driftPrediction?.speedKmH ?? null,
+      });
 
       // tagCategory already detected above (before tracker-shed check)
 
@@ -247,8 +346,11 @@ export function useAnalysis(): UseAnalysisReturn {
         positionMethod: pos.method,
         driftState,
         driftPrediction,
+        landfall: null, // computed async in the page once elevations resolve
+        driftForcing: null, // computed async once wind/current resolve
         primaryRadiusM: primaryM,
         expandedRadiusM: expandedM,
+        searchRadiusBasis,
         popoff,
         popoffSkipReason,
         tagState,

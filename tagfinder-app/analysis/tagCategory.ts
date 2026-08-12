@@ -1,4 +1,4 @@
-import type { DeploySummary, TagCategoryInfo } from '@/lib/types';
+import type { DeploySummary, Manufacturer, TagCategoryInfo } from '@/lib/types';
 
 /** Known PSAT (Pop-up Archival Tag) instrument identifiers */
 const PSAT_PATTERNS = [
@@ -23,8 +23,23 @@ const TRACKER_PATTERNS = [
  * Primary signal: ReleaseDate in Summary. PSATs have one, live trackers don't.
  * Secondary signal: Instr field matches known patterns.
  */
-export function detectTagCategory(summary: DeploySummary | null): TagCategoryInfo {
+export function detectTagCategory(
+  summary: DeploySummary | null,
+  manufacturer: Manufacturer | 'unknown' = 'unknown'
+): TagCategoryInfo {
   if (!summary) {
+    // Lotek's PSAT exports (Day Log / Dive Log) carry no equivalent of
+    // Summary.csv, so there is no ReleaseDate to key off. But those files only
+    // come off the PSAT line — a pop-up archival tag by definition — so the
+    // absence of a summary must not be read as "live tracker" the way it is
+    // for Wildlife Computers.
+    if (manufacturer === 'lotek') {
+      return {
+        category: 'psat',
+        instrument: 'Lotek PSAT',
+        reasoning: 'Lotek PSAT export — this format is only produced by pop-up archival tags',
+      };
+    }
     return {
       category: 'tracker',
       instrument: 'unknown',

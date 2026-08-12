@@ -8,6 +8,16 @@ interface DropZoneProps {
   disabled?: boolean;
 }
 
+/**
+ * Take whatever the user drops. File type is decided from content downstream,
+ * not from the extension — Wildlife Computers and Lotek both ship .csv, the CLS
+ * raw dump is .txt, and filtering here just means files vanish silently with no
+ * explanation. Anything unrecognised is reported back in the file list instead.
+ */
+function accepted(files: FileList | File[]): File[] {
+  return Array.from(files).filter((f) => f.size > 0);
+}
+
 export default function DropZone({ onFiles, disabled }: DropZoneProps) {
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -18,9 +28,7 @@ export default function DropZone({ onFiles, disabled }: DropZoneProps) {
       setDragOver(false);
       if (disabled) return;
 
-      const files = Array.from(e.dataTransfer.files).filter((f) =>
-        f.name.endsWith('.csv')
-      );
+      const files = accepted(e.dataTransfer.files);
       if (files.length > 0) onFiles(files);
     },
     [onFiles, disabled]
@@ -28,9 +36,7 @@ export default function DropZone({ onFiles, disabled }: DropZoneProps) {
 
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      const files = Array.from(e.target.files || []).filter((f) =>
-        f.name.endsWith('.csv')
-      );
+      const files = accepted(e.target.files || []);
       if (files.length > 0) onFiles(files);
     },
     [onFiles]
@@ -58,20 +64,20 @@ export default function DropZone({ onFiles, disabled }: DropZoneProps) {
       <input
         ref={inputRef}
         type="file"
-        accept=".csv"
         multiple
         onChange={handleChange}
         className="hidden"
       />
       <Upload className="w-10 h-10 mx-auto mb-4 text-muted" />
       <p className="text-lg font-medium mb-2">
-        Drop CSV files here
+        Drop tag files here
       </p>
       <p className="text-sm text-muted">
-        or click to browse. Supports Wildlife Computers tag exports.
+        or click to browse. Supports Wildlife Computers and Lotek exports.
       </p>
       <p className="text-xs text-muted mt-3">
-        Locations.csv required. Summary, Status, and Argos files are optional but recommended.
+        Needs positions: a Wildlife Computers Locations.csv, or the raw Argos file from CLS.
+        Everything else is optional but improves the analysis.
       </p>
     </div>
   );

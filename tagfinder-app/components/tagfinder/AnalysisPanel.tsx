@@ -1,5 +1,7 @@
 'use client';
 
+import { useState } from 'react';
+
 import type {
   AnalysisResult,
   TagStateInfo,
@@ -294,7 +296,13 @@ function DataQualityCard({
 }) {
   const dq = dataQuality;
   const healthColor =
-    dq.corruptPct < 2 ? 'text-success' : dq.corruptPct < 10 ? 'text-warning' : 'text-error';
+    dq.corruptPct === null
+      ? 'text-muted'
+      : dq.corruptPct < 2
+        ? 'text-success'
+        : dq.corruptPct < 10
+          ? 'text-warning'
+          : 'text-error';
 
   return (
     <div className="bg-surface rounded-xl border border-border p-5">
@@ -319,7 +327,7 @@ function DataQualityCard({
         <div>
           <span className="text-muted">Corrupted:</span>{' '}
           <span className={`font-medium ${healthColor}`}>
-            {dq.corruptPct.toFixed(1)}%
+            {dq.corruptPct === null ? 'not reported' : `${dq.corruptPct.toFixed(1)}%`}
           </span>
         </div>
         {corruptCount > 0 && (
@@ -420,6 +428,30 @@ function PredictionCard({ result, isTracker }: { result: AnalysisResult; isTrack
         {verb} {headingLabel} at ~{pred.speedKmH.toFixed(1)} km/h
       </p>
 
+      {result.driftForcing && (
+        <div className="rounded-lg border border-border bg-surface-elevated p-3 mb-3">
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-xs uppercase tracking-wide text-muted">
+              Wind &amp; current check
+            </p>
+            <span
+              className={`text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded ${
+                result.driftForcing.confidence === 'good'
+                  ? 'bg-success/15 text-success'
+                  : result.driftForcing.confidence === 'caution'
+                    ? 'bg-warning/15 text-warning'
+                    : 'bg-error/15 text-error'
+              }`}
+            >
+              {result.driftForcing.confidence}
+            </span>
+          </div>
+          <p className="text-xs text-muted leading-relaxed">
+            {result.driftForcing.reasoning}
+          </p>
+        </div>
+      )}
+
       <div className="space-y-2">
         {pred.predictions.map((p) => (
           <div key={p.hoursAhead} className="flex items-center justify-between text-sm">
@@ -441,7 +473,15 @@ function PredictionCard({ result, isTracker }: { result: AnalysisResult; isTrack
   );
 }
 
+/** Rows shown before the user asks for more. A recovery reads the newest few. */
+const FIX_TABLE_DEFAULT_ROWS = 25;
+/** Classes too coarse to be worth a row by default — B is ~14 km of error. */
+const LOW_QUALITY = new Set(['B', '0', 'Z']);
+
 function FixTable({ result }: { result: AnalysisResult }) {
+  const [showAll, setShowAll] = useState(false);
+  const [hideLowQuality, setHideLowQuality] = useState(false);
+
   const qualityColors: Record<string, string> = {
     '3': 'bg-marker-q3/20 text-blue-400',
     '2': 'bg-marker-q2/20 text-cyan-400',
@@ -451,10 +491,47 @@ function FixTable({ result }: { result: AnalysisResult }) {
     '0': 'bg-gray-700 text-gray-400',
   };
 
+  // Newest first. The original order put the oldest fix at the top, which for a
+  // recovery is backwards — the last known position is the one that matters,
+  // and on a long deployment it was buried pages down.
+  const ordered = [...result.allFixes].sort(
+    (a, b) => b.date.getTime() - a.date.getTime()
+  );
+  const filtered = hideLowQuality
+    ? ordered.filter((f) => !LOW_QUALITY.has(f.quality))
+    : ordered;
+  const visible = showAll ? filtered : filtered.slice(0, FIX_TABLE_DEFAULT_ROWS);
+  const hidden = filtered.length - visible.length;
+  const lowQualityCount = ordered.filter((f) => LOW_QUALITY.has(f.quality)).length;
+
   return (
     <div className="bg-surface rounded-xl border border-border overflow-hidden">
-      <div className="px-5 py-3 border-b border-border">
-        <h3 className="font-semibold">Argos Fixes ({result.allFixes.length})</h3>
+      <div className="px-5 py-3 border-b border-border flex flex-wrap items-center gap-x-4 gap-y-2">
+        <h3 className="font-semibold">Argos Fixes</h3>
+        <span className="text-xs text-muted">
+          {visible.length} of {result.allFixes.length}, most recent first
+          {hideLowQuality && lowQualityCount > 0 && ` · ${lowQualityCount} low-quality hidden`}
+        </span>
+        <div className="ml-auto flex items-center gap-3 no-print">
+          {lowQualityCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setHideLowQuality((v) => !v)}
+              className="text-xs text-muted underline underline-offset-2 hover:text-foreground"
+            >
+              {hideLowQuality ? `Show Q0/QB (${lowQualityCount})` : 'Hide Q0/QB'}
+            </button>
+          )}
+          {(hidden > 0 || showAll) && (
+            <button
+              type="button"
+              onClick={() => setShowAll((v) => !v)}
+              className="text-xs text-muted underline underline-offset-2 hover:text-foreground"
+            >
+              {showAll ? `Show newest ${FIX_TABLE_DEFAULT_ROWS}` : `Show all ${filtered.length}`}
+            </button>
+          )}
+        </div>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -469,9 +546,9 @@ function FixTable({ result }: { result: AnalysisResult }) {
             </tr>
           </thead>
           <tbody>
-            {result.allFixes.map((fix, i) => (
+            {visible.map((fix, i) => (
               <tr
-                key={i}
+                key={`${fix.date.toISOString()}-${i}`}
                 className={`border-b border-border/50 ${fix.isOutlier ? 'opacity-40 line-through' : ''}`}
               >
                 <td className="px-4 py-2 font-mono text-xs">
@@ -495,6 +572,12 @@ function FixTable({ result }: { result: AnalysisResult }) {
           </tbody>
         </table>
       </div>
+      {hidden > 0 && (
+        <p className="px-5 py-2 text-xs text-muted border-t border-border">
+          {hidden} older {hidden === 1 ? 'fix' : 'fixes'} not shown. The full set is in
+          the uploaded file.
+        </p>
+      )}
     </div>
   );
 }
