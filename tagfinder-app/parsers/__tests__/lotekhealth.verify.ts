@@ -1,6 +1,8 @@
 import { readFileSync } from 'fs';
 import Papa from 'papaparse';
 import { requireFixture, MESSAGES_CSV } from './fixtures';
+import { analyzeTagState } from '@/analysis/tagState';
+import { compareTemperatures } from '@/analysis/tempComparison';
 import {
   parseLotekHealthMessages,
   decodeHealthMessage,
@@ -82,6 +84,46 @@ chk('non-health payload returns null',
 chk('wrong length returns null',
   decodeHealthMessage(Uint8Array.from([0xed, 0x32, 0, 0]), new Date()), null);
 chk('corrupt payloads were screened out', h.corrupt > 0, true);
+
+console.log('\n== A COUPLE OF BAD READINGS MUST NOT OUTVOTE MANY GOOD ONES ==');
+// The Lotek health message carries occasional impossible depths. On this data 18
+// of 20 readings are 0 m and two are 21 m and 32 m. Aggregating with max (or a
+// standard deviation) turned a tag lying flat at the surface into one
+// "consistently submerged", then into one "bobbing in surf" — the opposite of
+// what every other channel said.
+{
+  const series = h.records.map((r) => ({
+    date: r.date, depth: r.depthM, depthRange: null,
+    temperature: r.temperatureC, temperatureRange: null,
+  }));
+  const summary: any = {
+    deployId: '', ptt: 0, instrument: '', software: '', percentDecoded: 0,
+    passes: 0, releaseDate: h.records[0].date, releaseType: '', deployDate: null,
+  };
+  const depths = h.records.map((r) => r.depthM);
+  const zeros = depths.filter((d) => d === 0).length;
+  console.log(`        ${zeros}/${depths.length} depths are 0 m; max is ${Math.max(...depths)} m`);
+  chk('the outliers really are a small minority', zeros / depths.length > 0.8, true);
+
+  const ts: any = analyzeTagState([], summary, null, series as any, null, null);
+  chk('tag reads as at the surface, not submerged', ts.phase, 'surface');
+  chk('...and not as bobbing in surf either', /oscillating/.test(String(ts.reasoning)), false);
+
+  // Temperature must lead with the diurnal swing. Comparing a mean against a
+  // single SST snapshot said "in water" for a tag swinging 7 C, because on a
+  // summer coast air and sea sit within a couple of degrees of each other.
+  const tc = compareTemperatures(series as any, [], summary, {
+    airTempC: 30.1, sstTempC: 31.8,
+  } as any);
+  const swing = Math.max(...h.records.map((r) => r.temperatureC)) -
+                Math.min(...h.records.map((r) => r.temperatureC));
+  console.log(`        temperature swing ${swing.toFixed(1)} C`);
+  chk('swing is too large for an immersed tag', swing > 4, true);
+  chk('classified out of the water', tc.environment, 'in_air_exposed');
+  chk('...and the reasoning cites the swing', /swing of/.test(tc.reasoning), true);
+  chk('...with the mean sitting near air, which alone would not settle it',
+    Math.abs((tc.tagMinusAir ?? 99)) < 1 && Math.abs((tc.tagMinusSST ?? 0)) < 2, true);
+}
 
 console.log(`\n${pass} passed, ${fail} failed\n`);
 process.exit(fail === 0 ? 0 : 1);

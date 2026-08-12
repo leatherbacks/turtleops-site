@@ -20,6 +20,18 @@ interface TempSources {
  * from a floating-at-surface tag, or detect "in a car / inside a building"
  * signatures where the tag runs markedly warmer than ambient.
  */
+/**
+ * Diurnal swing above which the tag cannot be immersed.
+ *
+ * The sea's thermal mass holds a submerged object within roughly a degree over a
+ * day; air carries it through several. This is the discriminator that works even
+ * where air and sea temperatures sit close together, which on a summer coast is
+ * most of the time.
+ */
+const AIR_SWING_MIN_C = 4;
+/** Readings needed before a swing means anything. */
+const MIN_READINGS_FOR_SWING = 5;
+
 export function compareTemperatures(
   seriesReadings: SeriesReading[],
   statuses: TagStatus[],
@@ -78,6 +90,7 @@ export function compareTemperatures(
   const tagMin = Math.min(...tagTemps);
   const tagMax = Math.max(...tagTemps);
   const tagMean = tagTemps.reduce((a, b) => a + b, 0) / tagTemps.length;
+  const tagSwing = tagMax - tagMin;
 
   const tagMinusSST =
     sources.sstTempC !== null ? Number((tagMean - sources.sstTempC).toFixed(2)) : null;
@@ -107,6 +120,29 @@ export function compareTemperatures(
       1
     )}°C — unusually warm. Likely held against a warm body (animal or human) or inside a heated enclosure.`;
     confidence = 0.75;
+  } else if (tagSwing >= AIR_SWING_MIN_C && tagTemps.length >= MIN_READINGS_FOR_SWING) {
+    // Checked BEFORE any mean comparison, because the mean is the weaker signal
+    // and on a coast the two references sit close together: a tag whose mean
+    // lands between air and sea will "match" SST within a couple of degrees no
+    // matter where it actually is.
+    //
+    // The swing does not have that problem. The sea is a huge thermal reservoir,
+    // so anything immersed in it holds within about a degree across a day. A
+    // body in air follows the diurnal cycle and swings several. A tag reporting
+    // a 7 C range is therefore not in the water, whatever its average says —
+    // and reporting "in water" from a mean that sat 1.6 C from SST is exactly
+    // the error this replaces.
+    environment = 'in_air_exposed';
+    reasoning =
+      `Tag temperature ranges ${tagMin.toFixed(1)}–${tagMax.toFixed(1)}°C, a swing of ` +
+      `${tagSwing.toFixed(1)}°C across ${tagTemps.length} post-release readings. Water is ` +
+      `too large a thermal reservoir to allow that — anything immersed holds within about a ` +
+      `degree over a day — so the tag is out of the water and following air temperature` +
+      (tagMinusAir !== null
+        ? ` (mean ${tagMean.toFixed(1)}°C against air ${sources.airTempC!.toFixed(1)}°C)`
+        : '') +
+      `. Expect it to be visible rather than afloat.`;
+    confidence = 0.85;
   } else if (tagMinusSST !== null && Math.abs(tagMinusSST) < 2) {
     environment = 'in_water';
     reasoning = `Tag mean ${tagMean.toFixed(1)}°C matches SST (${sources.sstTempC!.toFixed(

@@ -324,6 +324,21 @@ format does not carry them, and null never means good news:
   that the primaries were verified.
 In every one of these cases, say what is missing and what file or export would supply it.
 
+**Do NOT infer local geography from a place name.**
+The location string is coarse — often just a county — and place names on a coast routinely
+cover both sides of a barrier island, an inlet, or a spit. Naming a beach, a surf zone, a
+wrack line or a shoreline segment from it is guesswork dressed as local knowledge, and it
+sends search teams to the wrong side of the water.
+
+Describe position by COORDINATES, and characterise the surroundings only from data you
+were actually given: elevation, seabed depth, the tide station's own name, and the fixes
+themselves. A tide station labelled "(inside)" is inside. A seabed of 2 m with a tight,
+non-drifting fix cluster is sheltered water, not surf. If you genuinely cannot tell open
+coast from enclosed water, say the coordinate and say you cannot tell — that is far more
+useful than a confident shoreline that turns out to be across a barrier island from the
+tag. On a real search this placed a tag "in the surf zone off the beach" when its own map
+showed it sitting in a bay two kilometres inland of that beach.
+
 **NEVER extrapolate a drift vector past the last prediction in driftPrediction.**
 This is the single most dangerous thing you can do with this data. driftPrediction
 carries a measured speed and heading plus explicit predictions at +6h, +12h and +24h,

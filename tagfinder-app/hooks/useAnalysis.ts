@@ -218,9 +218,25 @@ export function useAnalysis(): UseAnalysisReturn {
       const passes = parsedData.argos
         ? parseArgos(parsedData.argos)
         : argosMessages?.passes ?? argosDS?.passes ?? [];
+      // Health-message readings are post-release by construction, so they are
+      // the ONLY series that describes the tag's current situation rather than
+      // the animal's dive record. Without them tag state, burial detection and
+      // the seabed comparison all report "no depth data" while the depth,
+      // temperature and light they need sit decoded in the same upload.
+      const healthSeries = (lotekHealth?.records ?? []).map((r) => ({
+        date: r.date,
+        depth: r.depthM,
+        depthRange: null,
+        temperature: r.temperatureC,
+        temperatureRange: null,
+      }));
       const seriesReadings = parsedData.series
         ? parseSeries(parsedData.series)
-        : lotekDive?.readings ?? [];
+        : lotekDive && lotekDive.readings.length > 0
+          ? [...lotekDive.readings, ...healthSeries].sort(
+              (a, b) => a.date.getTime() - b.date.getTime()
+            )
+          : healthSeries;
       // Health-message temperatures are post-release by construction and are
       // the tag's own external sensor, so they are the right input for the
       // temperature-environment check. Prefer a real SST export where one
