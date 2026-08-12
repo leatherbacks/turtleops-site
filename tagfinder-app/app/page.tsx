@@ -368,6 +368,7 @@ export default function TagFinderPage() {
         burialDetection: displayResult.burialDetection,
         transmissionHealth: displayResult.transmissionHealth,
         tidePhase: tidePhase.analysis,
+        repetitionRate: displayResult.repetitionRate,
         passGeometry: passGeometry
           ? { ...passGeometry, fixes: passGeometry.fixes.slice(-20) }
           : null,

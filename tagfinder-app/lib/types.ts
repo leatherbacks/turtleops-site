@@ -349,6 +349,40 @@ export interface DataQuality {
 
 // ─── Tidal Intrusion (post-release) ───
 
+// ─── Transmission repetition rate ───
+
+/** One reception, as used to measure how often the tag transmits. */
+export interface TransmissionTime {
+  date: Date;
+  satellite: string;
+}
+
+/**
+ * How often the tag transmits, measured from its own message timestamps.
+ *
+ * A per-deployment configuration value that rarely appears in any export. For a
+ * field team it decides whether a silence means "wrong place" or "not yet".
+ */
+export interface RepetitionRate {
+  /** Nominal period in seconds. */
+  periodS: number;
+  /** Spread around it — Argos randomises the period deliberately. */
+  jitterS: number;
+  observedMinS: number;
+  observedMaxS: number;
+  sampleCount: number;
+  /** Sub-second repeats discarded as the same transmission logged twice. */
+  duplicatesDiscarded: number;
+  /** Gaps at 2x, 3x... the period — lost messages, and confirmation of the base. */
+  harmonics: { multiple: number; count: number }[];
+  /** Share of gaps explained by the period and its harmonics. */
+  fractionExplained: number;
+  /** Silence beyond this means the tag stopped, not that a message was lost. */
+  silenceThresholdS: number;
+  confidence: 'high' | 'moderate' | 'low';
+  reasoning: string;
+}
+
 // ─── Lotek activity-health message (decoded from the raw Argos payload) ───
 
 /**
@@ -798,6 +832,8 @@ export interface AnalysisResult {
   transmissionHealth: TransmissionHealth | null;
   /** Post-release sensor records decoded from Lotek activity-health payloads. */
   lotekHealth: LotekHealthRecord[] | null;
+  /** How often the tag transmits, measured from its own message timestamps. */
+  repetitionRate: RepetitionRate | null;
   /** True if the health status byte ever changed — see LotekHealthRecord.wetFlag. */
   lotekHealthStatusChanged: boolean;
   burialDetection: BurialDetection | null;

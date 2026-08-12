@@ -39,6 +39,8 @@ export const ARGOS_MESSAGES_REQUIRED = [
 export interface ArgosMessagesResult {
   fixes: ArgosFix[];
   passes: ArgosPass[];
+  /** Every reception, for measuring the tag's transmission period. */
+  messageTimes: { date: Date; satellite: string }[];
   ptt: number | null;
   /** Passes that delivered messages but no resolved position. */
   unlocatedPasses: number;
@@ -209,6 +211,7 @@ export function parseArgosMessages(rows: Record<string, string>[]): ArgosMessage
   return {
     fixes,
     passes,
+    messageTimes: messages.map((m) => ({ date: m.date, satellite: m.satellite })),
     ptt: ptts.size === 1 ? Array.from(ptts)[0] : null,
     unlocatedPasses,
   };

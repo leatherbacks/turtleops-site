@@ -138,6 +138,27 @@ export default function PositionCard({ result, hero = false }: PositionCardProps
           Fixes: {result.validFixes.length} of {result.allFixes.length} usable
         </span>
       </div>
+      {/*
+        The transmission period belongs beside the coordinate because it governs
+        how the coordinate is used: it is what tells someone sweeping with a
+        receiver whether a silence means they are in the wrong place or simply
+        early. It is measured from the tag's own timestamps rather than looked
+        up, since it is a per-deployment setting that rarely appears in any
+        export.
+      */}
+      {result.repetitionRate && (
+        <p className="text-xs text-muted mt-2 leading-relaxed">
+          <span className="font-mono">
+            Transmits every ~{result.repetitionRate.periodS}s
+          </span>
+          {' — on a receiver, silence beyond '}
+          <span className="font-mono">
+            {Math.round(result.repetitionRate.silenceThresholdS / 60)} min
+          </span>
+          {' means it has stopped, not that you are in the wrong place.'}
+        </p>
+      )}
+
       {result.searchRadiusBasis && (
         <p className="text-xs text-muted mt-2 leading-relaxed">
           {result.searchRadiusBasis}

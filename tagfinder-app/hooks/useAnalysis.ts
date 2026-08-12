@@ -43,6 +43,7 @@ import { detectCrushDepthEvent } from '@/analysis/crushDepth';
 import { analyzeLightLevel } from '@/analysis/lightLevel';
 import { detectTrackerShed } from '@/analysis/trackerShed';
 import { analyzeTransmissionHealth } from '@/analysis/transmissionHealth';
+import { estimateRepetitionRate } from '@/analysis/repetitionRate';
 import {
   estimatePopoffLocation,
   meetsNaultCriteria,
@@ -416,6 +417,12 @@ export function useAnalysis(): UseAnalysisReturn {
         tempComparison: null, // computed async in the page after environment fetch
         bathymetry: null, // computed async in the page after environment fetch
         transmissionHealth,
+        // How often the tag transmits, measured from its own timestamps. The
+        // number a field team needs to tell "wrong place" from "not yet", and
+        // one that rarely appears in any manufacturer export.
+        repetitionRate: estimateRepetitionRate(
+          argosMessages?.messageTimes ?? argosDS?.messageTimes ?? []
+        ),
         lotekHealth: lotekHealth?.records ?? null,
         lotekHealthStatusChanged: lotekHealth?.statusChanged ?? false,
         burialDetection: null, // computed async in the page after environment fetch

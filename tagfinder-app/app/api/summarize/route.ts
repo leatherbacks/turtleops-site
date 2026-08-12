@@ -606,6 +606,15 @@ ${JSON.stringify(a.transmissionHealth, null, 2)}
 ## Reception vs tide (does the tag get heard preferentially on a falling or rising tide?)
 ${JSON.stringify((a as Record<string, unknown>).tidePhase, null, 2)}
 
+## Transmission repetition rate (how often the tag actually transmits)
+Measured from the tag's own message timestamps, not looked up. This is the number a
+field team needs most and cannot get anywhere else — it decides whether a silence on a
+receiver means "wrong place" or "not fired yet". If present, state periodS plainly in
+the recommendations and give silenceThresholdS as the point at which to move on. Note
+that a ground receiver at close range has tens of dB of margin and hears essentially
+every transmission, so these intervals are what someone standing there should expect.
+${JSON.stringify((a as Record<string, unknown>).repetitionRate, null, 2)}
+
 ## Lotek activity-health records (post-release sensor data, decoded from raw payloads)
 For a PSAT these are the ONLY post-release sensor readings that exist — the Day Log and
 Dive Log stop when the archive schedule ends, often days before release. Temperature and
