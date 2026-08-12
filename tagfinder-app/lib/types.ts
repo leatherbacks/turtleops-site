@@ -705,13 +705,17 @@ export interface SatCoverage {
   totalPredicted: number;
   totalReceived: number;
   receptionRate: number; // 0-1
-  /** Per-satellite breakdown */
+  /** Per-satellite breakdown — serving satellites only. */
   perSat: {
     name: string;
     predicted: number;
     received: number;
     rate: number;
   }[];
+  /** Satellites that never heard this tag across enough passes to conclude they
+   *  are not carrying it. Excluded from the rate and from obstruction analysis,
+   *  reported so the exclusion is visible rather than silent. */
+  nonServing: { name: string; predicted: number }[];
   /** Direction bias: ascending (N-going) vs descending (S-going) */
   ascendingPredicted: number;
   ascendingReceived: number;

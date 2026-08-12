@@ -80,6 +80,31 @@ export function normalizeSatName(name: string): string {
 /**
  * Compute satellite coverage statistics by comparing predicted vs received passes.
  */
+/**
+ * Predicted passes from a satellite that never once heard the tag, over this
+ * many opportunities, are not evidence of obstruction.
+ *
+ * We predict passes for every satellite in the TLE set, but not every satellite
+ * in orbit carries the Argos payload, is commissioned, or is serving a given
+ * programme. A tag that is heard by twenty satellites and never by five is not
+ * being blocked from five directions — those five are not listening.
+ *
+ * Counting them anyway does real damage. On a healthy reference dataset seven
+ * satellites sat at 0/17-0/19 and dragged the reception rate to 36%, which then
+ * read as "reception varies significantly between satellites — may indicate
+ * directional obstruction". That is a finding about the satellite roster
+ * presented as a finding about the tag.
+ *
+ * The threshold is a floor on evidence, not a guess about hardware: across this
+ * many passes the geometry varies enough that a listening satellite would have
+ * heard something.
+ */
+const NON_SERVING_MIN_PASSES = 6;
+/** Standard errors from the overall rate before a satellite counts as odd. */
+const SAT_OUTLIER_SIGMA = 3;
+/** ...and the passes needed before that comparison is worth making. */
+const SAT_OUTLIER_MIN_PASSES = 8;
+
 export function analyzeSatCoverage(
   predicted: SatellitePass[],
   received: ArgosPass[]
@@ -121,18 +146,31 @@ export function analyzeSatCoverage(
     };
   });
 
+  // Satellites that never heard the tag across enough opportunities are not
+  // serving it. Drop them from the denominator and from every downstream
+  // obstruction judgement, but report them so the exclusion is visible.
+  const nonServing = perSat
+    .filter((s) => s.received === 0 && s.predicted >= NON_SERVING_MIN_PASSES)
+    .map((s) => ({ name: s.name, predicted: s.predicted }));
+  const nonServingNames = new Set(nonServing.map((s) => s.name));
+  const servingPerSat = perSat.filter((s) => !nonServingNames.has(s.name));
+
+  const isServing = (p: SatellitePass) => !nonServingNames.has(p.satelliteName);
+  const servingPredicted = predicted.filter(isServing);
+  const servingMatched = Array.from(matchedIds).filter((i) => isServing(predicted[i]));
+
   // Direction bias
-  const ascPredicted = predicted.filter((p) => p.direction === 'ascending').length;
-  const descPredicted = predicted.filter((p) => p.direction === 'descending').length;
-  const ascReceived = Array.from(matchedIds).filter(
+  const ascPredicted = servingPredicted.filter((p) => p.direction === 'ascending').length;
+  const descPredicted = servingPredicted.filter((p) => p.direction === 'descending').length;
+  const ascReceived = servingMatched.filter(
     (i) => predicted[i].direction === 'ascending'
   ).length;
-  const descReceived = Array.from(matchedIds).filter(
+  const descReceived = servingMatched.filter(
     (i) => predicted[i].direction === 'descending'
   ).length;
 
-  const totalPredicted = predicted.length;
-  const totalReceived = receivedMatched;
+  const totalPredicted = servingPredicted.length;
+  const totalReceived = servingMatched.length;
   const rate = totalPredicted > 0 ? totalReceived / totalPredicted : 0;
 
   // Health classification
@@ -142,9 +180,14 @@ export function analyzeSatCoverage(
   else health = 'poor';
 
   // Diagnosis
-  const diagnosis = interpretCoverage(rate, perSat, ascPredicted, ascReceived, descPredicted, descReceived);
+  const diagnosis = interpretCoverage(
+    rate, servingPerSat, ascPredicted, ascReceived, descPredicted, descReceived, nonServing
+  );
 
   // Build per-pass annotations for sky chart
+  // Sky chart shows only satellites that were actually serving the tag; arcs
+  // from a silent satellite are not "missed" and painting them red implies a
+  // blocked direction that is not there.
   const annotatedPasses: AnnotatedPass[] = predicted.map((p, i) => ({
     satelliteName: p.satelliteName,
     riseTime: p.riseTime,
@@ -165,14 +208,15 @@ export function analyzeSatCoverage(
     totalPredicted,
     totalReceived,
     receptionRate: rate,
-    perSat,
+    perSat: servingPerSat,
+    nonServing,
     ascendingPredicted: ascPredicted,
     ascendingReceived: ascReceived,
     descendingPredicted: descPredicted,
     descendingReceived: descReceived,
     diagnosis,
     health,
-    passes: annotatedPasses,
+    passes: annotatedPasses.filter((p) => !nonServingNames.has(p.satelliteName)),
   };
 }
 
@@ -182,7 +226,8 @@ function interpretCoverage(
   ascP: number,
   ascR: number,
   descP: number,
-  descR: number
+  descR: number,
+  nonServing: { name: string; predicted: number }[]
 ): string {
   const bits: string[] = [];
 
@@ -211,11 +256,43 @@ function interpretCoverage(
     }
   }
 
-  // Per-satellite imbalance
-  const maxSatRate = Math.max(...perSat.map((s) => s.rate));
-  const minSatRate = Math.min(...perSat.map((s) => s.rate));
-  if (maxSatRate - minSatRate > 0.3 && perSat.every((s) => s.predicted >= 3)) {
-    bits.push('Reception varies significantly between satellites — may indicate directional obstruction.');
+  // Per-satellite imbalance.
+  //
+  // Tested for significance rather than range, because range alone measures
+  // sampling noise. Each satellite contributes only a dozen or two passes, so at
+  // an overall rate near 50% the standard error on one satellite is about 12
+  // percentage points — and across twenty satellites the widest gap will
+  // routinely exceed 30 points with nothing whatsoever wrong. The old
+  // max-minus-min > 0.3 test therefore fired on healthy tags, and reported
+  // sampling variation as "directional obstruction".
+  //
+  // A satellite now has to sit more than SAT_OUTLIER_SIGMA standard errors off
+  // the overall rate, on enough passes for that to mean anything.
+  const outliers = perSat.filter((sat) => {
+    if (sat.predicted < SAT_OUTLIER_MIN_PASSES) return false;
+    const se = Math.sqrt((rate * (1 - rate)) / sat.predicted);
+    if (se === 0) return false;
+    return Math.abs(sat.rate - rate) / se > SAT_OUTLIER_SIGMA;
+  });
+  if (outliers.length > 0) {
+    const worst = outliers.reduce((a, b) =>
+      Math.abs(b.rate - rate) > Math.abs(a.rate - rate) ? b : a
+    );
+    bits.push(
+      `${worst.name} heard ${(worst.rate * 100).toFixed(0)}% of its passes against ` +
+        `${(rate * 100).toFixed(0)}% overall — more than sampling noise explains, which can ` +
+        `mean the antenna favours one part of the sky.`
+    );
+  }
+
+  if (nonServing.length > 0) {
+    const names = nonServing.map((s) => s.name).join(', ');
+    bits.push(
+      `${nonServing.length} satellite${nonServing.length > 1 ? 's' : ''} (${names}) never ` +
+        `heard this tag across ${Math.min(...nonServing.map((s) => s.predicted))}+ passes each ` +
+        `and are treated as not carrying it, so they are excluded from the rate above rather ` +
+        `than counted as missed.`
+    );
   }
 
   return bits.join(' ');
@@ -230,6 +307,7 @@ function emptyCoverage(
     totalReceived: 0,
     receptionRate: 0,
     perSat: [],
+    nonServing: [],
     ascendingPredicted: 0,
     ascendingReceived: 0,
     descendingPredicted: 0,
