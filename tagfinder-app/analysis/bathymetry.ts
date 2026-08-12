@@ -33,10 +33,17 @@ export function analyzeBathymetry(
 
   const releaseTime = summary?.releaseDate?.getTime() ?? null;
 
-  // Get the tag's most recent depth readings
-  const postReleaseDepths = (releaseTime
-    ? seriesReadings.filter((s) => s.date.getTime() > releaseTime)
-    : seriesReadings
+  // Without a release date, a depth series cannot be attributed to the tag's
+  // current situation — it is the animal's dive record. Comparing that against
+  // the seabed under the tag's present position produces a confident
+  // nonsense: a reference PSAT+ deployment reported "tag mean depth 79.3 m, in the water column"
+  // from July diving while the tag was ashore. Status readings are exempt,
+  // being the tag describing itself rather than the animal.
+  const seriesUsable = releaseTime !== null;
+  const postReleaseDepths = (
+    seriesUsable
+      ? seriesReadings.filter((s) => s.date.getTime() > (releaseTime as number))
+      : []
   )
     .map((s) => s.depth)
     .filter((d): d is number => d !== null && !isNaN(d));
@@ -54,9 +61,13 @@ export function analyzeBathymetry(
     return {
       seabedDepthM,
       source,
-      interpretation: `Seabed at this position is ${seabedDepthM.toFixed(
-        0
-      )}m deep, but no post-release tag depth readings are available to compare.`,
+      interpretation:
+        seriesReadings.length > 0 && !seriesUsable
+          ? `Seabed at this position is ${seabedDepthM.toFixed(0)}m deep. The ` +
+            `depth series cannot be compared against it without a release date — ` +
+            `those readings are the animal's dive record, not the tag's current depth.`
+          : `Seabed at this position is ${seabedDepthM.toFixed(0)}m deep, but no ` +
+            `post-release tag depth readings are available to compare.`,
       tagOnSeabed: false,
     };
   }

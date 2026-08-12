@@ -39,7 +39,7 @@ export function analyzeTransmissionHealth(
       trend: 'insufficient',
       reasoning: `Only ${postRelease.length} post-release pass${postRelease.length === 1 ? '' : 'es'} — need at least 3 to compute a trend.`,
       windows: [],
-      overallCorruptPct: 0,
+      overallCorruptPct: null,
       corruptPctSlopePerDay: 0,
       powerSlopePerDayDbm: null,
       frequencySlopePerDayHz: null,
@@ -51,14 +51,19 @@ export function analyzeTransmissionHealth(
   // when the span is tight.
   const windows = bucketIntoWindows(postRelease, 8);
 
+  // Which degradation signals this source actually reports.
+  const hasCrcData = postRelease.some((p) => p.corrupt !== null);
+  const hasPowerData = postRelease.some((p) => p.powerDbm !== null);
+
   // Aggregate totals
   let totalMsgs = 0;
   let totalCorrupt = 0;
   for (const p of postRelease) {
     totalMsgs += p.msgCount;
-    totalCorrupt += p.corrupt;
+    if (p.corrupt !== null) totalCorrupt += p.corrupt;
   }
-  const overallCorruptPct = totalMsgs > 0 ? (totalCorrupt / totalMsgs) * 100 : 0;
+  const overallCorruptPct =
+    hasCrcData && totalMsgs > 0 ? (totalCorrupt / totalMsgs) * 100 : null;
 
   // Compute slopes via simple linear regression on the window centers
   const corruptSlope = linearSlope(
@@ -91,10 +96,10 @@ export function analyzeTransmissionHealth(
   let trend: TransmissionTrend;
   const reasons: string[] = [];
 
-  if (overallCorruptPct > 80) {
+  if (overallCorruptPct !== null && overallCorruptPct > 80) {
     trend = 'failing';
     reasons.push(
-      `${overallCorruptPct.toFixed(0)}% of post-release messages failed CRC — the tag is heard but almost nothing decodes.`
+      `${overallCorruptPct!.toFixed(0)}% of post-release messages failed CRC — the tag is heard but almost nothing decodes.`
     );
   } else if (
     corruptSlope > 5 &&
@@ -115,9 +120,31 @@ export function analyzeTransmissionHealth(
     }
   } else {
     trend = 'stable';
+    // Only claim a clean bill of health for signals this source actually
+    // reports. The Argos DS dump carries neither CRC counts nor received
+    // power, and saying "CRC 0%" for absent data reads as perfect rather than
+    // unmeasured.
+    const measured: string[] = [];
+    if (hasCrcData && overallCorruptPct !== null)
+      measured.push(`CRC ${overallCorruptPct.toFixed(0)}%`);
+    if (hasPowerData) measured.push('power');
+    if (freqSlope !== null) measured.push('frequency');
+
+    const missing: string[] = [];
+    if (!hasCrcData) missing.push('CRC');
+    if (!hasPowerData) missing.push('received power');
+
     reasons.push(
-      `CRC ${overallCorruptPct.toFixed(0)}%, no significant degradation trend across power or frequency.`
+      measured.length > 0
+        ? `No significant degradation trend across ${measured.join(', ')}.`
+        : 'No degradation signals are reported by this data source.'
     );
+    if (missing.length > 0) {
+      reasons.push(
+        `${missing.join(' and ')} ${missing.length === 1 ? 'is' : 'are'} not reported in this format, ` +
+          `so ${missing.length === 1 ? 'it was' : 'they were'} not assessed.`
+      );
+    }
   }
 
   if (freqSlope !== null && Math.abs(freqSlope) > 200 && trend !== 'failing') {
@@ -141,18 +168,25 @@ function bucketIntoWindows(
   passes: ArgosPass[],
   targetBuckets: number
 ): TransmissionHealthWindow[] {
-  if (passes.length === 0) return [];
+  // Only passes that can be placed on a timeline can be bucketed. Sort rather
+  // than assume order: an out-of-order or undated pass produced a negative or
+  // NaN index below, and buckets[NaN] is undefined.
+  const dated = passes
+    .filter((p) => !isNaN(p.date.getTime()))
+    .sort((a, b) => a.date.getTime() - b.date.getTime());
+  if (dated.length === 0) return [];
 
   // If we have few passes, each pass is its own window
-  const n = Math.min(targetBuckets, passes.length);
-  const firstTs = passes[0].date.getTime();
-  const lastTs = passes[passes.length - 1].date.getTime();
+  const n = Math.min(targetBuckets, dated.length);
+  const firstTs = dated[0].date.getTime();
+  const lastTs = dated[dated.length - 1].date.getTime();
   const span = Math.max(1, lastTs - firstTs);
   const step = span / n;
 
   const buckets: ArgosPass[][] = Array.from({ length: n }, () => []);
-  for (const p of passes) {
-    const idx = Math.min(n - 1, Math.floor((p.date.getTime() - firstTs) / step));
+  for (const p of dated) {
+    const raw = Math.floor((p.date.getTime() - firstTs) / step);
+    const idx = Number.isFinite(raw) ? Math.max(0, Math.min(n - 1, raw)) : 0;
     buckets[idx].push(p);
   }
 
@@ -166,7 +200,7 @@ function bucketIntoWindows(
       const offsets: number[] = [];
       for (const p of b) {
         totalMsgs += p.msgCount;
-        corruptMsgs += p.corrupt;
+        if (p.corrupt !== null) corruptMsgs += p.corrupt;
         if (p.powerDbm !== null) powers.push(p.powerDbm);
         if (p.frequencyHz !== null) offsets.push(p.frequencyHz - ARGOS_NOMINAL_HZ);
       }

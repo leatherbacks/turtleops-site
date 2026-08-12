@@ -4,10 +4,31 @@ import { useCallback, useEffect, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { createSupabaseBrowserClient } from '@/lib/supabase';
 
+/**
+ * Local development without Supabase configured.
+ *
+ * Both conditions must hold, and both are inlined by Next at build time, so a
+ * production bundle cannot take this path — the branch is eliminated entirely.
+ * `next build && next start` also sets NODE_ENV=production, so even a local
+ * production build still enforces the gate.
+ *
+ *   1. NODE_ENV is not 'production'
+ *   2. Supabase is not configured at all
+ *
+ * On any deployed environment the Supabase URL is set, so (2) is false.
+ */
+const AUTH_BYPASS =
+  process.env.NODE_ENV !== 'production' && !process.env.NEXT_PUBLIC_SUPABASE_URL;
+
 interface UseAuthReturn {
   session: Session | null;
   email: string | null;
   loading: boolean;
+  /**
+   * False only in local development with no Supabase configuration. Callers
+   * must treat this as "the gate cannot run", never as "the user is signed in".
+   */
+  authRequired: boolean;
   /** Send a 6-digit OTP to the email */
   sendOtp: (email: string) => Promise<{ error: string | null }>;
   /** Verify the OTP and create a session */
@@ -34,6 +55,16 @@ export function useTagFinderAuth(): UseAuthReturn {
 
   useEffect(() => {
     let cancelled = false;
+
+    if (AUTH_BYPASS) {
+      console.warn(
+        '[TagFinder] Supabase is not configured — running without email verification. ' +
+          'This only happens in local development.'
+      );
+      setLoading(false);
+      return;
+    }
+
     try {
       const supabase = createSupabaseBrowserClient();
 
@@ -112,6 +143,7 @@ export function useTagFinderAuth(): UseAuthReturn {
     session,
     email: session?.user?.email ?? null,
     loading,
+    authRequired: !AUTH_BYPASS,
     sendOtp,
     verifyOtp,
     signOut,
