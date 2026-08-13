@@ -3,6 +3,21 @@ import type { SeriesReading, DailyDiveSummary, DeploySummary } from '@/lib/types
 const CRUSH_DEPTH_THRESHOLD_M = 1500;
 
 /**
+ * A crush event is terminal, and that is what makes it checkable.
+ *
+ * An animal that sinks past 1500 m does not come back and resume normal diving:
+ * the tag is destroyed or the failsafe fires. So a deep record followed by
+ * ordinary dives is not a mortality — it is a corrupt record. Any later reading
+ * shallower than this disqualifies the event.
+ *
+ * The check exists because the old rule was a bare Math.max over every
+ * pre-release depth, which meant one bad record could assert that an animal had
+ * died. That is the highest-stakes sentence this codebase produces and it had
+ * the weakest evidence behind it.
+ */
+const RESUMED_DIVING_M = CRUSH_DEPTH_THRESHOLD_M / 2;
+
+/**
  * Detect whether the tag reached crush-depth range before release.
  * Signal: mortality + sinking descent.
  *
@@ -18,26 +33,46 @@ export function detectCrushDepthEvent(
 
   const releaseTime = summary.releaseDate?.getTime() ?? Infinity;
 
-  // Collect pre-release depths from both sources
-  const depths: number[] = [];
+  // Collect pre-release depths from both sources, keeping the time of each so
+  // the sequence can be checked rather than only its maximum.
+  const points: { t: number; d: number }[] = [];
   for (const r of series) {
     if (r.depth !== null && r.date.getTime() < releaseTime) {
-      depths.push(r.depth);
+      points.push({ t: r.date.getTime(), d: r.depth });
     }
   }
   if (dailyDives) {
     for (const d of dailyDives) {
       if (d.date.getTime() < releaseTime) {
-        depths.push(d.maxDepth);
+        points.push({ t: d.date.getTime(), d: d.maxDepth });
       }
     }
   }
 
-  if (depths.length === 0) {
+  if (points.length === 0) {
     return null;
   }
 
+  points.sort((a, b) => a.t - b.t);
+  const depths = points.map((p) => p.d);
   const maxDepth = Math.max(...depths);
+
+  const deepestAt = points.reduce((a, b) => (b.d > a.d ? b : a));
+  const resumedNormalDiving = points.some(
+    (p) => p.t > deepestAt.t && p.d < RESUMED_DIVING_M
+  );
+
+  if (maxDepth >= CRUSH_DEPTH_THRESHOLD_M && resumedNormalDiving) {
+    return {
+      detected: false,
+      maxDepthM: maxDepth,
+      reasoning:
+        `A single reading of ${maxDepth.toFixed(0)} m appears in the pre-release record, ` +
+        `but normal dives continue after it. An animal that sinks past crush depth does ` +
+        `not resume diving — the tag does not survive it — so this is a corrupt reading ` +
+        `rather than a mortality signal, and no crush event is reported.`,
+    };
+  }
 
   if (maxDepth >= CRUSH_DEPTH_THRESHOLD_M) {
     return {

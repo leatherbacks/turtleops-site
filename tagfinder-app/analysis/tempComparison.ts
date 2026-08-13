@@ -32,6 +32,13 @@ const AIR_SWING_MIN_C = 4;
 /** Readings needed before a swing means anything. */
 const MIN_READINGS_FOR_SWING = 5;
 
+/**
+ * Above this count a trimmed swing is computed alongside the raw one — not to
+ * replace it, but to detect when the verdict is resting on a single reading at
+ * each end and flag the result as weaker. See the note where it is computed.
+ */
+const MIN_READINGS_FOR_TRIMMED_SWING = 10;
+
 export function compareTemperatures(
   seriesReadings: SeriesReading[],
   statuses: TagStatus[],
@@ -90,7 +97,31 @@ export function compareTemperatures(
   const tagMin = Math.min(...tagTemps);
   const tagMax = Math.max(...tagTemps);
   const tagMean = tagTemps.reduce((a, b) => a + b, 0) / tagTemps.length;
+
   const tagSwing = tagMax - tagMin;
+
+  // Trimming the extremes was tried here and reverted. It is the obvious guard
+  // against one corrupt record inventing a swing, and it is wrong for this data:
+  // a tag heard a few times a day represents each end of the diurnal cycle with
+  // a SINGLE reading, so the trim deletes the evidence rather than the noise. On
+  // a tag later recovered lying in the open it turned a correct "out of the
+  // water" into "in the water" — the 28.5 °C before dawn and 32.7 °C at midday
+  // were both genuine.
+  //
+  // Temperature alone cannot separate a corrupt extreme from a real diurnal one
+  // at this sampling rate; nothing in this series says which it is. What does is
+  // an external reference — see analysis/waterMatch, which compares each reading
+  // against water temperature at that reading's own moment and can therefore
+  // judge a single reading on its own merits. The confidence below is lowered
+  // when this verdict rests on one reading at each end, so the brief knows to
+  // defer.
+  const sortedTemps = [...tagTemps].sort((a, b) => a - b);
+  const trimmedSwing =
+    sortedTemps.length >= MIN_READINGS_FOR_TRIMMED_SWING
+      ? sortedTemps[sortedTemps.length - 2] - sortedTemps[1]
+      : tagSwing;
+  const swingRestsOnExtremes =
+    tagSwing > 0 && trimmedSwing < tagSwing * 0.5;
 
   const tagMinusSST =
     sources.sstTempC !== null ? Number((tagMean - sources.sstTempC).toFixed(2)) : null;
@@ -150,8 +181,13 @@ export function compareTemperatures(
       // instead of closing on the beacon, which is what actually worked.
       `. Out of the water does NOT mean easy to see: recovered tags of this type` +
       ` have been invisible until the searcher was on top of them. Plan on homing` +
-      ` the recovery beacon rather than spotting the tag.`;
-    confidence = 0.85;
+      ` the recovery beacon rather than spotting the tag.` +
+      (swingRestsOnExtremes
+        ? ` Note the swing rests on a single reading at each end — with only ${tagTemps.length}` +
+          ` readings a corrupt one cannot be told from a real diurnal peak here, so treat the` +
+          ` water-temperature comparison as the stronger test where it is available.`
+        : '');
+    confidence = swingRestsOnExtremes ? 0.6 : 0.85;
   } else if (tagMinusSST !== null && Math.abs(tagMinusSST) < 2) {
     environment = 'in_water';
     reasoning = `Tag mean ${tagMean.toFixed(1)}°C matches SST (${sources.sstTempC!.toFixed(

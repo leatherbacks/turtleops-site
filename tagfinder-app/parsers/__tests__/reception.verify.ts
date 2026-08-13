@@ -3,6 +3,8 @@ import { analyzeTagState } from '@/analysis/tagState';
 import { parseSummary } from '@/parsers/wc/summary';
 import { screenIsolatedDepths } from '@/analysis/depthScreen';
 import { analyzeAntennaExposure } from '@/analysis/antennaExposure';
+import { detectCrushDepthEvent } from '@/analysis/crushDepth';
+import { compareTemperatures } from '@/analysis/tempComparison';
 import type { ArgosPass } from '@/lib/types';
 
 let pass = 0, fail = 0;
@@ -266,6 +268,53 @@ console.log('\n== A BLOCKED HORIZON IS NOT AN INDOOR WINDOW ==');
   // Neither may speculate about indoor storage for a tag in the sea.
   chk('no indoor/window guessing anywhere',
     /indoor|window/i.test(r.reasoning + w.reasoning), false);
+}
+
+console.log('\n== A MORTALITY CLAIM NEEDS MORE THAN ONE READING ==');
+{
+  // "This strongly suggests the animal died and sank" was produced by a bare
+  // Math.max over every pre-release depth, so one corrupt record could assert a
+  // death. A crush event is terminal — the tag does not survive it — so ordinary
+  // dives after the deep reading disprove it outright.
+  const T = Date.UTC(2026, 0, 1), D = 86_400_000;
+  const rd = (day: number, depth: number) =>
+    ({ date: new Date(T + day * D), depth, temperature: 10, activity: null }) as never;
+  const summary = { releaseDate: new Date(T + 40 * D) } as never;
+
+  const spike = detectCrushDepthEvent(
+    [rd(1, 80), rd(2, 120), rd(3, 1680), rd(4, 95), rd(5, 110), rd(6, 88)], null, summary
+  )!;
+  chk('a deep spike followed by normal dives is not a mortality', spike.detected, false);
+  chk('...and the maximum is still reported', spike.maxDepthM, 1680);
+  chk('...with the contradiction explained',
+    /does not resume diving/.test(spike.reasoning), true);
+
+  const sank = detectCrushDepthEvent(
+    [rd(1, 80), rd(2, 120), rd(3, 95), rd(4, 340), rd(5, 900), rd(6, 1680)], null, summary
+  )!;
+  chk('a terminal descent is still detected', sank.detected, true);
+}
+
+console.log('\n== A SPARSE DIURNAL CYCLE IS CARRIED BY SINGLE READINGS ==');
+{
+  // Trimming the extremes was tried as a guard against a corrupt record faking a
+  // swing, and reverted: a tag heard a few times a day represents each end of
+  // the cycle with ONE reading, so the trim deleted the evidence. It turned a
+  // tag later recovered lying in the open from "out of the water" into "in the
+  // water". The verdict is kept and its confidence lowered instead.
+  const T = Date.UTC(2026, 7, 7), H = 3_600_000;
+  const temps = [30.4, 30.2, 30.7, 30.2, 30.1, 30.8, 29.9, 30.2, 30.8, 29.9,
+                 30.2, 29.8, 29.5, 32.7, 28.5];
+  const series = temps.map((t, i) =>
+    ({ date: new Date(T + (i + 1) * 8 * H), temperature: t, depth: 0, activity: null }) as never);
+  const summary = { releaseDate: new Date(T) } as never;
+  const r = compareTemperatures(series, [], summary, { airTempC: 31.0, sstTempC: 30.5 });
+
+  chk('the out-of-water verdict survives', r.environment, 'in_air_exposed');
+  chk('...at reduced confidence, because it rests on two readings', r.confidence, 0.6);
+  chk('...and says so', /rests on a single reading at each end/.test(r.reasoning), true);
+  chk('...and points at the stronger test',
+    /water-temperature comparison as the stronger test/.test(r.reasoning), true);
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`);
