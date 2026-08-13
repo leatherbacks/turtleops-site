@@ -65,7 +65,7 @@ console.log('\n== A BLANK ReleaseDate IS NOT PROOF THE TAG IS STILL ATTACHED =='
   // last archived sample is itself the release evidence. Reading a blank field
   // as "still on the animal" sent a tag that had been transmitting for twelve
   // days down the pre-popoff path, where every post-release check is skipped.
-  const row = (o: Record<string, string>) => [{ Instr: 'MiniPAT', Ptt: '285927', ...o }];
+  const row = (o: Record<string, string>) => [{ Instr: 'MiniPAT', Ptt: '0', ...o }];
 
   const inferred = parseSummary(row({
     EarliestXmitTime: '19:23:56 11-Apr-2026',
@@ -102,7 +102,7 @@ console.log('\n== BURIAL DOES NOT REQUIRE A DEPTH READING ==');
   // attenuated, and reads zero. Requiring a non-zero depth made exactly that
   // case undetectable — and it is the case that matters for recovery.
   const summary = parseSummary([{
-    Instr: 'MiniPAT', Ptt: '285927',
+    Instr: 'MiniPAT', Ptt: '0',
     EarliestXmitTime: '19:23:56 11-Apr-2026',
     LatestDataTime: '01:20:00 01-Apr-2026',
   }])!;
@@ -124,6 +124,55 @@ console.log('\n== BURIAL DOES NOT REQUIRE A DEPTH READING ==');
   );
   const st2 = analyzeTagState([], summary, onLand, [], null, null, clear);
   chk('good reception on land is not called burial', st2.phase === 'buried', false);
+}
+
+console.log('\n== CALIBRATED AGAINST TWO RECOVERED TAGS ==');
+{
+  // The threshold is not tuned to taste. Two deployments were physically
+  // recovered and their condition recorded, one either side of the boundary, so
+  // the detector's job is to keep them apart. If anyone retunes the constants,
+  // this is what should stop them putting the line in the wrong place.
+  //
+  //   recovered BURIED in beach sand      2.3 msgs/pass, 13% reaching 4
+  //   recovered LYING EXPOSED on an       5.1 msgs/pass, 56% reaching 4
+  //     organic bank at the waterline
+  //
+  // The exposed tag is the important one. It was not clear-skied — it sat in wet
+  // wrack and was intermittently washed — so it is the hardest available test of
+  // whether the detector cries burial at a tag that is merely in poor shape.
+
+  // Real per-pass message counts, as a [messages, howManyPasses] histogram.
+  const expand = (hist: [number, number][]) =>
+    hist.flatMap(([msgs, n]) => Array.from({ length: n }, () => msgs));
+
+  const buriedCounts = [1, 3, 1, 2, 2, 1, 3, 2, 2, 1, 3, 2, 2, 1, 4, 7];
+  const buried = analyzeReceptionQuality(
+    buriedCounts.map((m, i) => mk(i, m)), 5, ['A', 'A', '3', '2', 'A']
+  );
+  chk('recovered buried -> obstructed', buried.verdict, 'obstructed');
+  chk('...at the measured 2.3 messages per pass', buried.messagesPerPass, 2.31);
+  chk('...with 13% of passes reaching the four-message floor',
+    Math.round(buried.resolvingFraction! * 100), 13);
+
+  const exposedCounts = expand([
+    [0, 1], [1, 47], [2, 43], [3, 26], [4, 24], [5, 20], [6, 26], [7, 16],
+    [8, 16], [9, 11], [10, 7], [11, 4], [12, 3], [13, 4], [15, 1], [16, 14],
+  ]);
+  const exposed = analyzeReceptionQuality(exposedCounts.map((m, i) => mk(i, m)));
+  chk('recovered lying exposed -> NOT obstructed', exposed.verdict === 'obstructed', false);
+  chk('...it reads degraded, which is what wet wrack should look like',
+    exposed.verdict, 'degraded');
+  chk('...at the measured 5.1 messages per pass',
+    Math.abs(exposed.messagesPerPass - 5.11) < 0.05, true);
+  chk('...with 56% of passes reaching the floor',
+    Math.round(exposed.resolvingFraction! * 100), 56);
+
+  // The whole point: the boundary sits between two field-verified outcomes,
+  // with room on each side rather than grazing either.
+  chk('the two recovered tags land on opposite sides',
+    buried.verdict !== exposed.verdict, true);
+  chk('...and the gap between them is real, not marginal',
+    exposed.messagesPerPass - buried.messagesPerPass > 2, true);
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`);

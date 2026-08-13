@@ -19,6 +19,20 @@ import type { ArgosPass } from '@/lib/types';
  * transmissions are mostly not arriving — and the only thing between a tag and
  * a satellite overhead is whatever is on top of it.
  *
+ * Calibrated against two tags that were physically recovered and their condition
+ * recorded, one either side of the boundary:
+ *
+ *   buried in beach sand                 2.3 messages/pass, 13% reaching four
+ *   lying exposed on an organic bank     5.1 messages/pass, 56% reaching four
+ *     at a waterline, intermittently
+ *     washed
+ *
+ * The second is the load-bearing one. That tag was not clear-skied — wet wrack,
+ * regularly wetted, and invisible to the eye until the finder was on top of it —
+ * so it is the strictest available check that a tag merely in poor shape is not
+ * reported as buried. The thresholds must keep those two apart, and a test
+ * asserts it.
+ *
  * Deliberately NOT used here: the error-ellipse ratio. It looks like an
  * obstruction signal — obstructed deployments show wildly elongated ellipses —
  * but the effect is carried entirely by the class mix. Within class 3 alone the

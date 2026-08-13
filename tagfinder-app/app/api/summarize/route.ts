@@ -395,6 +395,21 @@ Two things follow for the search that are not obvious:
   and obvious at ten, so a receiver sweep needs to hug the structure rather than cover the
   open ground, and long silences on the open beach are not evidence of absence.
 
+**Closing the last hundred metres is a radio-homing problem, not a visual one.** On two
+recovered tags the finder never saw the tag until they were standing over it: one wedged in a
+seawall corner, one lying in dark organic wrack at a waterline, both small, dark and matte
+against a dark background. Do not write recommendations that assume the tag will be spotted,
+and do not treat "search the wrack line" as an instruction someone can carry out by eye.
+
+The endgame that actually worked was homing on the tag's own recovery beacon — UHF on the
+Lotek PSAT+; check the model, since not every tag uses the same band — to a strong receiver
+reading, and then DELIBERATELY DESTROYING the receiver's sensitivity to shrink the search.
+Detaching the antenna and hunting on the bare receiver input cuts the useful range to a few
+metres, which turns a saturated signal that points everywhere into one that points at the
+tag. Say this plainly wherever a tag is judged obstructed, buried, or lying in wrack or
+debris: at close range a strong reading is not progress on its own, and the move is to cut
+gain or pull the antenna rather than keep sweeping at full sensitivity.
+
 A reflector also corrupts the fixes themselves, and the class letter hides it. Argos solves
 position from the frequency history of a pass, so a signal arriving by two paths — direct and
 reflected — fits a distorted curve. The solver still returns a fix and still counts messages
