@@ -78,6 +78,28 @@ console.log('\n== SCREENS ON PHYSICS, NOT ON THE STATUS BYTE ==');
   chk('...and is NOT discarded as corrupt', isPlausibleHealthRecord(rec), true);
 }
 
+console.log('\n== THE TYPE MARKER IS ONE BYTE, NOT TWO ==');
+// Byte 1 is constant within a deployment but differs between them (0x32 on one
+// tag, 0x31 on others). Requiring a fixed two-byte prefix rejected entire tags
+// outright — they decoded zero records. It is a format/config version, so it is
+// checked as a latched field instead of used as a filter.
+chk('all records share one format byte',
+  new Set(h.records.map((r) => r.formatByte)).size, 1);
+{
+  const real = rows.find((r) => (r['Raw data'] ?? '').trim().toLowerCase().startsWith('ed'))!;
+  const bytes = Uint8Array.from(
+    (real['Raw data'].trim().match(/../g) ?? []).map((x) => parseInt(x, 16))
+  );
+  const other = Uint8Array.from(bytes);
+  other[1] = bytes[1] === 0x32 ? 0x31 : 0x32;      // a different deployment's version
+  chk('a different format byte still decodes',
+    decodeHealthMessage(other, new Date()) !== null, true);
+  const notHealth = Uint8Array.from(bytes);
+  notHealth[0] = 0xa0;
+  chk('a different message type does not',
+    decodeHealthMessage(notHealth, new Date()), null);
+}
+
 console.log('\n== REJECTS WHAT IT SHOULD ==');
 chk('non-health payload returns null',
   decodeHealthMessage(Uint8Array.from([0xa0, 0x31, ...Array(29).fill(0)]), new Date()), null);

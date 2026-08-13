@@ -20,7 +20,8 @@ import type { LotekHealthRecord } from '@/lib/types';
  *
  *   byte  field                            verified
  *   ----  -------------------------------  ------------------------------
- *   0-1   message type, always ED 32       31/31
+ *   0     message type, always ED           all three tags
+ *   1     format/config version             constant per tag, varies between
  *   2-4   u24 seconds counter              exact against record timestamps
  *   5     sub-second, units of 1/256 s     bytes[2:6] as u32 at 256 Hz
  *   6     status flags, 0x80 = wet         31/31 vs ReleaseCause
@@ -42,7 +43,15 @@ import type { LotekHealthRecord } from '@/lib/types';
  * The corrosion voltages are latched from the release event and never change.
  */
 
-const HEALTH_PREFIX = [0xed, 0x32];
+/**
+ * Byte 0 identifies an activity-health message. Byte 1 does NOT — it is constant
+ * within a deployment but differs between them (0x32 on one tag, 0x31 on two
+ * others), so it is a format or configuration version rather than part of the
+ * type marker. Requiring a fixed pair here rejected two entire tags outright.
+ * It is treated as one more latched field instead, which both admits those tags
+ * and strengthens the corruption screen.
+ */
+const HEALTH_TYPE_BYTE = 0xed;
 const PAYLOAD_LEN = 31;
 
 /** Physical screens, since the raw feed carries no CRC column of its own. */
@@ -70,11 +79,13 @@ export function decodeHealthMessage(
   receivedAt: Date
 ): LotekHealthRecord | null {
   if (payload.length !== PAYLOAD_LEN) return null;
-  if (payload[0] !== HEALTH_PREFIX[0] || payload[1] !== HEALTH_PREFIX[1]) return null;
+  if (payload[0] !== HEALTH_TYPE_BYTE) return null;
 
   const status = payload[6];
   return {
     date: receivedAt,
+    /** Format/config version — constant per deployment, varies between them. */
+    formatByte: payload[1],
     // bytes[2:6] as fixed-point at 256 Hz reproduces the record timestamps to
     // 0.01 s, so byte 5 is the fractional second rather than a separate field.
     tagSeconds: (u24(payload, 2) * 256 + payload[5]) / 256,
@@ -169,24 +180,20 @@ export function parseLotekHealthMessages(
   // separates a record the manufacturer's decoder would have marked bad from one
   // it would have accepted.
   let inconsistent = 0;
-  if (records.length >= MIN_RECORDS_FOR_MODE) {
-    const key = (r: LotekHealthRecord) =>
-      `${r.corrosionStartV}|${r.corrosionEndV}|${r.corrosionTimeS}|${r.serial}`;
-    const counts = new Map<string, number>();
-    for (const r of records) counts.set(key(r), (counts.get(key(r)) ?? 0) + 1);
-    let modal = '';
-    let best = 0;
-    for (const [k, n] of Array.from(counts.entries())) {
-      if (n > best) { best = n; modal = k; }
-    }
-    // Only trust the mode if it actually dominates; otherwise leave them alone
-    // rather than discarding half the record set on a coin toss.
-    if (best >= records.length / 2) {
-      const before = records.length;
-      records = records.filter((r) => key(r) === modal);
-      inconsistent = before - records.length;
-    }
+  const latchedFinal = modalLatched(records);
+  if (latchedFinal) {
+    const before = records.length;
+    records = records.filter(
+      (r) =>
+        r.formatByte === latchedFinal.formatByte &&
+        r.serial === latchedFinal.serial &&
+        r.corrosionTimeS === latchedFinal.corrosionTimeS &&
+        r.corrosionStartV === latchedFinal.corrosionStartV &&
+        r.corrosionEndV === latchedFinal.corrosionEndV
+    );
+    inconsistent = before - records.length;
   }
+
 
   const statusValues = Array.from(
     new Set(records.map((r) => r.statusByte))
@@ -200,3 +207,32 @@ export function parseLotekHealthMessages(
     statusValues,
   };
 }
+
+/**
+ * The latched values, taken field by field rather than as a combination.
+ *
+ * A joint mode — the most common full tuple — is far stricter than intended: a
+ * single bit error anywhere in the block makes the whole record a minority of
+ * one, so it is discarded even though four of its five constants are intact. On
+ * one deployment that threw away 54 otherwise-good records. Taking each field's
+ * own mode lets a record be judged on all five independently.
+ */
+function modalLatched(records: LotekHealthRecord[]) {
+  if (records.length < MIN_RECORDS_FOR_MODE) return null;
+  const modeOf = <K extends keyof LotekHealthRecord>(field: K) => {
+    const counts = new Map<LotekHealthRecord[K], number>();
+    for (const r of records) counts.set(r[field], (counts.get(r[field]) ?? 0) + 1);
+    let best = records[0][field];
+    let bestN = 0;
+    for (const [v, n] of Array.from(counts.entries())) if (n > bestN) { bestN = n; best = v; }
+    return best;
+  };
+  return {
+    formatByte: modeOf('formatByte'),
+    serial: modeOf('serial'),
+    corrosionTimeS: modeOf('corrosionTimeS'),
+    corrosionStartV: modeOf('corrosionStartV'),
+    corrosionEndV: modeOf('corrosionEndV'),
+  };
+}
+

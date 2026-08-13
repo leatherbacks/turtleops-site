@@ -414,6 +414,8 @@ export interface RepetitionRate {
 export interface LotekHealthRecord {
   /** When the satellite received it. */
   date: Date;
+  /** Byte 1 — a format/config version, constant per deployment. */
+  formatByte: number;
   /** The tag's own clock, seconds, to 1/256 s. */
   tagSeconds: number;
   /** Raw status byte. 0x80 is the only value yet observed on a valid record. */
