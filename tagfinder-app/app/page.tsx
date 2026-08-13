@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAnalysis } from '@/hooks/useAnalysis';
 import { useEnvironment } from '@/hooks/useEnvironment';
 import { useTidePhase } from '@/hooks/useTidePhase';
+import { useWaterMatch } from '@/hooks/useWaterMatch';
 import { analyzeTagState } from '@/analysis/tagState';
 import { predictPassesInWindow } from '@/analysis/satPrediction';
 import { analyzePassGeometry } from '@/analysis/passGeometry';
@@ -34,6 +35,7 @@ import SearchBriefPanel from '@/components/tagfinder/SearchBriefPanel';
 import MirrorCheckPanel from '@/components/tagfinder/MirrorCheckPanel';
 import TransmissionHealthPanel from '@/components/tagfinder/TransmissionHealthPanel';
 import TidePhasePanel from '@/components/tagfinder/TidePhasePanel';
+import WaterMatchPanel from '@/components/tagfinder/WaterMatchPanel';
 import SkyChart from '@/components/tagfinder/SkyChart';
 import UpcomingPassesPanel from '@/components/tagfinder/UpcomingPassesPanel';
 import EmailGate from '@/components/tagfinder/EmailGate';
@@ -83,6 +85,28 @@ export default function TagFinderPage() {
 
   const tidePhase = useTidePhase(
     passes,
+    result?.bestLat ?? null,
+    result?.bestLon ?? null
+  );
+
+  // Did the tag stop tracking water temperature, and when? Post-release
+  // readings only — before release the sensor is on a diving animal, where
+  // depth explains the temperature and a comparison against surface water
+  // means nothing.
+  const postReleaseTemps = useMemo(() => {
+    const release = result?.summary?.releaseDate?.getTime() ?? null;
+    return series
+      .filter(
+        (s) =>
+          s.temperature !== null &&
+          !isNaN(s.date.getTime()) &&
+          (release === null || s.date.getTime() >= release)
+      )
+      .map((s) => ({ date: s.date, temperatureC: s.temperature as number }));
+  }, [series, result?.summary?.releaseDate]);
+
+  const waterMatch = useWaterMatch(
+    postReleaseTemps,
     result?.bestLat ?? null,
     result?.bestLon ?? null
   );
@@ -368,6 +392,11 @@ export default function TagFinderPage() {
         burialDetection: displayResult.burialDetection,
         transmissionHealth: displayResult.transmissionHealth,
         tidePhase: tidePhase.analysis,
+        waterMatch: waterMatch.analysis
+          ? { ...waterMatch.analysis, matched: waterMatch.analysis.matched.slice(-40) }
+          : null,
+        waterStation: waterMatch.station,
+        waterStationDistanceKm: waterMatch.stationDistanceKm,
         repetitionRate: displayResult.repetitionRate,
         passGeometry: passGeometry
           ? { ...passGeometry, fixes: passGeometry.fixes.slice(-20) }
@@ -492,6 +521,7 @@ export default function TagFinderPage() {
           environment: envData,
           brief,
           tidePhase: tidePhase.analysis,
+          waterMatch: waterMatch.analysis,
           upcomingPasses: upcoming.passes,
         }),
       });
@@ -849,6 +879,15 @@ export default function TagFinderPage() {
                 )}
                 {displayResult.transmissionHealth && (
                   <TransmissionHealthPanel health={displayResult.transmissionHealth} />
+                )}
+
+                {/* Did the tag stop tracking the water, and when */}
+                {waterMatch.analysis?.available && (
+                  <WaterMatchPanel
+                    analysis={waterMatch.analysis}
+                    station={waterMatch.station}
+                    stationDistanceKm={waterMatch.stationDistanceKm}
+                  />
                 )}
 
                 {/* Does reception track the tide — when to be there with a receiver */}

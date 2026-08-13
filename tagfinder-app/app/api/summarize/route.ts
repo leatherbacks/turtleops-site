@@ -447,6 +447,36 @@ When strength is 'strong' or 'moderate' AND robust is true, tidePhase.bestWindow
 the next productive stretch — lead recovery timing with it, and warn that silence during
 the opposite phase is expected rather than evidence the tag has gone.
 
+**Water-temperature match — the strongest in-water/out-of-water evidence available.**
+waterMatch compares each post-release tag reading against water temperature AT THAT
+READING'S OWN MOMENT, from the nearest gauge. It exists because a single sea-surface
+figure cannot carry a trend: on a reference deployment the bay warmed 30.1 to 32.0 C
+across the six days the tag transmitted, comparable to the signal being looked for, so
+one snapshot could hide a tag that left the water or invent a departure for one that
+did not.
+
+- **waterMatch.transition is the headline when present.** It brackets the moment the tag
+  stopped tracking the water, as lastImmersed and firstExposed. Paired with the position
+  track that says WHERE it came ashore, which is the single most useful thing a search
+  team can be told. Give both bounds, not a midpoint — the tag left the water somewhere
+  in that interval and the data does not say where inside it.
+- **A negative coldestDeltaC below about -3 C is close to proof.** Nothing immersed has
+  a mechanism to be colder than the water around it. State it as the physical argument
+  it is. The reverse does NOT hold: a tag can run several degrees WARMER than the water
+  while still floating, because sun falls on a dark housing and the sensor can ride in
+  air on the upper face. Never argue exposure from warmth alone.
+- **waterMatch.diurnal.separationC is the corroborating signal** — warm by day, cold by
+  night means the tag is following air. Quote it only when nDay and nNight are both at
+  least 2; a separation computed from one daylight reading is not a diurnal cycle.
+- If **waterMatch is absent or available is false, say nothing about water temperature.**
+  The usual cause is no gauge within 60 km, which is a real limit rather than a null
+  result: water temperature varies far too much over longer distances to compare
+  against. Do NOT fall back to the single sstTempC snapshot to fill the gap, and do not
+  treat a missing comparison as evidence the tag is afloat.
+- Where waterMatch and tempComparison disagree, **prefer waterMatch** — tempComparison
+  works from a single reference value and one verdict for the whole record, so it cannot
+  see a tag that changed state part way through.
+
 **Transmission health trend is time-urgent.** If transmissionHealth.trend is 'degrading' or
 'failing', the tag's signal quality is worsening across the post-release window — rising CRC
 failure rate, dropping received power, or frequency drifting off 401.650 MHz. This is a
@@ -666,6 +696,13 @@ ${JSON.stringify(a.transmissionHealth, null, 2)}
 
 ## Reception vs tide (does the tag get heard preferentially on a falling or rising tide?)
 ${JSON.stringify((a as Record<string, unknown>).tidePhase, null, 2)}
+
+## Water-temperature match (did the tag stop tracking the water, and when?)
+Each post-release reading against water temperature at the same moment, from the gauge
+named in waterStation, waterStationDistanceKm away. transition, when present, brackets
+the tag leaving the water.
+${JSON.stringify((a as Record<string, unknown>).waterMatch, null, 2)}
+Gauge: ${JSON.stringify((a as Record<string, unknown>).waterStation ?? null)} at ${JSON.stringify((a as Record<string, unknown>).waterStationDistanceKm ?? null)} km
 
 ## Transmission repetition rate (how often the tag actually transmits)
 Measured from the tag's own message timestamps, not looked up. This is the number a
