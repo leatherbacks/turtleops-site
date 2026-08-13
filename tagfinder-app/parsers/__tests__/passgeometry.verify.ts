@@ -1,6 +1,6 @@
 import { readFileSync } from 'fs';
 import Papa from 'papaparse';
-import { analyzePassGeometry } from '@/analysis/passGeometry';
+import { analyzePassGeometry, tleEpoch } from '@/analysis/passGeometry';
 import { normalizeSatName } from '@/analysis/satCoverage';
 import { parseArgosMessages } from '@/parsers/argos/messages';
 import type { TLEEntry } from '@/analysis/satPrediction';
@@ -105,6 +105,42 @@ if (g) {
   chk('reasoning says mirror ambiguity is not plausible',
     /not a plausible explanation/.test(g.reasoning), true);
   console.log(`\n        ${g.reasoning}\n`);
+}
+
+console.log('== STALE ORBITAL ELEMENTS MUST BE REFUSED, NOT EXTRAPOLATED ==');
+// There is no free source of historical TLEs — CelesTrak's archive stops in 2004
+// by law and Space-Track needs credentials — so an old dataset gets analysed
+// against today's elements or not at all. SGP4 degrades roughly 1-3 km/day
+// along-track, which at three weeks is several degrees of elevation error: the
+// very quantity being reported. Bins are 15 degrees wide, so that would start
+// moving fixes between categories.
+{
+  chk('epoch parses out of TLE line 1',
+    tleEpoch(TLES[0].line1)?.toISOString().slice(0, 10), '2026-08-12');
+  chk('a malformed line yields null', tleEpoch('not a tle'), null);
+
+  // Same fixes, but dated a year before the elements.
+  const old = aug11.map((p) => ({
+    ...p,
+    date: new Date(p.date.getTime() - 365 * 86400_000),
+  }));
+  const g2 = analyzePassGeometry(old, TLES);
+  chk('year-old fixes produce no geometry at all', g2, null);
+
+  // A month back: still refused, and the refusal is explained.
+  const month = aug11.map((p) => ({
+    ...p,
+    date: new Date(p.date.getTime() - 30 * 86400_000),
+  }));
+  const g3 = analyzePassGeometry(month, TLES);
+  chk('month-old fixes refused too', g3, null);
+
+  // Well inside the window: unaffected.
+  const fresh = analyzePassGeometry(aug11, TLES)!;
+  chk('current fixes still analysed', fresh.fixes.length > 0, true);
+  chk('...with no stale skips', fresh.tlesTooStale, 0);
+  chk('...and no staleness warning', fresh.tleAgeWarning, false);
+  chk('...reporting the epoch age it actually used', fresh.maxTleAgeDays < 5, true);
 }
 
 console.log('== GUARDS ==');

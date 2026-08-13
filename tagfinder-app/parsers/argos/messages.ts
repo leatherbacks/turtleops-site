@@ -1,5 +1,6 @@
 import type { ArgosFix, ArgosPass, ArgosQuality } from '@/lib/types';
 import { EMPIRICAL_ERRORS, DISCARD_QUALITIES } from '@/lib/constants';
+import { parseTimestamp } from '@/lib/timestamp';
 
 /**
  * Argos/Kinéis per-message CSV, as delivered by CLS.
@@ -39,6 +40,8 @@ export const ARGOS_MESSAGES_REQUIRED = [
 export interface ArgosMessagesResult {
   fixes: ArgosFix[];
   passes: ArgosPass[];
+  /** Every reception, for measuring the tag's transmission period. */
+  messageTimes: { date: Date; satellite: string }[];
   ptt: number | null;
   /** Passes that delivered messages but no resolved position. */
   unlocatedPasses: number;
@@ -63,11 +66,8 @@ function num(v: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-/** CLS writes "2026-08-11 14:20:54" in UTC with no zone marker. */
-function toDate(v: string): Date {
-  if (!v) return new Date(NaN);
-  return new Date(`${v.trim().replace(' ', 'T')}Z`);
-}
+/** CLS varies its own timestamp format between exports — see parseTimestamp. */
+const toDate = parseTimestamp;
 
 function median(values: number[]): number | null {
   if (values.length === 0) return null;
@@ -209,6 +209,7 @@ export function parseArgosMessages(rows: Record<string, string>[]): ArgosMessage
   return {
     fixes,
     passes,
+    messageTimes: messages.map((m) => ({ date: m.date, satellite: m.satellite })),
     ptt: ptts.size === 1 ? Array.from(ptts)[0] : null,
     unlocatedPasses,
   };

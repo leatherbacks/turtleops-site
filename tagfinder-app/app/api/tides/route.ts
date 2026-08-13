@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { parseTimestamp } from '@/lib/timestamp';
 
 const UA = 'TurtleTag/1.0 (turtleops.org)';
 
@@ -69,19 +70,18 @@ export async function GET(request: NextRequest) {
     const preds = await predRes.json();
     const rawEvents: { t: string; v: string; type: 'H' | 'L' }[] = preds?.predictions || [];
 
-    // NOAA format: "2026-04-13 10:26" (space, no T) — convert to proper ISO
-    const parseNoaaTime = (s: string): number => {
-      const iso = s.replace(' ', 'T') + ':00Z';
-      return new Date(iso).getTime();
-    };
-
+    // NOAA writes "2026-04-13 10:26" (space, no T). Parsed strictly rather than
+    // handed to `new Date`, which accepts nonsense and returns 2000-01-01 for
+    // it — see parseTimestamp. Each event is screened on its own so a single
+    // malformed row costs that row, not the whole panel: anything thrown here
+    // is caught below and downgrades the entire response to available:false.
     const now = Date.now();
-    const events = rawEvents.map((e) => ({
-      timestamp: parseNoaaTime(e.t),
-      iso: new Date(parseNoaaTime(e.t)).toISOString(),
-      height: parseFloat(e.v),
-      type: e.type,
-    }));
+    const events = rawEvents.flatMap((e) => {
+      const timestamp = parseTimestamp(e.t).getTime();
+      const height = parseFloat(e.v);
+      if (!Number.isFinite(timestamp) || !Number.isFinite(height)) return [];
+      return [{ timestamp, iso: new Date(timestamp).toISOString(), height, type: e.type }];
+    });
 
     const upcoming = events
       .filter((e) => e.timestamp > now)

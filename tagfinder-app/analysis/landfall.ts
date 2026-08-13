@@ -25,6 +25,27 @@ const MAX_PROBES = 64;
 const TARGET_STEP_KM = 0.25;
 /** Elevation above which a sample counts as land, allowing for datum noise. */
 const LAND_ELEVATION_M = 1;
+/**
+ * How far past the last fix this projection is allowed to reach.
+ *
+ * A drift vector describes the window it was fitted over. Extrapolating it is
+ * defensible for a comparable span and indefensible well beyond one, because a
+ * tag that has stopped — grounded, tangled, drawn into an inlet — keeps its last
+ * measured vector on file and the projection sails serenely on without it.
+ *
+ * This is not hypothetical. On the reference deployment the vector was fitted
+ * over 12 hours, the tag then stopped producing positions, and four days later
+ * the projection still reported a confident strand point 4.8 km up the coast,
+ * labelled "likely already ashore". The tag was about 2 km from its last good
+ * fix in almost the opposite direction. The report said "Insufficient recent
+ * data" two panels below the strand coordinate.
+ *
+ * Past this limit the projection reports why it will not answer rather than
+ * answering wrongly.
+ */
+const MAX_EXTRAPOLATION_HOURS = 24;
+/** ...and never further than this multiple of the window actually measured. */
+const MAX_EXTRAPOLATION_FIT_MULTIPLE = 2;
 
 export interface ProbePoint {
   lat: number;
@@ -91,11 +112,41 @@ export function findLandfall(
     samples.length > 1 ? samples[1].distanceKm - samples[0].distanceKm : samples[0].distanceKm;
   const horizonHours = samples[samples.length - 1].hours;
 
+  // Refuse to project a vector that has outlived the data supporting it.
+  const fitHours =
+    (prediction.fitTo.getTime() - prediction.fitFrom.getTime()) / 3_600_000;
+  const limitHours = Math.min(
+    MAX_EXTRAPOLATION_HOURS,
+    Math.max(6, fitHours * MAX_EXTRAPOLATION_FIT_MULTIPLE)
+  );
+  if (hoursSinceLastFix > limitHours) {
+    return {
+      willStrand: false,
+      projectable: false,
+      lat: null,
+      lon: null,
+      hoursFromLastFix: null,
+      alreadyPassed: false,
+      distanceKm: null,
+      uncertaintyKm: null,
+      resolutionKm,
+      horizonHours,
+      reasoning:
+        `No landfall projected. The drift vector was measured over ${formatHours(fitHours)} ` +
+        `and the last usable position is ${formatHours(hoursSinceLastFix)} old, well beyond ` +
+        `the ${formatHours(limitHours)} this extrapolation is good for. A tag that has stopped ` +
+        `keeps its last heading on file, so projecting it now would name a strand point on the ` +
+        `strength of where the tag was going four days ago rather than where it is. Search from ` +
+        `the last confirmed position outward.`,
+    };
+  }
+
   const hit = usable.find((s) => (s.elevationM as number) >= LAND_ELEVATION_M);
 
   if (!hit) {
     return {
       willStrand: false,
+      projectable: true,
       lat: null,
       lon: null,
       hoursFromLastFix: null,
@@ -123,6 +174,7 @@ export function findLandfall(
 
   return {
     willStrand: true,
+    projectable: true,
     lat: hit.lat,
     lon: hit.lon,
     hoursFromLastFix: hit.hours,

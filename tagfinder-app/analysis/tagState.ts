@@ -176,7 +176,13 @@ export function analyzeTagState(
 
   const depthValues = recentDepths.map((d) => d.depth);
   const lastDepth = depthValues[0] ?? null;
-  const depthVariability = depthValues.length >= 2 ? stdDev(depthValues) : null;
+  // Robust spread, not standard deviation. Transmitted sensor data carries
+  // occasional impossible values, and a single bad reading inflates a standard
+  // deviation enough to turn a tag sitting flat at 0 m into one "oscillating in
+  // surf". The median absolute deviation ignores a couple of outliers among
+  // many good readings, which is exactly the failure mode here.
+  const depthVariability =
+    depthValues.length >= 2 ? medianAbsoluteDeviation(depthValues) : null;
 
   const tempValues = recentTemps.map((t) => t.temp);
   const lastTemperature = tempValues[0] ?? null;
@@ -293,7 +299,14 @@ export function analyzeTagState(
   if (lastDepth !== null) {
     if (depthValues.length >= 3 && depthVariability !== null) {
       const maxDepth = Math.max(...depthValues);
-      const isShallow = maxDepth <= PARTIAL_SUBMERSION_MAX_DEPTH_M;
+      // Judged on the MEDIAN, not the maximum. A single bad reading is common
+      // in transmitted sensor data — the Lotek health message carries occasional
+      // impossible depths — and one 32 m outlier among eighteen zeros used to be
+      // enough to report a surfaced tag as "consistently submerged". The maximum
+      // still describes the oscillation range, which is what it is good for.
+      const sortedDepths = depthValues.slice().sort((a, b) => a - b);
+      const medianDepth = sortedDepths[sortedDepths.length >> 1];
+      const isShallow = medianDepth <= PARTIAL_SUBMERSION_MAX_DEPTH_M;
       const isOscillating = depthVariability > DEPTH_VARIABILITY_THRESHOLD;
 
       if (lastDepth === 0 && !isOscillating) {
@@ -301,10 +314,16 @@ export function analyzeTagState(
         reasoning = 'Depth stable at 0m — tag is at surface';
       } else if (isShallow && isOscillating) {
         phase = 'partially_submerged';
-        reasoning = `Depth oscillating 0–${maxDepth.toFixed(1)}m — tag bobbing in surf`;
-      } else if (maxDepth > PARTIAL_SUBMERSION_MAX_DEPTH_M) {
+        // Quote a robust upper bound rather than the raw maximum, which on this
+        // data is usually the one corrupt reading in the set.
+        const p90 = sortedDepths[Math.min(sortedDepths.length - 1,
+          Math.floor(sortedDepths.length * 0.9))];
+        reasoning = `Depth oscillating 0–${p90.toFixed(1)}m — tag bobbing in surf`;
+      } else if (medianDepth > PARTIAL_SUBMERSION_MAX_DEPTH_M) {
         phase = 'submerged';
-        reasoning = `Depth consistently >${PARTIAL_SUBMERSION_MAX_DEPTH_M}m — tag submerged`;
+        reasoning =
+          `Median depth ${medianDepth.toFixed(1)}m across ${depthValues.length} readings ` +
+          `(max ${maxDepth.toFixed(1)}m) — tag submerged`;
       } else {
         phase = 'surface';
         reasoning = 'Depth near surface with low variability';
@@ -362,4 +381,19 @@ function stdDev(values: number[]): number {
   const variance =
     values.reduce((s, v) => s + (v - m) ** 2, 0) / values.length;
   return Math.sqrt(variance);
+}
+
+/**
+ * Median absolute deviation — spread that a couple of bad readings cannot inflate.
+ */
+function medianAbsoluteDeviation(values: number[]): number {
+  const med = (xs: number[]) => {
+    const s = xs.slice().sort((a, b) => a - b);
+    const m = s.length >> 1;
+    return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+  };
+  const m = med(values);
+  // 1.4826 scales MAD to be comparable with a standard deviation on normal data,
+  // so existing thresholds keep their meaning.
+  return 1.4826 * med(values.map((v) => Math.abs(v - m)));
 }

@@ -324,6 +324,95 @@ format does not carry them, and null never means good news:
   that the primaries were verified.
 In every one of these cases, say what is missing and what file or export would supply it.
 
+**Do NOT infer local geography from a place name.**
+The location string is coarse — often just a county — and place names on a coast routinely
+cover both sides of a barrier island, an inlet, or a spit. Naming a beach, a surf zone, a
+wrack line or a shoreline segment from it is guesswork dressed as local knowledge, and it
+sends search teams to the wrong side of the water.
+
+Describe position by COORDINATES, and characterise the surroundings only from data you
+were actually given: elevation, seabed depth, the tide station's own name, and the fixes
+themselves. A tide station labelled "(inside)" is inside. A seabed of 2 m with a tight,
+non-drifting fix cluster is sheltered water, not surf. If you genuinely cannot tell open
+coast from enclosed water, say the coordinate and say you cannot tell — that is far more
+useful than a confident shoreline that turns out to be across a barrier island from the
+tag. On a real search this placed a tag "in the surf zone off the beach" when its own map
+showed it sitting in a bay two kilometres inland of that beach.
+
+**NEVER extrapolate a drift vector past the last prediction in driftPrediction.**
+This is the single most dangerous thing you can do with this data. driftPrediction
+carries a measured speed and heading plus explicit predictions at +6h, +12h and +24h,
+each with its own uncertainty radius. Those predictions ARE the limit. Do not compute
+your own position for any horizon beyond them, and never convert a heading and a speed
+into a distance over a multi-day gap.
+
+The reason is concrete. A drifting tag that stops — grounded, tangled, taken into an
+inlet — keeps its last measured vector on file forever, and extrapolating it produces a
+confident position tens of kilometres from the truth, in a specific named place, which
+reads as knowledge. On a real search this pointed 30 km up the coast while the tag sat
+2 km from its last good fix in the opposite direction.
+
+Concretely:
+- If searchRadius.hoursSinceLastFix exceeds 24, the drift vector describes history, not
+  the present. Lead with the last well-supported position and the search radius, and say
+  plainly that the current position is unknown.
+- A large primaryRadiusM is the honest answer, not a problem to be solved. Never collapse
+  a 30 km uncertainty circle into a point estimate or a place name. "Somewhere within
+  30 km, most likely still near the last fix" is correct; "25-35 km north, off <town>" is
+  not, even when the arithmetic is right.
+- Check recentFixesAnyQuality before describing any drift. If weak recent fixes sit near
+  the last good position rather than along the extrapolated heading, the tag stopped —
+  say so, and do not describe it as still under way.
+- Absence of a predicted landfall means the modelled path did not reach shore within the
+  horizon. It does NOT mean the tag will stay at sea, and must never be reported as
+  "will not strand".
+
+**A blocked horizon with open sky above means a STRUCTURE, and on a developed shore
+that is the first thing to check.**
+The diagnostic triad is: reception well below normal, signal strength NORMAL when messages
+do arrive, and the tag not moving. Read those three together before anything else.
+
+Signal strength is the discriminator people get wrong. Sand, weed and vegetation attenuate —
+they drag received power down. Steel, concrete and rock do not attenuate, they delete a piece
+of sky, so the messages that get out arrive at full strength and simply arrive far less often.
+So poor reception at UNCHANGED dBm means something solid is beside the tag, not over it. If
+light readings also show a normal diurnal cycle, the sky directly above is clear and the
+obstruction is at the horizon rather than covering the tag.
+
+Where that points, in order, on a developed coast:
+- seawalls, bulkheads and revetments, especially an inside corner or a step where two
+  sections of different height meet — these are where drifting objects wedge and stay
+- groynes, jetties and their landward roots
+- riprap, rubble and construction debris
+- hulls, pilings, dock structures, drainage outfalls
+- only then vegetation, wrack berms and natural depressions
+
+Two things follow for the search that are not obvious:
+- On a mechanically groomed beach the open sand is the LEAST likely place for a small object
+  to survive, because the machines clear it. What remains is in the strip hard against the
+  structures, where a groomer cannot reach — the same strip where reception is worst.
+- Detection range collapses. A tag with a blocked horizon is inaudible at a hundred metres
+  and obvious at ten, so a receiver sweep needs to hug the structure rather than cover the
+  open ground, and long silences on the open beach are not evidence of absence.
+
+A reflector also corrupts the fixes themselves, and the class letter hides it. Argos solves
+position from the frequency history of a pass, so a signal arriving by two paths — direct and
+reflected — fits a distorted curve. The solver still returns a fix and still counts messages
+for a class letter, but the residual blows out. On the recovered tag below, error radii were
+1.4x worse at class 2, 3.2x at class A and 5x at class B than the same classes from an
+unobstructed tag, and it never achieved a single class 3 in nine days. SNR was identical, so
+this is interference, not a noisier site.
+
+So when the obstruction pattern is present, trust the reported error radius over the class
+letter and say so: a class A fix beside a seawall is not a class A fix. Do not tighten a
+search radius on the strength of a good-looking class letter from an obstructed tag.
+
+A recovered tag matching this pattern exactly was wedged in the inside corner where a
+concrete seawall stepped up to a steel sheet-pile wall, lying flat in the wrack. It sat 155 m
+from the estimated position, transmitted normally for nine days at unchanged signal strength,
+delivered a seventh of the expected message volume, and produced not one message from the
+landward half of the sky below 20 degrees elevation.
+
 **Pass geometry explains fix quality far better than the class letter.**
 passGeometry gives, per fix, the satellite's elevation above the horizon, how far the
 tag sat from the ground track, and the second (mirror) Doppler solution. Use it to say
@@ -515,7 +604,16 @@ ${JSON.stringify(a.driftState, null, 2)}
 ## Drift prediction (if drifting)
 ${JSON.stringify(a.driftPrediction, null, 2)}
 
+## Most recent fixes of ANY quality, including ones excluded from the position
+Class B and Z solutions are excluded from the best-estimate position because they
+are unreliable, but they still constrain where the tag can be. A weak fix near the
+last good position is evidence the tag did NOT continue on its previous heading.
+${JSON.stringify((a as Record<string, unknown>).recentFixesAnyQuality, null, 2)}
+
 ## Predicted landfall (where the drift path first meets land)
+When landfall.projectable is false the drift vector is too old to extrapolate and NO
+strand point exists. Do not compute one, do not name a town, and do not describe the
+tag as "likely ashore" — report the last confirmed position and search outward from it.
 ${JSON.stringify(a.landfall, null, 2)}
 
 ## Wind and current cross-check on the drift vector
@@ -568,6 +666,43 @@ ${JSON.stringify(a.transmissionHealth, null, 2)}
 
 ## Reception vs tide (does the tag get heard preferentially on a falling or rising tide?)
 ${JSON.stringify((a as Record<string, unknown>).tidePhase, null, 2)}
+
+## Transmission repetition rate (how often the tag actually transmits)
+Measured from the tag's own message timestamps, not looked up. This is the number a
+field team needs most and cannot get anywhere else — it decides whether a silence on a
+receiver means "wrong place" or "not fired yet". If present, state periodS plainly in
+the recommendations and give silenceThresholdS as the point at which to move on. Note
+that a ground receiver at close range has tens of dB of margin and hears essentially
+every transmission, so these intervals are what someone standing there should expect.
+${JSON.stringify((a as Record<string, unknown>).repetitionRate, null, 2)}
+
+## END OF LIFE — read repetitionRate.slowedDown before saying anything about battery
+These transmitters buffer each burst in a capacitor, so the transmitter fires at full power
+or not at all. Received signal strength therefore stays flat regardless of cell state and is
+NOT a battery indicator: never write "power is steady, so the battery is healthy", and never
+infer from an abrupt stop at full strength that a tag must have been recovered or buried.
+A reference tag held -129 dBm across sixteen days, through a four-day dropout, and into its
+final messages before dying.
+
+What does show is the schedule. If repetitionRate.slowedDown is true the interval has stepped
+down by at least 3x, which is a low-voltage threshold announcing itself. Say so prominently
+and say what it means: days of transmissions left rather than weeks, so the search is urgent
+rather than steady. A multi-day dropout followed by a return at a slower rate is the same
+story — the cell recovering on rest — and is near the end.
+
+## Lotek activity-health records (post-release sensor data, decoded from raw payloads)
+For a PSAT these are the ONLY post-release sensor readings that exist — the Day Log and
+Dive Log stop when the archive schedule ends, often days before release. Temperature and
+light here describe the tag's current situation, not the animal's dive record.
+Read temperature against air and sea-surface temperature: a tag tracking water is
+immersed, a tag swinging 10-20C daily is dry and exposed, and a tag tracking air with a
+damped swing is at the waterline, part in and part out. Light with a clean diurnal cycle
+and no downward trend means the tag is not buried or under canopy.
+Do NOT present wetFlag as current wet/dry state — see lotekHealthStatusChanged. If that
+is false the status byte has never varied and cannot distinguish "wet now" from "always
+reports wet".
+${JSON.stringify(((a as Record<string, unknown>).lotekHealth as unknown[] | null)?.slice(-15) ?? null, null, 2)}
+Status byte ever changed: ${JSON.stringify((a as Record<string, unknown>).lotekHealthStatusChanged)}
 
 ## Argos pass geometry (why each fix is good or bad, and where its mirror solution lies — last 20 fixes)
 ${JSON.stringify((a as Record<string, unknown>).passGeometry, null, 2)}

@@ -42,6 +42,8 @@ const LINES_PER_MESSAGE = 8;
 export interface ArgosDSResult {
   fixes: ArgosFix[];
   passes: ArgosPass[];
+  /** Every reception, for measuring the tag's transmission period. */
+  messageTimes: { date: Date; satellite: string }[];
   /** PTT read from the file, if consistent across blocks. */
   ptt: number | null;
   /** Passes that delivered messages but no resolved position. */
@@ -60,6 +62,7 @@ export function parseArgosDS(text: string): ArgosDSResult {
 
   let current: ArgosPass | null = null;
   let currentTimes: Date[] = [];
+  const messageTimes: { date: Date; satellite: string }[] = [];
 
   const flush = () => {
     if (!current) return;
@@ -152,7 +155,11 @@ export function parseArgosDS(text: string): ArgosDSResult {
     const msg = MESSAGE_RE.exec(rawLine);
     if (msg && current) {
       const [datePart, timePart] = msg[1].split(' ');
-      currentTimes.push(toDate(datePart, timePart));
+      const at = toDate(datePart, timePart);
+      currentTimes.push(at);
+      if (!isNaN(at.getTime())) {
+        messageTimes.push({ date: at, satellite: current.satellite });
+      }
     }
   }
   flush();
@@ -160,9 +167,12 @@ export function parseArgosDS(text: string): ArgosDSResult {
   fixes.sort((a, b) => a.date.getTime() - b.date.getTime());
   passes.sort((a, b) => a.date.getTime() - b.date.getTime());
 
+  messageTimes.sort((a, b) => a.date.getTime() - b.date.getTime());
+
   return {
     fixes,
     passes,
+    messageTimes,
     ptt: ptts.size === 1 ? Array.from(ptts)[0] : null,
     unlocatedPasses,
   };

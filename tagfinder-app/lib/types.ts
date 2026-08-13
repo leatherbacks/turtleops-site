@@ -269,6 +269,9 @@ export interface DriftForcing {
 
 export interface LandfallPrediction {
   willStrand: boolean;
+  /** False when the drift vector is too old to extrapolate — the projection
+   *  declined to answer rather than naming a strand point from stale data. */
+  projectable: boolean;
   lat: number | null;
   lon: number | null;
   /** Hours after the last fix at which the path reaches land. */
@@ -346,6 +349,93 @@ export interface DataQuality {
 
 // ─── Tidal Intrusion (post-release) ───
 
+// ─── Transmission repetition rate ───
+
+/** One reception, as used to measure how often the tag transmits. */
+export interface TransmissionTime {
+  date: Date;
+  satellite: string;
+}
+
+/**
+ * How often the tag transmits, measured from its own message timestamps.
+ *
+ * A per-deployment configuration value that rarely appears in any export. For a
+ * field team it decides whether a silence means "wrong place" or "not yet".
+ */
+export interface RepetitionRate {
+  /** Nominal period in seconds. */
+  periodS: number;
+  /** Spread around it — Argos randomises the period deliberately. */
+  jitterS: number;
+  observedMinS: number;
+  observedMaxS: number;
+  sampleCount: number;
+  /** Sub-second repeats discarded as the same transmission logged twice. */
+  duplicatesDiscarded: number;
+  /** Gaps at 2x, 3x... the period — lost messages, and confirmation of the base. */
+  harmonics: { multiple: number; count: number }[];
+  /** Share of gaps explained by the period and its harmonics. */
+  fractionExplained: number;
+  /** Silence beyond this means the tag stopped, not that a message was lost. */
+  silenceThresholdS: number;
+  /**
+   * Shortest interval observed early in the record, and recently.
+   *
+   * Measured across all satellites, so it works at both fast and slow schedules
+   * — but it is a FLOOR, not the period: jitter drags it below periodS. Use it
+   * only through rateStepRatio, which compares like with like. Do not present
+   * either figure as the tag's transmission interval; periodS is that.
+   */
+  earlyPeriodS: number | null;
+  latePeriodS: number | null;
+  /** latePeriodS / earlyPeriodS. Above ~3 the schedule has stepped down. */
+  rateStepRatio: number | null;
+  /**
+   * The transmission schedule has slowed sharply. These tags buffer each burst
+   * in a capacitor, so received power stays flat regardless of cell state and is
+   * useless as a battery indicator — a step down in interval is how a
+   * low-voltage threshold announces itself, and it means days not weeks.
+   */
+  slowedDown: boolean;
+  confidence: 'high' | 'moderate' | 'low';
+  reasoning: string;
+}
+
+// ─── Lotek activity-health message (decoded from the raw Argos payload) ───
+
+/**
+ * One activity-health record from a Lotek PSAT+.
+ *
+ * The only post-release sensor data these tags produce: the Day Log and Dive
+ * Log stop when the archive schedule ends, which can be days before the tag
+ * releases. Temperature, light and depth after pop-off arrive only here.
+ */
+export interface LotekHealthRecord {
+  /** When the satellite received it. */
+  date: Date;
+  /** Byte 1 — a format/config version, constant per deployment. */
+  formatByte: number;
+  /** The tag's own clock, seconds, to 1/256 s. */
+  tagSeconds: number;
+  /** Raw status byte. 0x80 is the only value yet observed on a valid record. */
+  statusByte: number;
+  /** Bit 7 of the status byte. Lotek renders 0x80 as "Wet Schedule", but the
+   *  field has never varied, so it cannot yet distinguish a live conductivity
+   *  reading from a latched enum. Do not present it as current wet/dry state. */
+  wetFlag: boolean;
+  serial: number;
+  depthM: number;
+  messageCounter: number;
+  /** Latched from the release event — constant, not live telemetry. */
+  corrosionTimeS: number;
+  corrosionStartV: number;
+  corrosionEndV: number;
+  temperatureC: number;
+  /** Raw counts; full scale is uncalibrated, so read as relative. */
+  light: number;
+}
+
 // ─── Argos pass geometry / mirror solutions ───
 
 /** Geometry of the satellite pass that produced one Doppler fix. */
@@ -375,6 +465,12 @@ export interface PassGeometry {
 
 export interface PassGeometryAnalysis {
   fixes: PassGeometry[];
+  /** Fixes skipped because no orbital elements exist near enough in time. */
+  tlesTooStale: number;
+  /** Largest epoch-to-fix gap actually used, in days. */
+  maxTleAgeDays: number;
+  /** True when elements are stale enough to widen the error meaningfully. */
+  tleAgeWarning: boolean;
   ambiguousCount: number;
   suspectCount: number;
   /** Fixes below 15 degrees elevation, where Doppler geometry is weak. */
@@ -702,13 +798,17 @@ export interface SatCoverage {
   totalPredicted: number;
   totalReceived: number;
   receptionRate: number; // 0-1
-  /** Per-satellite breakdown */
+  /** Per-satellite breakdown — serving satellites only. */
   perSat: {
     name: string;
     predicted: number;
     received: number;
     rate: number;
   }[];
+  /** Satellites that never heard this tag across enough passes to conclude they
+   *  are not carrying it. Excluded from the rate and from obstruction analysis,
+   *  reported so the exclusion is visible rather than silent. */
+  nonServing: { name: string; predicted: number }[];
   /** Direction bias: ascending (N-going) vs descending (S-going) */
   ascendingPredicted: number;
   ascendingReceived: number;
@@ -757,6 +857,12 @@ export interface AnalysisResult {
   tempComparison: TempComparison | null;
   bathymetry: Bathymetry | null;
   transmissionHealth: TransmissionHealth | null;
+  /** Post-release sensor records decoded from Lotek activity-health payloads. */
+  lotekHealth: LotekHealthRecord[] | null;
+  /** How often the tag transmits, measured from its own message timestamps. */
+  repetitionRate: RepetitionRate | null;
+  /** True if the health status byte ever changed — see LotekHealthRecord.wetFlag. */
+  lotekHealthStatusChanged: boolean;
   burialDetection: BurialDetection | null;
   trackerShed: TrackerShedDetection | null;
 

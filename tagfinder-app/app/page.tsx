@@ -368,9 +368,23 @@ export default function TagFinderPage() {
         burialDetection: displayResult.burialDetection,
         transmissionHealth: displayResult.transmissionHealth,
         tidePhase: tidePhase.analysis,
+        repetitionRate: displayResult.repetitionRate,
         passGeometry: passGeometry
           ? { ...passGeometry, fixes: passGeometry.fixes.slice(-20) }
           : null,
+        // Class B/Z fixes are excluded from the position because they are
+        // unreliable, but they still bound where the tag can be. Without them
+        // the model sees a drift vector and nothing that contradicts it, and
+        // will happily extrapolate a stopped tag across days of open water.
+        recentFixesAnyQuality: displayResult.allFixes.slice(-8).map((f) => ({
+          date: f.date,
+          latitude: f.latitude,
+          longitude: f.longitude,
+          quality: f.quality,
+          errorRadiusM: f.errorRadius || null,
+          effectiveErrorM: f.effectiveError,
+          excludedFromPosition: f.isOutlier || !['3', '2', '1', 'A'].includes(f.quality),
+        })),
         trackerShed: displayResult.trackerShed,
         releaseInterpretation: displayResult.releaseInterpretation,
         crushDepthEvent: displayResult.crushDepthEvent,

@@ -158,7 +158,11 @@ export function detectSpreadsheet(file: File, magic: Uint8Array): DetectedFile |
     manufacturer: 'unknown',
     source: 'unknown',
     fileType: 'unknown',
-    warning: 'Spreadsheet files are not read directly — save it as CSV and upload that.',
+    warning:
+      'Spreadsheet files are not read directly. If this is a Lotek activity-health ' +
+      'log, you do not need it — the same records are decoded straight from the ' +
+      'CLS per-message export, and that recovers more of them. Otherwise save it ' +
+      'as CSV and upload that.',
   };
 }
 
