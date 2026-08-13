@@ -1,4 +1,4 @@
-import { parseClsDate } from '@/lib/clsDate';
+import { parseTimestamp } from '@/lib/timestamp';
 import { readFileSync } from 'fs';
 import Papa from 'papaparse';
 import { requireFixture, MESSAGES_CSV } from './fixtures';
@@ -155,7 +155,7 @@ console.log('\n== CLS TIMESTAMPS ARE NOT WRITTEN CONSISTENTLY ==');
   // nothing screened for it, 36% of that deployment's health records carried a
   // NaN date -- sorted to the epoch, silently, with no warning anywhere.
   const iso = (v: string) => {
-    const d = parseClsDate(v);
+    const d = parseTimestamp(v);
     return isNaN(d.getTime()) ? 'INVALID' : d.toISOString();
   };
   chk('seconds present, hour padded', iso('2026-08-11 14:20:54'), '2026-08-11T14:20:54.000Z');
@@ -171,6 +171,18 @@ console.log('\n== CLS TIMESTAMPS ARE NOT WRITTEN CONSISTENTLY ==');
   chk('undefined stays invalid', iso(undefined as any), 'INVALID');
   chk('non-date text stays invalid', iso('rubbish'), 'INVALID');
   chk('date with no time stays invalid', iso('2026-07-23'), 'INVALID');
+
+  // new Date() and Date.parse() both accept these and return 2000-01-01, which
+  // is finite and sorts and plots. Number.isFinite screens do not catch it.
+  chk('text new Date() would call 2000-01-01', iso('GARBAGE'), 'INVALID');
+  chk('lone Z, likewise', iso('Z'), 'INVALID');
+
+  // Date.UTC rolls out-of-range fields over rather than rejecting them.
+  chk('month 13 does not roll into next year', iso('2026-13-45 99:99'), 'INVALID');
+  chk('hour 24 rejected', iso('2026-07-23 24:00'), 'INVALID');
+  chk('31 April rejected', iso('2026-04-31 10:00'), 'INVALID');
+  chk('29 Feb in a common year rejected', iso('2026-02-29 10:00'), 'INVALID');
+  chk('29 Feb in a leap year accepted', iso('2028-02-29 10:00'), '2028-02-29T10:00:00.000Z');
 
   // And the parser must not emit a record carrying one.
   const bad = parseLotekHealthMessages([

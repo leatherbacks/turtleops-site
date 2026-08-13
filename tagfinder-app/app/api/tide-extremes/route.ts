@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { parseTimestamp } from '@/lib/timestamp';
 
 /**
  * Tide highs and lows spanning an arbitrary date range.
@@ -80,13 +81,18 @@ export async function GET(request: NextRequest) {
 
     // NOAA returns "2026-08-08 15:28" — space separated, no zone marker, UTC
     // because we asked for time_zone=gmt.
-    const extremes = raw
-      .map((e) => ({
-        time: `${e.t.replace(' ', 'T')}:00Z`,
-        type: e.type,
-        height: parseFloat(e.v),
-      }))
-      .filter((e) => !isNaN(Date.parse(e.time)));
+    //
+    // The obvious screen, isNaN(Date.parse(...)), does not work: Date.parse
+    // accepts 'GARBAGE:00Z' and returns 2000-01-01, so garbage passed straight
+    // through as a valid-looking extreme. These feed the tide-phase analysis,
+    // where an extreme two decades out of range would silently corrupt every
+    // phase assignment in the record. Parsed strictly instead.
+    const extremes = raw.flatMap((e) => {
+      const d = parseTimestamp(e.t);
+      const height = parseFloat(e.v);
+      if (isNaN(d.getTime()) || !Number.isFinite(height)) return [];
+      return [{ time: d.toISOString(), type: e.type, height }];
+    });
 
     return NextResponse.json(
       {

@@ -1,5 +1,5 @@
 import type { LotekHealthRecord } from '@/lib/types';
-import { parseClsDate } from '@/lib/clsDate';
+import { parseTimestamp } from '@/lib/timestamp';
 
 /**
  * Lotek PSAT+ activity-health message, decoded from the raw Argos payload.
@@ -134,7 +134,7 @@ export interface LotekHealthResult {
   corrupt: number;
   /** Rejected specifically because their latched fields disagreed with the rest. */
   inconsistent: number;
-  /** Health messages whose reception time could not be parsed — see parseClsDate. */
+  /** Health messages whose reception time could not be parsed — see parseTimestamp. */
   undated: number;
   /** True when the status byte ever differed — see wetFlag above. */
   statusChanged: boolean;
@@ -161,7 +161,7 @@ export function parseLotekHealthMessages(
     const bytes = hexToBytes(raw);
     if (!bytes) continue;
 
-    const receivedAt = parseClsDate(row['Message date (UTC)']);
+    const receivedAt = parseTimestamp(row['Message date (UTC)']);
     const rec = decodeHealthMessage(bytes, receivedAt);
     if (!rec) continue;
 
@@ -169,7 +169,7 @@ export function parseLotekHealthMessages(
     // epoch and drags the reported start of the series with it, so a caller
     // asking "when did sensing stop" gets an answer off by decades. Counted
     // rather than silently dropped — a run of these means the export's date
-    // column is in a shape parseClsDate does not yet cover, which is exactly
+    // column is in a shape parseTimestamp does not yet cover, which is exactly
     // the failure that hid 36% of one deployment's records.
     if (isNaN(rec.date.getTime())) {
       undated++;

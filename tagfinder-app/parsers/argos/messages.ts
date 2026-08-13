@@ -1,6 +1,6 @@
 import type { ArgosFix, ArgosPass, ArgosQuality } from '@/lib/types';
 import { EMPIRICAL_ERRORS, DISCARD_QUALITIES } from '@/lib/constants';
-import { parseClsDate } from '@/lib/clsDate';
+import { parseTimestamp } from '@/lib/timestamp';
 
 /**
  * Argos/Kinéis per-message CSV, as delivered by CLS.
@@ -66,8 +66,8 @@ function num(v: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-/** CLS varies its own timestamp format between exports — see parseClsDate. */
-const toDate = parseClsDate;
+/** CLS varies its own timestamp format between exports — see parseTimestamp. */
+const toDate = parseTimestamp;
 
 function median(values: number[]): number | null {
   if (values.length === 0) return null;
