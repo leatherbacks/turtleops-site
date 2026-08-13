@@ -1,14 +1,27 @@
 import type { DeploySummary, Manufacturer, TagCategoryInfo } from '@/lib/types';
 
-/** Known PSAT (Pop-up Archival Tag) instrument identifiers */
-const PSAT_PATTERNS = [
+/**
+ * Instruments that are pop-up archival tags by construction. Nothing else these
+ * models can be, so the name alone settles it and a missing ReleaseDate does
+ * not change what the hardware is.
+ */
+const DEFINITE_PSAT_PATTERNS = [
   /mini.?pat/i,
   /^pat/i,
   /mr.?pat/i,
-  /splash/i, // SPLASH tags can be archival too
   /sea.?tag/i, // Desert Star SeaTag PSATs
   /x.?tag/i,
 ];
+
+/**
+ * Instruments that may be deployed either way. SPLASH is usually carried by the
+ * animal rather than popped off, so for these the name is not enough — a
+ * ReleaseDate has to confirm it.
+ */
+const AMBIGUOUS_PSAT_PATTERNS = [/splash/i];
+
+/** Known PSAT (Pop-up Archival Tag) instrument identifiers */
+const PSAT_PATTERNS = [...DEFINITE_PSAT_PATTERNS, ...AMBIGUOUS_PSAT_PATTERNS];
 
 /** Known live-tracker identifiers */
 const TRACKER_PATTERNS = [
@@ -58,6 +71,22 @@ export function detectTagCategory(
       category: 'psat',
       instrument: instr,
       reasoning: `Instrument "${instr}" matches PSAT pattern with ReleaseDate`,
+    };
+  }
+
+  // A named pop-up tag stays a pop-up tag when the export omits ReleaseDate.
+  // Requiring both fields sent a real MiniPAT down the live-tracker path, where
+  // its four post-release fixes were treated as animal movement and the
+  // PSAT-only analyses were skipped entirely. A missing ReleaseDate is a gap in
+  // the export, not evidence about the hardware — the analyses that genuinely
+  // need one already check for it and say so.
+  if (DEFINITE_PSAT_PATTERNS.some((p) => p.test(instr))) {
+    return {
+      category: 'psat',
+      instrument: instr,
+      reasoning:
+        `Instrument "${instr}" is a pop-up archival tag. Summary.csv has no ReleaseDate, ` +
+        `so anything needing the release moment is reported as unavailable rather than guessed.`,
     };
   }
 

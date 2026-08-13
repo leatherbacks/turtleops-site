@@ -6,7 +6,26 @@ import type {
   TransmissionTrend,
 } from '@/lib/types';
 
-const ARGOS_NOMINAL_HZ = 401_650_000; // 401.650 MHz — Argos downlink center
+/**
+ * The value Wildlife Computers writes when a pass yielded no frequency
+ * measurement. It is a fill, not a reading, and it is common: on one MiniPAT
+ * deployment 11 of 16 passes carried it. Averaged in alongside real
+ * measurements it manufactured a +907 Hz/day drift on a tag whose true drift
+ * was -5 Hz/day, and the brief turned that into "the tag is heating up —
+ * consistent with a car or an attic" for a tag lying on a beach.
+ *
+ * Recognisable because a genuine measurement essentially never lands on it. A
+ * received frequency carries the satellite's Doppler shift, so it equals the
+ * tag's rest frequency only at the exact instant of closest approach.
+ */
+const WC_FREQUENCY_FILL_HZ = 401_650_000;
+
+/**
+ * Largest Doppler shift available at 401 MHz from a low-Earth-orbit satellite:
+ * f * v / c, with v about 7 km/s. Used to sanity-check that a set of
+ * frequencies could have come from one transmitter at all.
+ */
+const MAX_DOPPLER_HZ = 9_400;
 
 /**
  * Diagnose whether the tag's transmission quality is degrading over the
@@ -17,8 +36,13 @@ const ARGOS_NOMINAL_HZ = 401_650_000; // 401.650 MHz — Argos downlink center
  *      *heard* passes but with CRC errors.
  *   2. Received power — weakens as the tag's environment absorbs more signal
  *      (buried deeper, covered, inside a conductive enclosure).
- *   3. Frequency offset from 401.650 MHz — rises as the tag heats up. Thermal
- *      drift is roughly linear with temperature.
+ *   3. Frequency drift — rises as the tag heats up; thermal drift is roughly
+ *      linear with temperature. Measured against the tag's OWN resting
+ *      frequency rather than a fixed 401.650 MHz, because Argos assigns PTT
+ *      channels across roughly 401.620-401.680 MHz and most tags do not sit on
+ *      401.650. Treating a channel assignment as thermal drift produced a
+ *      27 kHz "offset" on one deployment — three times the largest Doppler
+ *      shift physically available, so it could not have been a real shift.
  *
  * Combining all three lets us distinguish "tag in trouble" (rising corruption +
  * falling power + rising Δfreq) from "tag fine, pass geometry was just bad."
@@ -46,14 +70,31 @@ export function analyzeTransmissionHealth(
     };
   }
 
-  // Bucket passes into rolling windows. Use at most 8 windows across the
-  // post-release span so the sparkline stays readable; fall back to per-pass
-  // when the span is tight.
-  const windows = bucketIntoWindows(postRelease, 8);
-
   // Which degradation signals this source actually reports.
   const hasCrcData = postRelease.some((p) => p.corrupt !== null);
   const hasPowerData = postRelease.some((p) => p.powerDbm !== null);
+  // Distinguish "this format carries no frequency" from "it carried only the
+  // manufacturer's fill value" from "the readings cannot all be one tag". All
+  // three yield no drift figure, but a reader should not be left assuming the
+  // diagnostic ran and came back clean.
+  const restingHz = restingFrequencyHz(postRelease);
+  const anyFrequency = postRelease.some((p) => p.frequencyHz !== null);
+  const anyRealFrequency = postRelease.some(
+    (p) => p.frequencyHz !== null && p.frequencyHz !== WC_FREQUENCY_FILL_HZ
+  );
+  const frequencyGap = !anyFrequency
+    ? 'frequency is not reported in this format'
+    : !anyRealFrequency
+      ? 'every pass carried the placeholder transmit frequency rather than a measured one'
+      : restingHz === null
+        ? 'the reported frequencies are spread too far apart to have come from one transmitter'
+        : null;
+
+  // Bucket passes into rolling windows. Use at most 8 windows across the
+  // post-release span so the sparkline stays readable; fall back to per-pass
+  // when the span is tight.
+  const windows = bucketIntoWindows(postRelease, 8, restingHz);
+
 
   // Aggregate totals
   let totalMsgs = 0;
@@ -145,6 +186,11 @@ export function analyzeTransmissionHealth(
           `so ${missing.length === 1 ? 'it was' : 'they were'} not assessed.`
       );
     }
+    if (frequencyGap !== null) {
+      reasons.push(
+        `Frequency drift was not assessed because ${frequencyGap}.`
+      );
+    }
   }
 
   if (freqSlope !== null && Math.abs(freqSlope) > 200 && trend !== 'failing') {
@@ -164,9 +210,33 @@ export function analyzeTransmissionHealth(
   };
 }
 
+/**
+ * The tag's own resting frequency, or null when drift cannot honestly be
+ * measured.
+ *
+ * Fill values are dropped first, then the remaining measurements are checked
+ * for physical consistency: every reading of one transmitter must lie within
+ * plus or minus one Doppler shift of its rest frequency, so a spread wider than
+ * twice that cannot have come from a single tag. Rather than fit a slope
+ * through whatever produced it, drift is reported as unavailable.
+ */
+function restingFrequencyHz(passes: ArgosPass[]): number | null {
+  const measured = passes
+    .map((p) => p.frequencyHz)
+    .filter((f): f is number => f !== null && f !== WC_FREQUENCY_FILL_HZ);
+  if (measured.length === 0) return null;
+
+  const sorted = [...measured].sort((a, b) => a - b);
+  if (sorted[sorted.length - 1] - sorted[0] > 2 * MAX_DOPPLER_HZ) return null;
+
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
 function bucketIntoWindows(
   passes: ArgosPass[],
-  targetBuckets: number
+  targetBuckets: number,
+  restingHz: number | null
 ): TransmissionHealthWindow[] {
   // Only passes that can be placed on a timeline can be bucketed. Sort rather
   // than assume order: an out-of-order or undated pass produced a negative or
@@ -202,7 +272,9 @@ function bucketIntoWindows(
         totalMsgs += p.msgCount;
         if (p.corrupt !== null) corruptMsgs += p.corrupt;
         if (p.powerDbm !== null) powers.push(p.powerDbm);
-        if (p.frequencyHz !== null) offsets.push(p.frequencyHz - ARGOS_NOMINAL_HZ);
+        if (restingHz !== null && p.frequencyHz !== null && p.frequencyHz !== WC_FREQUENCY_FILL_HZ) {
+          offsets.push(p.frequencyHz - restingHz);
+        }
       }
       return {
         date: new Date(midTs),
