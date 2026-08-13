@@ -1,3 +1,4 @@
+import { parseClsDate } from '@/lib/clsDate';
 import { readFileSync } from 'fs';
 import Papa from 'papaparse';
 import { requireFixture, MESSAGES_CSV } from './fixtures';
@@ -145,6 +146,40 @@ console.log('\n== A COUPLE OF BAD READINGS MUST NOT OUTVOTE MANY GOOD ONES ==');
   chk('...and the reasoning cites the swing', /swing of/.test(tc.reasoning), true);
   chk('...with the mean sitting near air, which alone would not settle it',
     Math.abs((tc.tagMinusAir ?? 99)) < 1 && Math.abs((tc.tagMinusSST ?? 0)) < 2, true);
+}
+
+console.log('\n== CLS TIMESTAMPS ARE NOT WRITTEN CONSISTENTLY ==');
+{
+  // The failure that motivated this: one export wrote the hour without a
+  // leading zero. `new Date('2026-07-23T8:35Z')` is Invalid Date, and because
+  // nothing screened for it, 36% of that deployment's health records carried a
+  // NaN date -- sorted to the epoch, silently, with no warning anywhere.
+  const iso = (v: string) => {
+    const d = parseClsDate(v);
+    return isNaN(d.getTime()) ? 'INVALID' : d.toISOString();
+  };
+  chk('seconds present, hour padded', iso('2026-08-11 14:20:54'), '2026-08-11T14:20:54.000Z');
+  chk('no seconds', iso('2026-07-31 17:29'), '2026-07-31T17:29:00.000Z');
+  chk('UNPADDED HOUR -- the regression', iso('2026-07-23 8:35'), '2026-07-23T08:35:00.000Z');
+  chk('unpadded month and day too', iso('2026-7-3 8:05'), '2026-07-03T08:05:00.000Z');
+  chk('ISO separator also accepted', iso('2026-07-23T08:35:00'), '2026-07-23T08:35:00.000Z');
+  chk('trailing content is ignored, not fatal', iso('2026-07-23 08:35:00.500'), '2026-07-23T08:35:00.000Z');
+
+  // Unparseable input must stay Invalid rather than becoming a plausible wrong
+  // time -- a silently wrong timestamp is worse than an absent one.
+  chk('empty stays invalid', iso(''), 'INVALID');
+  chk('undefined stays invalid', iso(undefined as any), 'INVALID');
+  chk('non-date text stays invalid', iso('rubbish'), 'INVALID');
+  chk('date with no time stays invalid', iso('2026-07-23'), 'INVALID');
+
+  // And the parser must not emit a record carrying one.
+  const bad = parseLotekHealthMessages([
+    { 'Message date (UTC)': 'rubbish',
+      'Raw data': rows.find((r) =>
+        (r['Raw data'] ?? '').trim().toLowerCase().startsWith('ed'))!['Raw data'] },
+  ]);
+  chk('a record with an unparseable date is not returned as valid',
+    bad.records.every((r) => !isNaN(r.date.getTime())), true);
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`);

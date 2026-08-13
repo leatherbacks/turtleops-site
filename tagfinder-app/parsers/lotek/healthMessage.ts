@@ -1,4 +1,5 @@
 import type { LotekHealthRecord } from '@/lib/types';
+import { parseClsDate } from '@/lib/clsDate';
 
 /**
  * Lotek PSAT+ activity-health message, decoded from the raw Argos payload.
@@ -133,6 +134,8 @@ export interface LotekHealthResult {
   corrupt: number;
   /** Rejected specifically because their latched fields disagreed with the rest. */
   inconsistent: number;
+  /** Health messages whose reception time could not be parsed — see parseClsDate. */
+  undated: number;
   /** True when the status byte ever differed — see wetFlag above. */
   statusChanged: boolean;
   statusValues: number[];
@@ -150,6 +153,7 @@ export function parseLotekHealthMessages(
 ): LotekHealthResult {
   const seen = new Map<number, LotekHealthRecord>();
   let corrupt = 0;
+  let undated = 0;
 
   for (const row of rows) {
     const raw = (row['Raw data'] ?? row['Raw Data'] ?? '').trim();
@@ -157,10 +161,20 @@ export function parseLotekHealthMessages(
     const bytes = hexToBytes(raw);
     if (!bytes) continue;
 
-    const dateStr = (row['Message date (UTC)'] ?? '').trim();
-    const receivedAt = dateStr ? new Date(`${dateStr.replace(' ', 'T')}Z`) : new Date(NaN);
+    const receivedAt = parseClsDate(row['Message date (UTC)']);
     const rec = decodeHealthMessage(bytes, receivedAt);
     if (!rec) continue;
+
+    // A record with no usable time is worse than no record: it sorts to the
+    // epoch and drags the reported start of the series with it, so a caller
+    // asking "when did sensing stop" gets an answer off by decades. Counted
+    // rather than silently dropped — a run of these means the export's date
+    // column is in a shape parseClsDate does not yet cover, which is exactly
+    // the failure that hid 36% of one deployment's records.
+    if (isNaN(rec.date.getTime())) {
+      undated++;
+      continue;
+    }
 
     if (!isPlausibleHealthRecord(rec)) {
       corrupt++;
@@ -202,6 +216,7 @@ export function parseLotekHealthMessages(
   return {
     records,
     corrupt,
+    undated,
     inconsistent,
     statusChanged: statusValues.length > 1,
     statusValues,
