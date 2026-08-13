@@ -181,7 +181,7 @@ export function compareTemperatures(
       // instead of closing on the beacon, which is what actually worked.
       `. Out of the water does NOT mean easy to see: recovered tags of this type` +
       ` have been invisible until the searcher was on top of them. Plan on homing` +
-      ` the recovery beacon rather than spotting the tag.` +
+      ` the tag's Argos uplink with a directional receiver rather than spotting it.` +
       (swingRestsOnExtremes
         ? ` Note the swing rests on a single reading at each end — with only ${tagTemps.length}` +
           ` readings a corrupt one cannot be told from a real diurnal peak here, so treat the` +

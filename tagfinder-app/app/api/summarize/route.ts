@@ -415,14 +415,19 @@ seawall corner, one lying in dark organic wrack at a waterline, both small, dark
 against a dark background. Do not write recommendations that assume the tag will be spotted,
 and do not treat "search the wrack line" as an instruction someone can carry out by eye.
 
-The endgame that actually worked was homing on the tag's own recovery beacon — UHF on the
-Lotek PSAT+; check the model, since not every tag uses the same band — to a strong receiver
-reading, and then DELIBERATELY DESTROYING the receiver's sensitivity to shrink the search.
-Detaching the antenna and hunting on the bare receiver input cuts the useful range to a few
-metres, which turns a saturated signal that points everywhere into one that points at the
-tag. Say this plainly wherever a tag is judged obstructed, buried, or lying in wrack or
-debris: at close range a strong reading is not progress on its own, and the move is to cut
-gain or pull the antenna rather than keep sweeping at full sensitivity.
+The endgame that actually worked was homing on the Argos transmitter itself. The PSAT+ has
+no separate recovery beacon — the manufacturer's manual documents Argos transmission and
+nothing else — so the thing to home on is the tag's own uplink near 401.68 MHz, which is
+UHF. Quote the MEASURED frequency from the data rather than a nominal: Argos assigns PTT
+channels across roughly 401.62-401.68 MHz and a receiver parked on the wrong one hears
+nothing.
+
+Then DELIBERATELY DESTROY the receiver's sensitivity to shrink the search. Detaching the
+antenna and hunting on the bare receiver input cuts the useful range to a few metres, which
+turns a saturated signal that points everywhere into one that points at the tag. Say this
+plainly wherever a tag is judged obstructed, buried, or lying in wrack or debris: at close
+range a strong reading is not progress on its own, and the move is to cut gain or pull the
+antenna rather than keep sweeping at full sensitivity.
 
 A reflector also corrupts the fixes themselves, and the class letter hides it. Argos solves
 position from the frequency history of a pass, so a signal arriving by two paths — direct and
@@ -556,6 +561,15 @@ Guidelines:
 - Explain the tag's physical state with specific evidence from the data.
 - **If release type is 'Floater', 'Sitter', 'Sinker', or 'Crush depth', acknowledge that the animal
   likely died** — phrase it compassionately but factually. These are mortality signals.
+- **A Lotek PSAT+ releasing on inactivity is genuinely ambiguous, and must be reported that
+  way.** The manufacturer offers three release triggers — elapsed days, overpressure, and no
+  change in pressure over several days — and their own manual states that the third fires
+  either because the tag was shed and is floating at the surface OR because the animal died
+  and sank to the bottom and stopped moving. Do not resolve that ambiguity from the release
+  cause alone. What resolves it is what happened next: a tag that then drifts with wind and
+  current was shed and is afloat, and a tag that then reports a constant depth matching the
+  local seabed was on the bottom. Say which one the subsequent record supports, or say the
+  data does not distinguish them.
 - **If release type is 'Detachment', the animal shed the tag but is likely still alive.**
 - **If crush-depth event was detected (pre-release depths >1500m), note this strongly suggests
   mortality followed by sinking, and the tag released via the failsafe just above crush depth.**

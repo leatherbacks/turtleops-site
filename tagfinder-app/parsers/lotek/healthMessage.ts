@@ -25,7 +25,7 @@ import { parseTimestamp } from '@/lib/timestamp';
  *   1     format/config version             constant per tag, varies between
  *   2-4   u24 seconds counter              exact against record timestamps
  *   5     sub-second, units of 1/256 s     bytes[2:6] as u32 at 256 Hz
- *   6     status flags, 0x80 = wet         31/31 vs ReleaseCause
+ *   6     latched release cause            31/31 vs ReleaseCause
  *   7-8   u16 serial number                31/31 exact
  *   9-10  u16 depth, metres                11/11 exact
  *   11-12 u16 message counter              monotonic with time
@@ -39,9 +39,16 @@ import { parseTimestamp } from '@/lib/timestamp';
  *   30    probable CRC                     unidentified
  *
  * NOT present anywhere in this message: a live battery voltage. Every
- * unidentified byte was range-checked for a value near 3.5 V at any plausible
- * scaling and none matches, so a quoted battery figure does not originate here.
- * The corrosion voltages are latched from the release event and never change.
+ * unidentified byte was range-checked for a value near the 3.6 V nominal at any
+ * plausible scaling and none matches, so a quoted battery figure does not
+ * originate here. The corrosion voltages are latched from the release event and
+ * never change.
+ *
+ * The tag does sample battery — every 60 s, per the manufacturer's manual —
+ * but into the onboard Basic Log, which is never transmitted. It comes back only
+ * with the physical tag. So on a RECOVERED tag the battery history exists and is
+ * worth downloading; on a tag still at sea it does not exist at any price, and a
+ * battery figure in a report about one is invented.
  */
 
 /**
@@ -54,6 +61,26 @@ import { parseTimestamp } from '@/lib/timestamp';
  */
 const HEALTH_TYPE_BYTE = 0xed;
 const PAYLOAD_LEN = 31;
+
+/**
+ * Lead on the undecoded traffic, recorded rather than acted on.
+ *
+ * Type 0xA0 is the overwhelming majority of what these tags send — over 80% of
+ * payloads on every deployment seen — and is not decoded here. The
+ * manufacturer's manual names three logs, and only two of them are transmitted:
+ * the Activity Log (time-series pressure and temperature, or pressure,
+ * temperature and light) and the Day Log (processed geolocation). The Basic Log
+ * stays onboard and comes back only with the physical tag.
+ *
+ * The manual's configurator shows the Activity Log packing "Dive (8 recs/msg)",
+ * which would put eight pressure/temperature pairs in a 31-byte payload — about
+ * three bytes a record after a header, which is the right order of magnitude.
+ * That makes 0xA0 most likely the Activity Log in Dive form. Not decoded on that
+ * basis: a plausible field count is not a layout, and the way to settle it is
+ * the way the health message was settled — pair raw payloads against the
+ * manufacturer's own decode of the same deployment and require agreement on the
+ * corrupt records as well as the clean ones.
+ */
 
 /** Physical screens, since the raw feed carries no CRC column of its own. */
 const MAX_PLAUSIBLE_VOLTS = 10;
@@ -91,11 +118,25 @@ export function decodeHealthMessage(
     // 0.01 s, so byte 5 is the fractional second rather than a separate field.
     tagSeconds: (u24(payload, 2) * 256 + payload[5]) / 256,
     statusByte: status,
-    // Lotek renders 0x80 as "Wet Schedule". Whether that is a live conductivity
-    // reading or a latched release-cause enum is unresolved: it has never once
-    // differed on a coherently-decoding message, so it cannot currently
-    // distinguish "wet now" from "always says wet". Exposed rather than
-    // interpreted.
+    // A latched release cause, not a live conductivity reading. The
+    // manufacturer's manual settles it: the PSAT+ offers exactly three
+    // programmed release conditions — a scheduled number of days, a minimum
+    // time above an overpressure threshold, and no change in pressure over
+    // several days ("inactivity"). Three conditions, and exactly three values
+    // observed across deployments, each constant within its own deployment and
+    // matching the ReleaseCause string in the manufacturer's own decode:
+    //
+    //   0x80  scheduled elapsed time
+    //   0x81  overpressure
+    //   0x82  inactivity / constant depth
+    //
+    // The manual is explicit that the inactivity trigger is ambiguous by
+    // design: it fires either because the tag was shed and is floating, or
+    // because the animal died and the tag sank to the bottom and stopped
+    // moving. A tag reporting 0x82 has not told you which.
+    //
+    // wetFlag is kept because the high bit is what Lotek renders as "Wet", but
+    // it says nothing about whether the tag is wet NOW.
     wetFlag: (status & 0x80) !== 0,
     serial: u16(payload, 7),
     depthM: u16(payload, 9),
