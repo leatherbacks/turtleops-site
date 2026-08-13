@@ -90,5 +90,39 @@ chk('silence threshold is a few periods',
   fromMessages.silenceThresholdS === fromMessages.periodS * 3, true);
 console.log(`\n        ${fromMessages.reasoning}\n`);
 
+console.log('\n== A SCHEDULE STEP IS AN END-OF-LIFE WARNING ==');
+// These transmitters buffer each burst in a capacitor, so received power stays
+// flat whatever the cell is doing — reading "no power fade" as "battery healthy"
+// is backwards. What shows is the schedule: a low-voltage threshold steps the
+// interval down by an order of magnitude. Detecting that turns a descriptive
+// number into a countdown.
+{
+  // Fast throughout, then a hard step to a slow beacon — a dying tag.
+  const fast = synth({ periodS: 60, jitterS: 6, missRate: 0.2, duplicateRate: 0.2, count: 900, seed: 21 });
+  const lastFast = fast[fast.length - 1].date.getTime();
+  const slow: TransmissionTime[] = [];
+  for (let i = 1; i <= 60; i++) {
+    slow.push({ date: new Date(lastFast + i * 1200_000), satellite: `S${i % 7}` });
+  }
+  const dying = estimateRepetitionRate([...fast, ...slow])!;
+  chk('step detected', dying.slowedDown, true);
+  chk('...ratio is large', (dying.rateStepRatio ?? 0) >= 3, true);
+  chk('...and the reasoning warns explicitly',
+    /END OF LIFE/.test(dying.reasoning), true);
+  chk('...naming the schedule, not the power, as the signal',
+    /transmit power stays flat/.test(dying.reasoning), true);
+
+  // Steady throughout — must NOT cry wolf.
+  const steady = estimateRepetitionRate(
+    synth({ periodS: 60, jitterS: 6, missRate: 0.25, duplicateRate: 0.3, count: 1200, seed: 22 })
+  )!;
+  chk('a steady tag is not flagged', steady.slowedDown, false);
+
+  // The slow slice must be measurable at all. A count-based split would bury a
+  // 20x-slowed tail inside the early slice, because slowing down is exactly what
+  // makes the tail sparse — so the split is by time.
+  chk('slow tail is measured, not swallowed', (dying.latePeriodS ?? 0) > 600, true);
+}
+
 console.log(`${pass} passed, ${fail} failed\n`);
 process.exit(fail === 0 ? 0 : 1);

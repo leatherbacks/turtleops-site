@@ -676,6 +676,20 @@ that a ground receiver at close range has tens of dB of margin and hears essenti
 every transmission, so these intervals are what someone standing there should expect.
 ${JSON.stringify((a as Record<string, unknown>).repetitionRate, null, 2)}
 
+## END OF LIFE — read repetitionRate.slowedDown before saying anything about battery
+These transmitters buffer each burst in a capacitor, so the transmitter fires at full power
+or not at all. Received signal strength therefore stays flat regardless of cell state and is
+NOT a battery indicator: never write "power is steady, so the battery is healthy", and never
+infer from an abrupt stop at full strength that a tag must have been recovered or buried.
+A reference tag held -129 dBm across sixteen days, through a four-day dropout, and into its
+final messages before dying.
+
+What does show is the schedule. If repetitionRate.slowedDown is true the interval has stepped
+down by at least 3x, which is a low-voltage threshold announcing itself. Say so prominently
+and say what it means: days of transmissions left rather than weeks, so the search is urgent
+rather than steady. A multi-day dropout followed by a return at a slower rate is the same
+story — the cell recovering on rest — and is near the end.
+
 ## Lotek activity-health records (post-release sensor data, decoded from raw payloads)
 For a PSAT these are the ONLY post-release sensor readings that exist — the Day Log and
 Dive Log stop when the archive schedule ends, often days before release. Temperature and

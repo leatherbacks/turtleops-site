@@ -379,6 +379,25 @@ export interface RepetitionRate {
   fractionExplained: number;
   /** Silence beyond this means the tag stopped, not that a message was lost. */
   silenceThresholdS: number;
+  /**
+   * Shortest interval observed early in the record, and recently.
+   *
+   * Measured across all satellites, so it works at both fast and slow schedules
+   * — but it is a FLOOR, not the period: jitter drags it below periodS. Use it
+   * only through rateStepRatio, which compares like with like. Do not present
+   * either figure as the tag's transmission interval; periodS is that.
+   */
+  earlyPeriodS: number | null;
+  latePeriodS: number | null;
+  /** latePeriodS / earlyPeriodS. Above ~3 the schedule has stepped down. */
+  rateStepRatio: number | null;
+  /**
+   * The transmission schedule has slowed sharply. These tags buffer each burst
+   * in a capacitor, so received power stays flat regardless of cell state and is
+   * useless as a battery indicator — a step down in interval is how a
+   * low-voltage threshold announces itself, and it means days not weeks.
+   */
+  slowedDown: boolean;
   confidence: 'high' | 'moderate' | 'low';
   reasoning: string;
 }
