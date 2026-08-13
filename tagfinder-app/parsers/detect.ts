@@ -91,7 +91,7 @@ export function detectFile(file: File, headers: string[]): DetectedFile {
     }
   }
 
-  // Fallback: filename pattern (e.g., "285932-Locations.csv")
+  // Fallback: filename pattern (e.g., "123456-Locations.csv")
   const name = file.name.toLowerCase();
   const wc = (fileType: FileType): DetectedFile => ({
     file,

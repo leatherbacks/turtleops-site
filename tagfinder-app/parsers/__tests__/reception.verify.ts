@@ -1,6 +1,7 @@
 import { analyzeReceptionQuality } from '@/analysis/receptionQuality';
 import { analyzeTagState } from '@/analysis/tagState';
 import { parseSummary } from '@/parsers/wc/summary';
+import { screenIsolatedDepths } from '@/analysis/depthScreen';
 import type { ArgosPass } from '@/lib/types';
 
 let pass = 0, fail = 0;
@@ -173,6 +174,56 @@ console.log('\n== CALIBRATED AGAINST TWO RECOVERED TAGS ==');
     buried.verdict !== exposed.verdict, true);
   chk('...and the gap between them is real, not marginal',
     exposed.messagesPerPass - buried.messagesPerPass > 2, true);
+}
+
+console.log('\n== ISOLATED DEEP READINGS ARE NOT DIVES ==');
+{
+  // Two corrupt records out of twenty-two claimed 21 m and 32 m on a tag that
+  // was lying dry on a wrack bank. Unscreened they produced a dive profile with
+  // a 32 m maximum and a "tidally flooded, wet 10% of the time" verdict — the
+  // 10% being exactly those two readings — on the same page as a tag-state
+  // panel correctly reporting the tag at the surface.
+  const H = 3_600_000;
+  const pt = (h: number, d: number) => ({ t: Date.UTC(2026, 7, 7) + h * H, d });
+
+  const surfaceRecord = [
+    pt(0, 0), pt(6, 0), pt(12, 0), pt(18, 0), pt(26, 21), pt(32, 0),
+    pt(40, 32), pt(46, 0), pt(52, 0), pt(58, 0), pt(64, 0), pt(70, 0),
+  ];
+  const s1 = screenIsolatedDepths(surfaceRecord, (p) => p.d, (p) => p.t);
+  chk('both isolated deep readings are rejected', s1.rejected.length, 2);
+  chk('...and the surface readings are all kept', s1.kept.length, 10);
+  chk('...with the reason naming them', /21, 32 m/.test(s1.reason ?? ''), true);
+
+  // A dive to tens of metres and back takes minutes. Two of them thirteen hours
+  // apart are two claims, not one event sampled twice — an earlier version
+  // scaled the corroboration window to the sampling interval and let exactly
+  // that pair vouch for each other.
+  chk('a far-apart pair does not corroborate itself',
+    screenIsolatedDepths([pt(0, 0), pt(6, 0), pt(12, 30), pt(18, 0), pt(25, 30),
+      pt(31, 0), pt(37, 0), pt(43, 0), pt(49, 0), pt(55, 0)],
+      (p) => p.d, (p) => p.t).rejected.length, 2);
+  // ...but two within the window do.
+  chk('a genuine submersion with a neighbour is kept',
+    screenIsolatedDepths([pt(0, 0), pt(6, 0), pt(12, 30), pt(13, 28), pt(18, 0),
+      pt(24, 0), pt(30, 0), pt(36, 0), pt(42, 0), pt(48, 0)],
+      (p) => p.d, (p) => p.t).rejected.length, 0);
+
+  // A real dive record must be untouched: deep readings are the majority there,
+  // so the screen never engages.
+  const diving = [0, 5, 18, 42, 60, 35, 12, 0, 8, 30, 55, 71, 40, 15, 2, 0]
+    .map((d, i) => pt(i * 0.33, d));
+  chk('a diving animal is left alone', screenIsolatedDepths(diving, (p) => p.d, (p) => p.t).rejected.length, 0);
+
+  // Shallow readings are never screened, or the tidal detector this guard
+  // protects would lose the very signal it looks for.
+  const tidal = [pt(0, 0), pt(6, 1.4), pt(12, 0), pt(18, 1.6), pt(24, 0),
+    pt(30, 1.5), pt(36, 0), pt(42, 1.3), pt(48, 0), pt(54, 0)];
+  chk('metre-scale tidal flooding survives',
+    screenIsolatedDepths(tidal, (p) => p.d, (p) => p.t).rejected.length, 0);
+
+  chk('too short a record is not screened',
+    screenIsolatedDepths([pt(0, 0), pt(6, 32), pt(12, 0)], (p) => p.d, (p) => p.t).rejected.length, 0);
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`);

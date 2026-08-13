@@ -37,6 +37,7 @@ import MirrorCheckPanel from '@/components/tagfinder/MirrorCheckPanel';
 import TransmissionHealthPanel from '@/components/tagfinder/TransmissionHealthPanel';
 import TidePhasePanel from '@/components/tagfinder/TidePhasePanel';
 import WaterMatchPanel from '@/components/tagfinder/WaterMatchPanel';
+import ReceptionQualityPanel from '@/components/tagfinder/ReceptionQualityPanel';
 import SkyChart from '@/components/tagfinder/SkyChart';
 import UpcomingPassesPanel from '@/components/tagfinder/UpcomingPassesPanel';
 import EmailGate from '@/components/tagfinder/EmailGate';
@@ -410,6 +411,7 @@ export default function TagFinderPage() {
         waterMatch: waterMatch.analysis
           ? { ...waterMatch.analysis, matched: waterMatch.analysis.matched.slice(-40) }
           : null,
+        receptionQuality,
         waterStation: waterMatch.station,
         waterStationDistanceKm: waterMatch.stationDistanceKm,
         repetitionRate: displayResult.repetitionRate,
@@ -894,6 +896,11 @@ export default function TagFinderPage() {
                 )}
                 {displayResult.transmissionHealth && (
                   <TransmissionHealthPanel health={displayResult.transmissionHealth} />
+                )}
+
+                {/* How much sky the antenna can see, from received passes alone */}
+                {receptionQuality && receptionQuality.verdict !== 'insufficient' && (
+                  <ReceptionQualityPanel quality={receptionQuality} />
                 )}
 
                 {/* Did the tag stop tracking the water, and when */}

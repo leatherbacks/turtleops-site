@@ -231,8 +231,18 @@ function interpretCoverage(
 ): string {
   const bits: string[] = [];
 
+  // Describes what was measured — how many overpasses produced anything at all —
+  // and stops short of concluding the antenna was exposed. It cannot see how
+  // MANY messages each pass delivered, and that is where obstruction shows: a
+  // tag recovered lying in wet wrack was heard on 46% of its predicted passes
+  // while averaging only 5.1 messages per pass, and this line called it
+  // "well-exposed". analyzeReceptionQuality owns the exposure verdict.
   if (rate >= 0.25) {
-    bits.push('Strong reception — tag antenna was well-exposed.');
+    bits.push(
+      'Most predicted overpasses produced at least one message, so the tag was ' +
+        'reaching satellites routinely. How well it was exposed depends on how many ' +
+        'messages each pass carried, which this rate does not measure.'
+    );
   } else if (rate >= 0.1) {
     bits.push('Moderate reception — tag may be partially obstructed or frequently submerged.');
   } else {

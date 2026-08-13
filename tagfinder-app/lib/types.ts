@@ -576,6 +576,9 @@ export interface TidalIntrusion {
   wetPct: number;
   /** Max depth seen post-release (tidal peak) */
   maxPostReleaseDepth: number;
+  /** Isolated deep readings excluded as corrupt — see analysis/depthScreen. */
+  screenedReadings: number;
+  screenNote: string | null;
   /** Estimated cycle period in hours (should be ~12 for semidiurnal, ~24 for diurnal) */
   cyclePeriodHours: number | null;
 }
@@ -591,6 +594,9 @@ export interface DiveProfile {
   surfaceTimePct: number;
   /** Downsampled series for display (max 300 points) */
   displaySeries: { date: Date; depth: number | null; temp: number | null }[];
+  /** Isolated deep readings excluded as corrupt — see analysis/depthScreen. */
+  screenedReadings: number;
+  screenNote: string | null;
 }
 
 // ─── Release Type Interpretation ───
@@ -963,7 +969,7 @@ export interface EnvironmentData {
     stationDistanceKm: number;
   } | null;
   location: {
-    name: string; // e.g., "Caminada Headland, Lafourche Parish, LA"
+    name: string; // e.g., "<Headland>, <Parish>, <State>"
     county: string;
     state: string;
     source: 'census' | 'nominatim';

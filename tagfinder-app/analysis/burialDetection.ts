@@ -256,10 +256,16 @@ function computeTadSignal(
  *  Two independent burial signals are used:
  *  1. Temperature: tiny diel amplitude (<3 °C, vs 10+ °C for surface)
  *  2. Depth: a buried tag's pressure sensor registers SAND PRESSURE as
- *     fake "depth" — typically 0.5–2 m of constant pseudo-depth. Real
- *     case: 285932 (turtle, beached on Caminada Headland LA) read 1.35 m
- *     of "depth" while buried with antenna up. The tell is depth that is
- *     consistently NON-ZERO with very low day-to-day variance.
+ *     fake "depth" — typically 0.5-2 m of constant pseudo-depth. One
+ *     recovered tag read 1.35 m of "depth" while buried with its antenna
+ *     proud of the surface. The tell is depth that is consistently
+ *     NON-ZERO with very low day-to-day variance.
+ *
+ *     The converse does NOT hold, and a second recovered tag proves it: it
+ *     was buried and read no depth at all. Dry sand arches, carrying its
+ *     load through grain-to-grain contact to the sides rather than onto the
+ *     pressure port, so a zero reading is no evidence against burial. Depth
+ *     is treated here as confirmation when present, never as a requirement.
  *
  *  When both signals agree, confidence is very high. When only one fires,
  *  the verdict still goes through but with lower confidence. */
@@ -320,7 +326,7 @@ function classifyFromDailies(
       : '';
   const depthNote =
     depthSignal === 'sand_pressure'
-      ? ` Pressure sensor reads ${medianDepth!.toFixed(2)} m of constant pseudo-depth — the tag's sensor is being squeezed by sand pressure, not water column. This is the same signature seen on PTT 285932 (Caminada Headland buried turtle tag, 1.35 m).`
+      ? ` Pressure sensor reads ${medianDepth!.toFixed(2)} m of constant pseudo-depth — the tag's sensor is being squeezed by sand pressure, not water column. This is the same signature seen on a previously recovered tag, found buried in beach sand with its antenna proud of the surface, whose sensor read a constant 1.35 m.`
       : depthSignal === 'dry'
         ? ` Pressure sensor reads ~0 m (dry, no pressure on the tag).`
         : depthSignal === 'tidal'
@@ -356,7 +362,7 @@ function classifyFromDailies(
   } else if (depthSignal === 'sand_pressure' || (tad && tad.bin1Pct > 95)) {
     // Temperature is ambiguous but depth or TAD strongly suggests burial — call it
     verdict = 'buried_in_sand';
-    reasoning = `Diel temperature amplitude is ${medianAmp.toFixed(1)} °C (between thresholds), but${depthSignal === 'sand_pressure' ? ` depth sensor reads ${medianDepth!.toFixed(2)} m of constant pseudo-depth (sand pressure, like PTT 285932 at Caminada Headland: 1.35 m).` : ''}${tadDryNote} Likely buried ${sourceNote}.`;
+    reasoning = `Diel temperature amplitude is ${medianAmp.toFixed(1)} °C (between thresholds), but${depthSignal === 'sand_pressure' ? ` depth sensor reads ${medianDepth!.toFixed(2)} m of constant pseudo-depth — sand pressure, matching a previously recovered buried tag that read a constant 1.35 m.` : ''}${tadDryNote} Likely buried ${sourceNote}.`;
     confidence = 0.8;
   } else {
     verdict = 'unknown';

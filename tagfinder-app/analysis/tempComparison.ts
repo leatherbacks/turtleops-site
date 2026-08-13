@@ -141,7 +141,16 @@ export function compareTemperatures(
       (tagMinusAir !== null
         ? ` (mean ${tagMean.toFixed(1)}°C against air ${sources.airTempC!.toFixed(1)}°C)`
         : '') +
-      `. Expect it to be visible rather than afloat.`;
+      // Deliberately NOT "expect it to be visible". Both tags recovered from
+      // this programme were out of the water and neither was seen until the
+      // finder was standing over it — one wedged in a seawall corner, one lying
+      // in dark wrack at a waterline. A popped tag is small, matte and dark
+      // against exactly the substrates it strands on. Telling a field team to
+      // expect a visual find sends them sweeping open ground with their eyes
+      // instead of closing on the beacon, which is what actually worked.
+      `. Out of the water does NOT mean easy to see: recovered tags of this type` +
+      ` have been invisible until the searcher was on top of them. Plan on homing` +
+      ` the recovery beacon rather than spotting the tag.`;
     confidence = 0.85;
   } else if (tagMinusSST !== null && Math.abs(tagMinusSST) < 2) {
     environment = 'in_water';

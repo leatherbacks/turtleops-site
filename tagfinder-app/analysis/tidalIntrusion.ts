@@ -1,4 +1,5 @@
 import type { SeriesReading, TagStatus, DeploySummary, TidalIntrusion } from '@/lib/types';
+import { screenIsolatedDepths } from './depthScreen';
 
 /** Depth (m) below which the tag is considered "dry" */
 const DRY_THRESHOLD_M = 0.2;
@@ -22,7 +23,7 @@ export function analyzeTidalIntrusion(
 
   // Collect post-release depth readings
   type DepthPoint = { t: number; d: number };
-  const points: DepthPoint[] = [];
+  let points: DepthPoint[] = [];
 
   for (const r of series) {
     if (r.date.getTime() < releaseDate.getTime()) continue;
@@ -33,6 +34,14 @@ export function analyzeTidalIntrusion(
     if (s.depth !== null) points.push({ t: s.date.getTime(), d: s.depth });
   }
 
+  // Two corrupt records out of twenty-two were enough to report this tag as
+  // "tidally flooded, wet 10% of the time" while it lay dry on a wrack bank —
+  // the 10% was precisely those two readings.
+  const screen = screenIsolatedDepths(points, (p) => p.d, (p) => p.t);
+  const screenedReadings = screen.rejected.length;
+  const screenNote = screen.reason;
+  if (screen.kept.length > 0) points = screen.kept;
+
   if (points.length < 10) {
     return {
       detected: false,
@@ -41,6 +50,8 @@ export function analyzeTidalIntrusion(
       wetPct: 0,
       maxPostReleaseDepth: points.length > 0 ? Math.max(...points.map((p) => p.d)) : 0,
       cyclePeriodHours: null,
+      screenedReadings,
+      screenNote,
     };
   }
 
@@ -61,6 +72,8 @@ export function analyzeTidalIntrusion(
       wetPct,
       maxPostReleaseDepth: maxDepth,
       cyclePeriodHours: null,
+      screenedReadings,
+      screenNote,
     };
   }
 
@@ -73,6 +86,8 @@ export function analyzeTidalIntrusion(
       wetPct,
       maxPostReleaseDepth: maxDepth,
       cyclePeriodHours: null,
+      screenedReadings,
+      screenNote,
     };
   }
 
@@ -85,6 +100,8 @@ export function analyzeTidalIntrusion(
       wetPct,
       maxPostReleaseDepth: maxDepth,
       cyclePeriodHours: null,
+      screenedReadings,
+      screenNote,
     };
   }
 
@@ -102,6 +119,8 @@ export function analyzeTidalIntrusion(
       wetPct,
       maxPostReleaseDepth: maxDepth,
       cyclePeriodHours: null,
+      screenedReadings,
+      screenNote,
     };
   }
 
@@ -130,6 +149,8 @@ export function analyzeTidalIntrusion(
     wetPct,
     maxPostReleaseDepth: maxDepth,
     cyclePeriodHours: cyclePeriod,
+    screenedReadings,
+    screenNote,
   };
 }
 

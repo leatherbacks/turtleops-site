@@ -395,6 +395,15 @@ Two things follow for the search that are not obvious:
   and obvious at ten, so a receiver sweep needs to hug the structure rather than cover the
   open ground, and long silences on the open beach are not evidence of absence.
 
+**When receptionQuality.verdict is 'obstructed', say the tag is covered.** The measure is
+messages per pass against the four Argos needs for a quality fix, and it is calibrated on two
+tags recovered by hand — buried in sand at 2.3, lying exposed on a bank at 5.1. 'degraded'
+means partial cover, an awkward resting angle, or intermittent wetting, and is what a tag in
+wet wrack produces; it is NOT a clean bill of health. Where this and the satellite coverage
+rate disagree, follow this one and say why: coverage counts whether an overpass produced
+anything at all, not how much came through, so a tag heard briefly on many passes scores well
+there while being substantially covered.
+
 **Closing the last hundred metres is a radio-homing problem, not a visual one.** On two
 recovered tags the finder never saw the tag until they were standing over it: one wedged in a
 seawall corner, one lying in dark organic wrack at a waterline, both small, dark and matte
@@ -519,14 +528,22 @@ passes. Use the description verbatim in the brief — e.g. "antenna lying nearly
 pointing SE" tells the field team the wire is pointing along the ground in a known
 direction, which dramatically narrows the visual search.
 
-**Cross-tag precedent for buried beach tags:** PTT 285932 (turtle, recovered Caminada
-Headland LA) was buried with body ~10 cm under sand, antenna whip ~5 cm above the
-surface, depth sensor reading 1.35 m of sand-pressure pseudo-depth. Its signal stats
-(mean −134 dBm, ~70% CRC failure) match what we see on similarly-buried tags. If a
-current tag's signal pattern resembles that one (mean power −130 to −135 dBm, mixed
-clean/CRC decodes, on-land position) and burialDetection or other signals point to
-sand burial, you can cite this precedent for confidence — "matches the signal
-signature of PTT 285932, which was recovered intact from beach sand."
+**NEVER name another deployment.** Precedents below are recorded so you can weigh a
+pattern, not so you can cite an identifier. Write "a previously recovered tag" or "an
+earlier deployment on this programme" — never a PTT number, deploy ID, animal name, or
+the specific beach another tag was found on. The reader owns one tag; naming somebody
+else's helps them not at all and discloses it to whoever the report is forwarded to.
+
+**Precedent for buried beach tags.** A previously recovered tag was found with its body
+about 10 cm under sand and the antenna whip roughly 5 cm proud of the surface, its depth
+sensor reading 1.35 m of sand-pressure pseudo-depth, at a mean −134 dBm with heavy CRC
+failure. A second, recovered buried on a different coast, read no depth at all — dry sand
+arches and carries its load through grain contact rather than onto the pressure port, so a
+zero depth neither confirms nor refutes burial. What both share is the reception signature:
+messages per pass far below the four Argos needs for a quality fix. If the current tag
+shows on-land position, poor reception at unremarkable power, and receptionQuality reading
+'obstructed', you may say the pattern matches tags previously recovered from sand — without
+identifying them.
 
 Guidelines:
 - Start with a one-sentence headline about where the tag is and your best guess at its state.
@@ -711,6 +728,14 @@ ${JSON.stringify(a.transmissionHealth, null, 2)}
 
 ## Reception vs tide (does the tag get heard preferentially on a falling or rising tide?)
 ${JSON.stringify((a as Record<string, unknown>).tidePhase, null, 2)}
+
+## Antenna exposure from reception alone (no orbital elements needed)
+Messages heard per pass, against the four Argos needs to solve a quality position.
+Calibrated on two physically recovered tags: one buried in beach sand at 2.3 messages
+per pass, one lying exposed on an organic bank at 5.1. Prefer this over the satellite
+coverage rate when the two disagree — the coverage rate only counts whether a pass
+produced anything, not how much, and it called the wrack-bound tag "well-exposed".
+${JSON.stringify((a as Record<string, unknown>).receptionQuality, null, 2)}
 
 ## Water-temperature match (did the tag stop tracking the water, and when?)
 Each post-release reading against water temperature at the same moment, from the gauge
