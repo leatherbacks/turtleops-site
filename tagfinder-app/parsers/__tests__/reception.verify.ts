@@ -2,6 +2,7 @@ import { analyzeReceptionQuality } from '@/analysis/receptionQuality';
 import { analyzeTagState } from '@/analysis/tagState';
 import { parseSummary } from '@/parsers/wc/summary';
 import { screenIsolatedDepths } from '@/analysis/depthScreen';
+import { analyzeAntennaExposure } from '@/analysis/antennaExposure';
 import type { ArgosPass } from '@/lib/types';
 
 let pass = 0, fail = 0;
@@ -224,6 +225,47 @@ console.log('\n== ISOLATED DEEP READINGS ARE NOT DIVES ==');
 
   chk('too short a record is not screened',
     screenIsolatedDepths([pt(0, 0), pt(6, 32), pt(12, 0)], (p) => p.d, (p) => p.t).rejected.length, 0);
+}
+
+console.log('\n== A BLOCKED HORIZON IS NOT AN INDOOR WINDOW ==');
+{
+  // The elevation tests keyed off the LOWEST elevation at which anything was
+  // received. That is an extreme-value statistic: across hundreds of passes one
+  // low reception always gets through, the minimum collapses, and the test never
+  // fires. A tag lying in wrack — horizon blocked all round, misses at the rim —
+  // fell through to the directional branch and was reported as being indoors
+  // beside a south-facing window, with a "biased toward the S" verdict printed
+  // next to a mean received azimuth of 61 degrees, which is ENE.
+  const mk = (el: number, az: number, received: boolean) =>
+    ({ maxElevation: el, peakAzimuth: az, received }) as never;
+
+  const wrack: never[] = [];
+  for (let i = 0; i < 60; i++) wrack.push(mk(5 + (i % 10), (i * 37) % 360, i % 9 === 0));
+  for (let i = 0; i < 50; i++) wrack.push(mk(18 + (i % 11), (i * 53) % 360, i % 3 === 0));
+  for (let i = 0; i < 40; i++) wrack.push(mk(32 + (i % 17), (i * 71) % 360, i % 2 === 0));
+  for (let i = 0; i < 30; i++) wrack.push(mk(55 + (i % 30), (i * 97) % 360, i % 4 !== 0));
+  const r = analyzeAntennaExposure(wrack);
+  chk('an all-round blocked horizon is recognised', r.pattern, 'horizon_obstructed');
+  chk('...even though low passes were sometimes heard',
+    wrack.filter((p: never) => (p as { maxElevation: number; received: boolean }).maxElevation < 15
+      && (p as { received: boolean }).received).length > 0, true);
+  chk('...and it cites the rate profile, not a single minimum',
+    /improves steadily with elevation/.test(r.reasoning), true);
+
+  // A genuinely one-sided block must still be caught.
+  const wall: never[] = [];
+  for (let i = 0; i < 40; i++) wall.push(mk(20 + (i % 50), 10 + (i % 70), true));
+  for (let i = 0; i < 40; i++) wall.push(mk(20 + (i % 50), 190 + (i % 30), i % 9 === 0));
+  for (let i = 0; i < 20; i++) wall.push(mk(20 + (i % 50), 90 + (i % 30), i % 2 === 0));
+  for (let i = 0; i < 20; i++) wall.push(mk(20 + (i % 50), 260 + (i % 30), i % 2 === 0));
+  const w = analyzeAntennaExposure(wall);
+  chk('a one-sided obstruction is still directional', w.pattern, 'directional');
+  chk('...and quotes the quadrant rates the verdict came from',
+    /% of passes from the [NESW] are heard against/.test(w.reasoning), true);
+
+  // Neither may speculate about indoor storage for a tag in the sea.
+  chk('no indoor/window guessing anywhere',
+    /indoor|window/i.test(r.reasoning + w.reasoning), false);
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`);

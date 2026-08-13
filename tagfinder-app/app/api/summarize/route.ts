@@ -216,6 +216,11 @@ hotels, piers, popular parks), expand the search to include:
 This guidance is especially important when the geocoded location suggests an urban, populated,
 or tourist beach area (as opposed to a remote/undeveloped shoreline).
 
+A field that is absent from the environment block is genuinely unavailable, not still
+loading — the brief is not written until those lookups have settled. So say "no seabed
+depth is available here" rather than treating a gap as a reason to withhold a conclusion
+you could otherwise draw, and never contradict a value that IS present.
+
 IMPORTANT: Use the environment data (location name, elevation, coastal vs inland) as the source of truth
 for geography. Don't guess county names — use env.location.name verbatim if available.
 

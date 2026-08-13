@@ -358,12 +358,25 @@ export default function TagFinderPage() {
     return merged;
   }, [result, fusedTagState, satCoverage, antennaExposure, landfall, driftForcing, tempComparison, bathymetry, burialDetection]);
 
-  // Fetch AI brief once environment + sat coverage are loaded
+  // Fetch AI brief once environment + sat coverage are loaded.
+  //
+  // Bathymetry belongs in this gate and was missing from it. An elevation model
+  // reports 0 m over open sea just as it does on a beach, so at a sea-level
+  // coordinate the seabed depth is the field that decides water from shore —
+  // the brief's own instructions say exactly that. Without it in the gate the
+  // brief fired as soon as elevation returned 0, wrote "the environment fields
+  // are empty, so I cannot tell you whether this sits in water or on shore",
+  // and was then printed above a panel showing a 2.0 m seabed.
+  //
+  // Forecast is deliberately left out: it is displayed but never changes a
+  // conclusion about where the tag is, so waiting on it would delay the brief
+  // for nothing.
   const envReady =
     !envLoading.elevation &&
     !envLoading.weather &&
     !envLoading.tides &&
-    !envLoading.location;
+    !envLoading.location &&
+    !envLoading.bathymetry;
 
   const fetchBrief = async () => {
     if (!displayResult) return;
