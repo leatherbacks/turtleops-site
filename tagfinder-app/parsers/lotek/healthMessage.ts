@@ -23,8 +23,8 @@ import { parseTimestamp } from '@/lib/timestamp';
  *   ----  -------------------------------  ------------------------------
  *   0     message type, always ED           all three tags
  *   1     format/config version             constant per tag, varies between
- *   2-4   u24 seconds counter              exact against record timestamps
- *   5     sub-second, units of 1/256 s     bytes[2:6] as u32 at 256 Hz
+ *   2-5   u32 counter at 256 Hz            exact against record timestamps,
+ *                                          WRAPS every 194.181 days
  *   6     latched release cause            31/31 vs ReleaseCause
  *   7-8   u16 serial number                31/31 exact
  *   9-10  u16 depth, metres                11/11 exact
@@ -61,6 +61,25 @@ import { parseTimestamp } from '@/lib/timestamp';
  */
 const HEALTH_TYPE_BYTE = 0xed;
 const PAYLOAD_LEN = 31;
+
+/**
+ * The tag clock is 32 bits at 256 Hz, so it rolls over every 194.181 days and
+ * tagSeconds is elapsed time MODULO that.
+ *
+ * This cost a wrong diagnosis and nearly a wrong warranty claim. A tag still
+ * transmitting 200 days after activation reported a clock of 6.5 days. Working
+ * back from that gave an apparent activation date months after the tag's own
+ * archive proved it was already running, which reads exactly like a device that
+ * rebooted — and two sibling tags on the same programme showed nothing similar,
+ * which looked like corroboration. It was not: those two stopped transmitting a
+ * few days before their own counters would have wrapped, so only the surviving
+ * tag ever crossed it. Adding one wrap put all three activations within four
+ * minutes of each other.
+ *
+ * Never derive an activation or release time from a single tagSeconds value.
+ * Use estimateClockEpoch, which is explicit about the ambiguity.
+ */
+export const TAG_CLOCK_WRAP_S = 4_294_967_296 / 256;
 
 /**
  * Lead on the undecoded traffic, recorded rather than acted on.
@@ -115,7 +134,9 @@ export function decodeHealthMessage(
     /** Format/config version — constant per deployment, varies between them. */
     formatByte: payload[1],
     // bytes[2:6] as fixed-point at 256 Hz reproduces the record timestamps to
-    // 0.01 s, so byte 5 is the fractional second rather than a separate field.
+    // 0.01 s. It is a 32-bit field, so it is elapsed time MODULO 194.181 days —
+    // see TAG_CLOCK_WRAP_S. A single message cannot tell you how many wraps have
+    // passed.
     tagSeconds: (u24(payload, 2) * 256 + payload[5]) / 256,
     statusByte: status,
     // A latched release cause, not a live conductivity reading. The
@@ -292,3 +313,35 @@ function modalLatched(records: LotekHealthRecord[]) {
   };
 }
 
+
+/**
+ * Recover the moment the tag's clock started, allowing for rollover.
+ *
+ * Returns every epoch consistent with the records — one per possible wrap count
+ * — rather than a single answer, because the data genuinely does not contain
+ * one. A caller with an outside constraint (a known deployment date, a sibling
+ * tag from the same batch) can pick; a caller without one should say the record
+ * is ambiguous rather than take the smallest.
+ *
+ * `wraps` is capped by the plausible life of the hardware rather than by
+ * arithmetic: at roughly 194 days a wrap, four covers more than two years.
+ */
+export function estimateClockEpoch(
+  records: LotekHealthRecord[],
+  maxWraps = 4
+): { wraps: number; epoch: Date; residualS: number }[] {
+  const dated = records.filter((r) => !isNaN(r.date.getTime()));
+  if (dated.length === 0) return [];
+
+  const out: { wraps: number; epoch: Date; residualS: number }[] = [];
+  for (let w = 0; w <= maxWraps; w++) {
+    // Each record implies an epoch; a correct wrap count makes them agree.
+    const implied = dated.map(
+      (r) => r.date.getTime() - (r.tagSeconds + w * TAG_CLOCK_WRAP_S) * 1000
+    );
+    const mean = implied.reduce((a, b) => a + b, 0) / implied.length;
+    const spread = Math.max(...implied) - Math.min(...implied);
+    out.push({ wraps: w, epoch: new Date(mean), residualS: spread / 1000 });
+  }
+  return out;
+}

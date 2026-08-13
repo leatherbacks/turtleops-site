@@ -1,4 +1,5 @@
 import { parseTimestamp } from '@/lib/timestamp';
+import { estimateClockEpoch, TAG_CLOCK_WRAP_S } from '@/parsers/lotek/healthMessage';
 import { readFileSync } from 'fs';
 import Papa from 'papaparse';
 import { requireFixture, MESSAGES_CSV } from './fixtures';
@@ -192,6 +193,40 @@ console.log('\n== CLS TIMESTAMPS ARE NOT WRITTEN CONSISTENTLY ==');
   ]);
   chk('a record with an unparseable date is not returned as valid',
     bad.records.every((r) => !isNaN(r.date.getTime())), true);
+}
+
+console.log('\n== THE TAG CLOCK WRAPS, AND A SMALL VALUE IS NOT A NEW TAG ==');
+{
+  // This cost a wrong diagnosis. The counter is 32 bits at 256 Hz, so it rolls
+  // over every 194.181 days. A tag still transmitting 200 days after activation
+  // reported 6.5 days; working back from that put its activation months after
+  // its own archive proved it was already running, which reads exactly like a
+  // device that rebooted. Two sibling tags showed nothing similar — but they had
+  // stopped transmitting days before their own counters would have wrapped, so
+  // only the surviving tag ever crossed it.
+  chk('wrap period is 194.181 days', Number((TAG_CLOCK_WRAP_S / 86400).toFixed(3)), 194.181);
+
+  const rec = (iso: string, tagSeconds: number) =>
+    ({ date: new Date(iso), tagSeconds }) as never;
+
+  // The real readings: a tag heard at 6.5 days, and a sibling at 177.2 days.
+  const wrapped = [
+    rec('2026-08-07T13:26:00Z', 6.5229 * 86400),
+    rec('2026-08-09T13:51:00Z', 8.5401 * 86400),
+  ];
+  const opts = estimateClockEpoch(wrapped);
+  chk('zero wraps gives the misleading answer',
+    opts[0].epoch.toISOString().slice(0, 7), '2026-08');
+  chk('one wrap lands in January', opts[1].epoch.toISOString().slice(0, 7), '2026-01');
+  chk('...on the 18th, with its siblings',
+    opts[1].epoch.toISOString().slice(0, 10), '2026-01-18');
+
+  // Both remain arithmetically consistent — the record cannot choose between
+  // them, and the function must not pretend otherwise.
+  chk('every wrap count is offered', opts.length >= 3, true);
+  chk('...each internally consistent', opts.every((o) => o.residualS < 120), true);
+
+  chk('no records, no epochs', estimateClockEpoch([]).length, 0);
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`);
