@@ -196,6 +196,30 @@ export interface DeploySummary {
   releaseDate: Date | null; // critical for Nault popoff estimation
   releaseType: string;
   deployDate: Date | null;
+  /** First and last transmissions actually received, per Summary.csv. */
+  earliestXmit: Date | null;
+  /** Last sample in the onboard archive, per Summary.csv. */
+  latestData: Date | null;
+  /**
+   * Latest moment the tag can still have been on the animal, recovered from the
+   * record when ReleaseDate is blank.
+   *
+   * A pop-up tag only transmits once it is free, so reception postdating the
+   * last archived sample proves it came off. It does NOT date the event: PSAT
+   * tethers are built to let go easily so a caught tag cannot entangle the
+   * animal, so detachment is often mechanical and premature, and a tag can float
+   * and keep recording for days before the archive ends. Treat this as an upper
+   * bound — the tag was free by this time, possibly well before it.
+   *
+   * Bounding late is the safe direction here: it is used to keep the animal's
+   * dive record out of analyses about the tag's own situation, and an upper
+   * bound only ever discards post-release readings rather than admitting
+   * pre-release ones.
+   *
+   * Kept separate from releaseDate so nothing needing the manufacturer's own
+   * figure — popoff estimation, for one — silently consumes an inference.
+   */
+  inferredReleaseDate: Date | null;
 }
 
 // ─── Drift State ───

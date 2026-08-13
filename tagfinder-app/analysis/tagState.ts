@@ -1,3 +1,4 @@
+import type { ReceptionQuality } from './receptionQuality';
 import type {
   TagStatus,
   TagStateInfo,
@@ -104,12 +105,23 @@ export function analyzeTagState(
   env?: EnvironmentData | null,
   series?: SeriesReading[] | null,
   satCoverage?: SatCoverage | null,
-  fixes?: ArgosFix[] | null
+  fixes?: ArgosFix[] | null,
+  reception?: ReceptionQuality | null
 ): TagStateInfo {
   const now = Date.now();
 
   // 1. Pre-popoff check (always takes priority)
-  if (summary && (!summary.releaseDate || summary.releaseDate.getTime() > now)) {
+  //
+  // A blank ReleaseDate does not mean the tag is still attached. Some exports
+  // simply omit it, and reading absence as "not yet released" sent a MiniPAT
+  // that had been transmitting for twelve days — and was later recovered buried
+  // on a beach — down the pre-popoff path, where every post-release diagnostic
+  // is skipped by design. Where the record itself proves the tag came off, use
+  // that. The inferred value is an upper bound rather than the moment of
+  // release, which is the right side to err on here: it can only withhold
+  // post-release readings, never admit the animal's dive record as the tag's.
+  const effectiveRelease = summary?.releaseDate ?? summary?.inferredReleaseDate ?? null;
+  if (summary && (!effectiveRelease || effectiveRelease.getTime() > now)) {
     return {
       ...emptyFields(statuses.length + (series?.length || 0)),
       phase: 'pre_popoff',
@@ -234,18 +246,39 @@ export function analyzeTagState(
       };
     }
 
-    // BURIED detection: on land + non-trivial depth reading + poor sat reception
-    // The "depth" is really sand/sediment weight on the pressure sensor
+    // BURIED detection: on land, and the antenna cannot get messages out.
+    //
+    // A depth reading is supporting evidence, NOT a requirement. Requiring one
+    // was wrong on the physics and made the common case undetectable: a tag
+    // under sand reads a depth only if the sand loads its pressure port like a
+    // fluid, and dry beach sand does not — it arches, and grain-to-grain
+    // contact carries most of the weight to the sides. Clearing the old 0.5 m
+    // threshold needed something like a third of a metre of fully
+    // load-transmitting column. A tag under 10-20 cm of dry sand is invisible,
+    // is radio-attenuated, and reads zero. One recovered buried on a Texas
+    // beach had no post-release depth reading at all.
     const hasNonZeroDepth = lastDepth !== null && lastDepth > 0.5;
+
+    // Either route to "the messages are not getting out" will do. The coverage
+    // route needs passes predicted from orbital elements and so is only
+    // available while a tag is live; the reception route is computed from the
+    // received passes alone and still works on a tag recovered months later.
     const poorReception =
       satCoverage &&
       satCoverage.totalPredicted >= 20 &&
       satCoverage.receptionRate < 0.1;
+    const obstructedAntenna = reception?.verdict === 'obstructed';
 
-    if (hasNonZeroDepth && poorReception) {
+    if (poorReception || obstructedAntenna) {
+      const depthNote = hasNonZeroDepth
+        ? ` The depth sensor also reads ${lastDepth!.toFixed(1)} m, consistent with sediment loading the pressure port.`
+        : ' The depth sensor reads zero, which does not argue against burial — dry sand carries its weight through grain contact rather than loading the port like water.';
+      const evidence = obstructedAntenna
+        ? reception!.reasoning
+        : `Satellite reception is ${(satCoverage!.receptionRate * 100).toFixed(0)}% of predicted passes.`;
       return {
         phase: 'buried',
-        reasoning: `Position is on land (elevation ${elevation.meters.toFixed(1)}m) with a non-zero depth reading (${lastDepth!.toFixed(1)}m of sand/sediment pressure) and poor satellite reception (${(satCoverage!.receptionRate * 100).toFixed(0)}%). Tag is likely buried with only antenna exposed.`,
+        reasoning: `Position is on land (elevation ${elevation.meters.toFixed(1)} m). ${evidence}${depthNote}`,
         lastDepth,
         lastTemperature,
         avgTemperature,
@@ -258,8 +291,9 @@ export function analyzeTagState(
       };
     }
 
-    // BURIED (depth only) — if we don't have sat coverage data but depth suggests burial
-    if (hasNonZeroDepth && !satCoverage) {
+    // Depth on its own still suggests burial when neither reception route could
+    // be evaluated. Weaker than the branch above and worded as such.
+    if (hasNonZeroDepth && !satCoverage && !reception) {
       return {
         phase: 'buried',
         reasoning: `Position is on land (elevation ${elevation.meters.toFixed(1)}m) with a non-zero depth reading (${lastDepth!.toFixed(1)}m). May indicate burial \u2014 the depth sensor could be reading sand/sediment pressure.`,

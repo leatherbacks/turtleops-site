@@ -10,6 +10,7 @@ import { analyzeTagState } from '@/analysis/tagState';
 import { predictPassesInWindow } from '@/analysis/satPrediction';
 import { analyzePassGeometry } from '@/analysis/passGeometry';
 import { analyzeSatCoverage } from '@/analysis/satCoverage';
+import { analyzeReceptionQuality } from '@/analysis/receptionQuality';
 import { analyzeAntennaExposure } from '@/analysis/antennaExposure';
 import { compareTemperatures } from '@/analysis/tempComparison';
 import { analyzeBathymetry } from '@/analysis/bathymetry';
@@ -118,6 +119,19 @@ export default function TagFinderPage() {
     hoursAhead: 48,
   });
 
+  // How much sky the antenna can see, from the received passes alone. Unlike
+  // satCoverage this needs no orbital elements, so it still works on a tag whose
+  // transmissions ended months ago — which is every recovered tag.
+  const receptionQuality = useMemo(() => {
+    if (!result || passes.length === 0) return null;
+    const located = result.allFixes.filter((f) => !f.isOutlier);
+    return analyzeReceptionQuality(
+      passes,
+      located.length,
+      located.map((f) => f.quality)
+    );
+  }, [result, passes]);
+
   // Re-run tag state classification with environment + series + sat coverage + fixes
   const fusedTagState = useMemo(() => {
     if (!result) return null;
@@ -128,9 +142,10 @@ export default function TagFinderPage() {
       envData,
       series,
       satCoverage,
-      result.allFixes
+      result.allFixes,
+      receptionQuality
     );
-  }, [result, statuses, series, envData, satCoverage]);
+  }, [result, statuses, series, envData, satCoverage, receptionQuality]);
 
   // Fetch TLEs and compute satellite coverage once we have a result
   useEffect(() => {

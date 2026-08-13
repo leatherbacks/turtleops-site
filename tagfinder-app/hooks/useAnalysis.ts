@@ -210,6 +210,9 @@ export function useAnalysis(): UseAnalysisReturn {
           percentDecoded: 0,
           passes: 0,
           releaseDate: lotekHealth.records[0].date,
+          earliestXmit: lotekHealth.records[0].date,
+          latestData: null,
+          inferredReleaseDate: null,
           releaseType: '',
           deployDate: null,
         };
