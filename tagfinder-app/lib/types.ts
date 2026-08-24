@@ -186,6 +186,21 @@ export interface CorruptMessage {
 
 // ─── Deploy Summary ───
 
+/**
+ * One sample from the Lotek activity log (message type 0xA0). Temperature only —
+ * the pressure channel in the same record is not yet decoded. Timed by the tag's
+ * own clock, not by reception, since the archive is replayed long after it was
+ * recorded.
+ */
+export interface LotekActivityRecord {
+  /** Elapsed tag clock in seconds, modulo the 194.181-day wrap. */
+  tagSeconds: number;
+  temperatureC: number;
+  formatByte: number;
+  /** When this copy arrived — for provenance, not for dating the sample. */
+  receivedAt: Date;
+}
+
 export interface DeploySummary {
   deployId: string;
   ptt: number;

@@ -1,5 +1,6 @@
 import { parseTimestamp } from '@/lib/timestamp';
 import { estimateClockEpoch, TAG_CLOCK_WRAP_S } from '@/parsers/lotek/healthMessage';
+import { decodeActivityMessage, parseLotekActivityMessages } from '@/parsers/lotek/activityMessage';
 import { readFileSync } from 'fs';
 import Papa from 'papaparse';
 import { requireFixture, MESSAGES_CSV } from './fixtures';
@@ -227,6 +228,63 @@ console.log('\n== THE TAG CLOCK WRAPS, AND A SMALL VALUE IS NOT A NEW TAG ==');
   chk('...each internally consistent', opts.every((o) => o.residualS < 120), true);
 
   chk('no records, no epochs', estimateClockEpoch([]).length, 0);
+}
+
+console.log('\n== ACTIVITY LOG (0xA0) — PARTIAL DECODE ==');
+{
+  // 0xA0 is the bulk of what these tags transmit and was skipped entirely.
+  // Temperature is decoded; pressure is not. The layout was found by pairing
+  // raw payloads against the manufacturer's decode of the same deployment.
+  const real = rows.find((r) =>
+    (r['Raw data'] ?? '').trim().toLowerCase().startsWith('a0'));
+  chk('the export contains activity payloads', real !== undefined, true);
+
+  if (real) {
+    const bytes = Uint8Array.from(
+      (real['Raw data'].trim().match(/../g) ?? []).map((x) => parseInt(x, 16))
+    );
+    const d = decodeActivityMessage(bytes)!;
+    chk('seven records per message', d.temperaturesC.length, 7);
+    // Not the same as the health message's on the same tag — 0x31 against 0x32 —
+    // so byte 1 varies by message type, not only by deployment.
+    chk('the format byte differs from the health message\'s',
+      d.formatByte !== h.records[0].formatByte, true);
+    // Not constant — corrupt payloads scatter it across many values. What holds
+    // is that one value dominates, which is why it is too weak to screen on.
+    const fmts = parseLotekActivityMessages(rows).records.map((r) => r.formatByte);
+    const counts = new Map<number, number>();
+    for (const f of fmts) counts.set(f, (counts.get(f) ?? 0) + 1);
+    const modal = Math.max(...counts.values());
+    chk('...and one format byte dominates the rest', modal / fmts.length > 0.9, true);
+    chk('the clock is on the same 256 Hz scale', d.baseTagSeconds > 0, true);
+  }
+
+  const act = parseLotekActivityMessages(rows);
+  chk('records are recovered in bulk', act.records.length > 1000, true);
+  chk('...ordered by the tag clock',
+    act.records.every((r, i) => i === 0 || r.tagSeconds >= act.records[i - 1].tagSeconds), true);
+  chk('...spaced 300 s apart within a message',
+    act.records.length > 1 &&
+      act.records.slice(1, 40).some((r, i) => Math.abs(r.tagSeconds - act.records[i].tagSeconds - 300) < 1),
+    true);
+  chk('every temperature is physical',
+    act.records.every((r) => r.temperatureC > -5 && r.temperatureC < 45), true);
+
+  // Byte 15 is not part of a record. A uniform 3-byte stride decodes the fourth
+  // record onward to nothing, which is how the gap was found.
+  const b = Uint8Array.from([0xa0, 0x31, 0xe5, 0x21, 0x7c, 0xe5,
+    0x9d, 0xe5, 0x06, 0x9d, 0xcd, 0x06, 0x9d, 0xc5, 0x06, 0x60,
+    0x9d, 0xc5, 0x06, 0x9d, 0xcd, 0x06, 0x9d, 0xb8, 0x06, 0x9d, 0x06, 0xcd, 0x06, 0x9d, 0xb8]);
+  const d2 = decodeActivityMessage(b)!;
+  chk('records 3 and 4 decode past the skipped byte',
+    d2.temperaturesC[3] !== null && d2.temperaturesC[4] !== null, true);
+  chk('...to sane values',
+    d2.temperaturesC[3]! > 25 && d2.temperaturesC[3]! < 35, true);
+
+  chk('a non-activity payload is refused',
+    decodeActivityMessage(Uint8Array.from(new Array(31).fill(0xed))), null);
+  chk('a wrong-length payload is refused',
+    decodeActivityMessage(Uint8Array.from(new Array(20).fill(0xa0))), null);
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`);
