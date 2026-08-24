@@ -33,25 +33,37 @@ console.log(`  ${pred.fitFrom.toISOString()} -> ${pred.fitTo.toISOString()}`);
 chk('fit window populated', !isNaN(pred.fitFrom.getTime()) && !isNaN(pred.fitTo.getTime()));
 chk('window is ~12h', (pred.fitTo.getTime()-pred.fitFrom.getTime())/3.6e6 <= 12.5);
 
-// live data
-const url = `https://api.open-meteo.com/v1/forecast?latitude=${pos.lat}&longitude=${pos.lon}&hourly=wind_speed_10m,wind_direction_10m&wind_speed_unit=ms&past_days=7&forecast_days=3&timezone=UTC`;
-const murl = `https://marine-api.open-meteo.com/v1/marine?latitude=${pos.lat}&longitude=${pos.lon}&hourly=ocean_current_velocity,ocean_current_direction&past_days=7&forecast_days=3&timezone=UTC`;
-const [w, m] = await Promise.all([fetch(url).then(r=>r.json()), fetch(murl).then(r=>r.json()).catch(()=>null)]);
-const ci = new Map<string, number>((m?.hourly?.time ?? []).map((t: string, i: number) => [t, i]));
-const samples: ForcingSample[] = (w.hourly.time as string[]).map((t, i) => {
-  const j = ci.get(t);
-  return {
-    time: new Date(t + 'Z'),
-    windSpeedMs: w.hourly.wind_speed_10m[i] ?? null,
-    windFromDeg: w.hourly.wind_direction_10m[i] ?? null,
-    currentKmH: j !== undefined ? m.hourly.ocean_current_velocity[j] ?? null : null,
-    currentTowardDeg: j !== undefined ? m.hourly.ocean_current_direction[j] ?? null : null,
-  };
-});
+// Forcing samples are generated around the fit window rather than fetched.
+//
+// This block used to call open-meteo with past_days=7 relative to the wall
+// clock, then assert that the history covered a fit window derived from the
+// fixture's own dates. That holds only while the machine's date is within a
+// week of the deployment, and silently rots afterwards: run eleven days later,
+// four assertions fail because the fetched window no longer reaches the fixture
+// and because the shifted-wind case flips only samples "after now", of which
+// there are then none. The failures say nothing about the code.
+//
+// The subject here is assessDriftForcing, not the weather service. Samples are
+// synthesised across the fit window with a known current and wind so every
+// assertion has a fixed answer, and NOW is pinned to the data instead of to the
+// calendar.
+const NOW = new Date(pred.fitTo.getTime());
+const CURRENT_TOWARD = pred.headingDeg;          // aligned, so agreement is ~0
+const CURRENT_KMH = pred.speedKmH / 0.09;        // tag much slower than the water
+const samples: ForcingSample[] = [];
+for (let h = -7 * 24; h <= 3 * 24; h++) {
+  samples.push({
+    time: new Date(NOW.getTime() + h * 3_600_000),
+    windSpeedMs: 4.5,
+    windFromDeg: 110,
+    currentKmH: CURRENT_KMH,
+    currentTowardDeg: CURRENT_TOWARD,
+  });
+}
 console.log(`\n  ${samples.length} hourly samples, ${samples.filter(s=>s.currentKmH!==null).length} with current`);
 chk('fit window is covered by history', samples.some(s => s.time >= pred.fitFrom && s.time <= pred.fitTo));
 
-const f = assessDriftForcing(pred, samples, new Date(), 24)!;
+const f = assessDriftForcing(pred, samples, NOW, 24)!;
 console.log('\n== FORCING CHECK ==');
 console.log(`  measured drift : ${pred.speedKmH.toFixed(2)} km/h toward ${pred.headingDeg.toFixed(0)}deg`);
 if (f.current) console.log(`  model current  : ${f.current.speedKmH.toFixed(2)} km/h toward ${f.current.towardDeg.toFixed(0)}deg`);
@@ -62,26 +74,22 @@ console.log(`\n  ${f.reasoning}`);
 
 chk('current direction agrees (<45deg)', (f.currentAgreementDeg ?? 999) < 45, `${f.currentAgreementDeg?.toFixed(0)}deg`);
 chk('detects tag slower than current', (f.currentSpeedRatio ?? 9) < 0.4, `ratio ${f.currentSpeedRatio?.toFixed(2)}`);
-// Deliberately NOT asserting the live wind is steady — it is a forecast and it
-// moves. This test failed once because the model updated between runs, which is
-// the data changing, not the code. Wind-shift logic is checked synthetically
-// below, where the input is fixed.
-console.log(`  (live wind shift ${f.windShiftDeg?.toFixed(0)}deg -> windShifted=${f.windShifted}, confidence ${f.confidence})`);
+console.log(`  (wind shift ${f.windShiftDeg?.toFixed(0)}deg -> windShifted=${f.windShifted}, confidence ${f.confidence})`);
 chk('wind shift is computed', f.windShiftDeg !== null);
 chk('confidence is one of the three', ['good','caution','low'].includes(f.confidence), f.confidence);
 
 console.log('\n== STEADY-WIND CASE (synthetic) ==');
 const steady: ForcingSample[] = samples.map(s => ({ ...s, windFromDeg: 110, windSpeedMs: 4.5 }));
-const f3 = assessDriftForcing(pred, steady, new Date(), 24)!;
+const f3 = assessDriftForcing(pred, steady, NOW, 24)!;
 chk('constant wind -> not shifted', !f3.windShifted, `${f3.windShiftDeg?.toFixed(0)}deg`);
 chk('constant wind -> confidence good', f3.confidence === 'good', f3.confidence);
 
 console.log('\n== SHIFTED-WIND CASE (synthetic) ==');
 const flipped: ForcingSample[] = samples.map(s => ({
   ...s,
-  windFromDeg: s.time > new Date() ? ((s.windFromDeg ?? 0) + 150) % 360 : s.windFromDeg,
+  windFromDeg: s.time > NOW ? ((s.windFromDeg ?? 0) + 150) % 360 : s.windFromDeg,
 }));
-const f2 = assessDriftForcing(pred, flipped, new Date(), 24)!;
+const f2 = assessDriftForcing(pred, flipped, NOW, 24)!;
 chk('detects a wind reversal', f2.windShifted, `${f2.windShiftDeg?.toFixed(0)}deg shift`);
 chk('drops confidence to low', f2.confidence === 'low', f2.confidence);
 

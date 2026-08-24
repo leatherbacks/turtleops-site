@@ -254,7 +254,7 @@ console.log('\n== ACTIVITY LOG (0xA0) — PARTIAL DECODE ==');
     const fmts = parseLotekActivityMessages(rows).records.map((r) => r.formatByte);
     const counts = new Map<number, number>();
     for (const f of fmts) counts.set(f, (counts.get(f) ?? 0) + 1);
-    const modal = Math.max(...counts.values());
+    const modal = Math.max(...Array.from(counts.values()));
     chk('...and one format byte dominates the rest', modal / fmts.length > 0.9, true);
     chk('the clock is on the same 256 Hz scale', d.baseTagSeconds > 0, true);
   }
