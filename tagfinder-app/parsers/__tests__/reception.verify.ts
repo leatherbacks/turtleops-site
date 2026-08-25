@@ -2,6 +2,7 @@ import { analyzeReceptionQuality } from '@/analysis/receptionQuality';
 import { analyzeTagState } from '@/analysis/tagState';
 import { parseSummary } from '@/parsers/wc/summary';
 import { screenIsolatedDepths } from '@/analysis/depthScreen';
+import { buildDiveProfile } from '@/analysis/diveProfile';
 import { analyzeAntennaExposure } from '@/analysis/antennaExposure';
 import { detectCrushDepthEvent } from '@/analysis/crushDepth';
 import { compareTemperatures } from '@/analysis/tempComparison';
@@ -46,7 +47,7 @@ console.log('\n== MESSAGES PER PASS IS THE MEASUREMENT ==');
   const buried = [1, 3, 1, 2, 2, 1, 3, 2, 2, 1, 3, 2, 2, 1, 4, 7].map((m, i) => mk(i, m));
   const b = analyzeReceptionQuality(buried, 5, ['A', 'A', '3', '2', 'A']);
   chk('the recovered-buried tag reads obstructed', b.verdict, 'obstructed');
-  chk('...at 2.3 messages per pass', b.messagesPerPass, 2.31);
+  chk('...at 2.3 messages per pass', b.messagesPerPass, 2.3);
   chk('...and blames cover over the tag, not beside it',
     /over the tag rather than beside it/.test(b.reasoning), true);
 
@@ -154,7 +155,7 @@ console.log('\n== CALIBRATED AGAINST TWO RECOVERED TAGS ==');
     buriedCounts.map((m, i) => mk(i, m)), 5, ['A', 'A', '3', '2', 'A']
   );
   chk('recovered buried -> obstructed', buried.verdict, 'obstructed');
-  chk('...at the measured 2.3 messages per pass', buried.messagesPerPass, 2.31);
+  chk('...at the measured 2.3 messages per pass', buried.messagesPerPass, 2.3);
   chk('...with 13% of passes reaching the four-message floor',
     Math.round(buried.resolvingFraction! * 100), 13);
 
@@ -227,6 +228,16 @@ console.log('\n== ISOLATED DEEP READINGS ARE NOT DIVES ==');
 
   chk('too short a record is not screened',
     screenIsolatedDepths([pt(0, 0), pt(6, 32), pt(12, 0)], (p) => p.d, (p) => p.t).rejected.length, 0);
+
+  // The chart must agree with the stats: screened depths plot as gaps.
+  const rd = (day: number, depth: number) =>
+    ({ date: new Date(Date.UTC(2026, 7, 7) + day * 6 * H, ), depth, temperature: 30, activity: null }) as never;
+  const prof = buildDiveProfile([0,0,0,0,21,0,32,0,0,0,0,0,0,0,0].map((d, i) => rd(i, d)))!;
+  chk('screened depths are absent from the plotted series',
+    prof.displaySeries.every((x) => x.depth === null || x.depth < 5), true);
+  chk('...while their temperatures survive',
+    prof.displaySeries.every((x) => x.temp !== null), true);
+  chk('...and the stats agree with the plot', prof.maxDepth, 0);
 }
 
 console.log('\n== A BLOCKED HORIZON IS NOT AN INDOOR WINDOW ==');

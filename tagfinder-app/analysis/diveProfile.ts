@@ -38,9 +38,15 @@ export function buildDiveProfile(readings: SeriesReading[]): DiveProfile | null 
       : null;
 
   // Downsample by taking evenly-spaced points
+  // The chart must not contradict the stats above it. The screen removed the
+  // isolated corrupt depths from every number, but the plotted series bypassed
+  // it, so one report showed "MAX 0.0 m" over a line dipping to 32 m with the
+  // axis labelled from the corrupt value. Rejected depths plot as gaps; their
+  // temperatures are genuine and stay.
+  const rejected = new Set(screen.rejected);
   const displaySeries = downsample(readings, MAX_DISPLAY_POINTS).map((r) => ({
     date: r.date,
-    depth: r.depth,
+    depth: rejected.has(r) ? null : r.depth,
     temp: r.temperature,
   }));
 
