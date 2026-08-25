@@ -34,7 +34,7 @@ export default function TagMap({ result, style }: TagMapProps) {
       {/* Esri World Imagery */}
       <TileLayer
         url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-        attribution="Tiles &copy; Esri"
+        attribution="Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community"
         maxZoom={19}
       />
       {/* Esri Reference labels */}
