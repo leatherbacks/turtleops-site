@@ -4,6 +4,15 @@ import { LAND_THRESHOLD_M, INTERTIDAL_MAX_DEPTH_M } from '@/lib/constants';
 
 interface UseEnvironmentReturn {
   data: EnvironmentData;
+  /**
+   * True once every fetch for the current position has finished, success or
+   * failure. Distinct from the loading flags, whose initial state is false —
+   * "not loading" at mount means "not started", and a consumer that gated on
+   * it fired before any data existed. React 18's effect ordering happened to
+   * mask that; React 19's did not, and an AI brief shipped claiming the
+   * environment was empty above panels displaying it.
+   */
+  settled: boolean;
   loading: {
     elevation: boolean;
     weather: boolean;
@@ -39,11 +48,20 @@ export function useEnvironment(
     bathymetry: false,
     forecast: false,
   });
+  const [settled, setSettled] = useState(false);
 
   useEffect(() => {
     if (lat === null || lon === null) return;
 
+    setSettled(false);
     setLoading({ elevation: true, weather: true, tides: true, location: true, bathymetry: true, forecast: true });
+
+    // Settles only when every chain below has finished, success or failure.
+    let remaining = 6;
+    const done = () => {
+      remaining--;
+      if (remaining === 0) setSettled(true);
+    };
 
     // Elevation
     fetch(`/api/elevation?lat=${lat}&lon=${lon}`)
@@ -65,7 +83,7 @@ export function useEnvironment(
         }
       })
       .catch(() => {})
-      .finally(() => setLoading((l) => ({ ...l, elevation: false })));
+      .finally(() => { setLoading((l) => ({ ...l, elevation: false })); done(); });
 
     // Weather
     fetch(`/api/weather?lat=${lat}&lon=${lon}`)
@@ -85,7 +103,7 @@ export function useEnvironment(
         }
       })
       .catch(() => {})
-      .finally(() => setLoading((l) => ({ ...l, weather: false })));
+      .finally(() => { setLoading((l) => ({ ...l, weather: false })); done(); });
 
     // Tides
     fetch(`/api/tides?lat=${lat}&lon=${lon}`)
@@ -117,7 +135,7 @@ export function useEnvironment(
         }
       })
       .catch(() => {})
-      .finally(() => setLoading((l) => ({ ...l, tides: false })));
+      .finally(() => { setLoading((l) => ({ ...l, tides: false })); done(); });
 
     // Forecast (7-day wind/wave + storm alert)
     fetch(`/api/forecast?lat=${lat}&lon=${lon}`)
@@ -137,7 +155,7 @@ export function useEnvironment(
         }
       })
       .catch(() => {})
-      .finally(() => setLoading((l) => ({ ...l, forecast: false })));
+      .finally(() => { setLoading((l) => ({ ...l, forecast: false })); done(); });
 
     // Bathymetry (GEBCO seabed depth)
     fetch(`/api/bathymetry?lat=${lat}&lon=${lon}`)
@@ -155,7 +173,7 @@ export function useEnvironment(
         }
       })
       .catch(() => {})
-      .finally(() => setLoading((l) => ({ ...l, bathymetry: false })));
+      .finally(() => { setLoading((l) => ({ ...l, bathymetry: false })); done(); });
 
     // Geocoding
     fetch(`/api/geocode?lat=${lat}&lon=${lon}`)
@@ -174,7 +192,7 @@ export function useEnvironment(
         }
       })
       .catch(() => {})
-      .finally(() => setLoading((l) => ({ ...l, location: false })));
+      .finally(() => { setLoading((l) => ({ ...l, location: false })); done(); });
   }, [lat, lon]);
 
   /**
@@ -203,5 +221,5 @@ export function useEnvironment(
     return { ...data, elevation: { ...el, classification } };
   }, [data]);
 
-  return { data: classified, loading };
+  return { data: classified, loading, settled };
 }

@@ -9,7 +9,14 @@ import { checkRateLimit } from '@/lib/rateLimit';
  * /api/summarize has its own per-email rate limit (handled inside the route).
  */
 
-const IP_MAX_PER_DAY = 60;
+/**
+ * One analysis run costs 10-15 limited calls now that all ten environment
+ * proxies count against this. The old cap of 60 was set when five routes did —
+ * doubling the coverage without touching the budget cut a legitimate user to
+ * about four runs a day, and a staging session hit the ceiling mid-pageload.
+ * 300 is a day of heavy real use and still a rounding error for a scraper.
+ */
+const IP_MAX_PER_DAY = 300;
 
 const RATE_LIMITED_ROUTES = [
   '/api/elevation',
