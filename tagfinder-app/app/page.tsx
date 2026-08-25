@@ -767,8 +767,16 @@ export default function TagFinderPage() {
             )}
 
             <div className="mt-8 text-center text-xs text-muted space-y-1">
-              <p>Your data stays in your browser. Only computed coordinates are sent to APIs for environmental context.</p>
-              <p>Currently supports Wildlife Computers tags. More formats coming soon.</p>
+              <p>
+                Your files never leave your browser &mdash; parsing and analysis run
+                client-side. Environmental lookups send only computed coordinates; the
+                AI brief sends the computed analysis summary (never your raw files) to
+                Anthropic; sharing a report stores that summary.
+              </p>
+              <p>
+                Supports Wildlife Computers and Lotek PSAT+ &mdash; decoded CSVs, raw
+                Argos dumps, and the logs off a recovered tag.
+              </p>
             </div>
           </div>
         )}
