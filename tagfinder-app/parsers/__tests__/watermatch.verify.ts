@@ -12,7 +12,8 @@ const chk = (l: string, got: unknown, want: unknown) => {
   );
 };
 
-// Miami, the position of the deployment this analysis was built for.
+// A subtropical western-boundary-current coast, matching the deployment this
+// analysis was built for. Kept as coordinates rather than a place name.
 const LAT = 25.8998, LON = -80.1367;
 const DAY0 = Date.UTC(2026, 7, 7, 0, 0);
 const at = (hoursFromStart: number) => new Date(DAY0 + hoursFromStart * 3_600_000);
