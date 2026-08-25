@@ -61,6 +61,7 @@ export default function TagFinderPage() {
   const { session, email, loading: authLoading, authRequired, signOut } = useTagFinderAuth();
 
   const [satCoverage, setSatCoverage] = useState<SatCoverage | null>(null);
+  const [satCoverageUnavailable, setSatCoverageUnavailable] = useState<string | null>(null);
   const [antennaExposure, setAntennaExposure] = useState<AntennaExposure | null>(null);
   const [landfall, setLandfall] = useState<LandfallPrediction | null>(null);
   const [driftForcing, setDriftForcing] = useState<DriftForcing | null>(null);
@@ -168,7 +169,19 @@ export default function TagFinderPage() {
     (async () => {
       try {
         const res = await fetch('/api/tles');
-        if (!res.ok) return;
+        if (!res.ok) {
+          // These panels used to vanish without a trace when the element feed
+          // failed, which hid the tool's best obstruction diagnostic — the sky
+          // view that located a tag against a seawall — without telling anyone
+          // it existed. Absence now says why.
+          if (!cancelled)
+            setSatCoverageUnavailable(
+              res.status === 429
+                ? 'Rate limit reached — satellite coverage and the sky view will return tomorrow.'
+                : 'Orbital-element feed unreachable — satellite coverage and the sky view are unavailable until it recovers (usually a few hours). The Antenna Exposure panel below does not need it.'
+            );
+          return;
+        }
         const data = await res.json();
         if (cancelled || !data.entries || data.entries.length === 0) return;
 
@@ -503,6 +516,7 @@ export default function TagFinderPage() {
   const handleReset = () => {
     reset();
     setSatCoverage(null);
+    setSatCoverageUnavailable(null);
     setAntennaExposure(null);
     setBrief(null);
     setBriefError(null);
@@ -879,6 +893,14 @@ export default function TagFinderPage() {
                 {/* Satellite coverage (if we have Argos passes) */}
                 {displayResult.satCoverage && (
                   <SatCoveragePanel coverage={displayResult.satCoverage} />
+                )}
+                {!displayResult.satCoverage && satCoverageUnavailable && (
+                  <div className="bg-surface rounded-xl border border-border p-5 text-sm text-muted">
+                    <h3 className="font-semibold text-foreground mb-1">
+                      Satellite Coverage &amp; Sky View
+                    </h3>
+                    {satCoverageUnavailable}
+                  </div>
                 )}
 
                 {/* Sky chart — per-pass azimuth/elevation visualization */}
