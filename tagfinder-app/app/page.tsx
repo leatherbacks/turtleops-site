@@ -75,7 +75,7 @@ export default function TagFinderPage() {
   const [shareCopied, setShareCopied] = useState(false);
 
   // Fetch environment once we have a position
-  const { data: envData, loading: envLoading } = useEnvironment(
+  const { data: envData, loading: envLoading, settled: envSettled } = useEnvironment(
     result?.bestLat ?? null,
     result?.bestLon ?? null
   );
@@ -371,12 +371,11 @@ export default function TagFinderPage() {
   // Forecast is deliberately left out: it is displayed but never changes a
   // conclusion about where the tag is, so waiting on it would delay the brief
   // for nothing.
-  const envReady =
-    !envLoading.elevation &&
-    !envLoading.weather &&
-    !envLoading.tides &&
-    !envLoading.location &&
-    !envLoading.bathymetry;
+  // "All fetches finished" — NOT "none currently loading". The loading flags
+  // initialize false, so at mount "not loading" meant "not started", and under
+  // React 19's effect ordering the brief fired in that gap with an empty
+  // environment, then printed above fully populated panels.
+  const envReady = envSettled;
 
   const fetchBrief = async () => {
     if (!displayResult) return;

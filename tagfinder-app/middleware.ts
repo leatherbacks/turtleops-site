@@ -9,7 +9,14 @@ import { checkRateLimit } from '@/lib/rateLimit';
  * /api/summarize has its own per-email rate limit (handled inside the route).
  */
 
-const IP_MAX_PER_DAY = 60;
+/**
+ * One analysis run costs 10-15 limited calls now that all ten environment
+ * proxies count against this. The old cap of 60 was set when five routes did —
+ * doubling the coverage without touching the budget cut a legitimate user to
+ * about four runs a day, and a staging session hit the ceiling mid-pageload.
+ * 300 is a day of heavy real use and still a rounding error for a scraper.
+ */
+const IP_MAX_PER_DAY = 300;
 
 const RATE_LIMITED_ROUTES = [
   '/api/elevation',
@@ -32,13 +39,11 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Client IP. request.ip and x-real-ip are set by the platform and cannot be
-  // supplied by the client; the leftmost x-forwarded-for entry can be, and
-  // keying the limit on it let anyone dodge the cap by rotating fake values.
-  const ip =
-    request.ip ||
-    request.headers.get('x-real-ip') ||
-    'unknown';
+  // Client IP. x-real-ip is set by the platform and cannot be supplied by the
+  // client; the leftmost x-forwarded-for entry can be, and keying the limit on
+  // it let anyone dodge the cap by rotating fake values. (request.ip existed
+  // here briefly and was removed in Next 15 — the header is the stable field.)
+  const ip = request.headers.get('x-real-ip') || 'unknown';
 
   try {
     const result = await checkRateLimit({

@@ -10,9 +10,9 @@ import { createSupabaseAdminClient } from '@/lib/supabase';
  */
 export async function GET(
   request: NextRequest,
-  context: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
-  const { id } = context.params;
+  const { id } = await context.params;
   // ?stats=1 returns the row without incrementing view_count — used by the
   // creator's own UI to poll the counter without inflating it.
   const statsOnly = request.nextUrl.searchParams.get('stats') === '1';
