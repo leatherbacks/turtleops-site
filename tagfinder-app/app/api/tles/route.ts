@@ -79,8 +79,24 @@ export async function GET() {
     }
   }
 
+  const entries = Array.from(byName.values());
+
+  // Zero entries means every upstream fetch failed, and that deserves a status
+  // the client can distinguish, not an empty success. It took a debugging
+  // session to learn that "no TLE data" here meant "CelesTrak refused the
+  // server's egress IP on a cold cache" — cloud IPs are shared, CelesTrak
+  // blocks the noisy ones, and a fresh deployment fires seven simultaneous
+  // requests from one of them. A warm data cache masks all of this, which is
+  // why production worked while every cold preview failed.
+  if (entries.length === 0) {
+    return NextResponse.json(
+      { entries, reason: 'upstream_unreachable' },
+      { status: 502 }
+    );
+  }
+
   return NextResponse.json(
-    { entries: Array.from(byName.values()) },
+    { entries },
     { headers: { 'Cache-Control': 'public, max-age=86400, s-maxage=86400' } }
   );
 }

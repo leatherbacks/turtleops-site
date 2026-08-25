@@ -42,7 +42,17 @@ export function useUpcomingPasses({
       try {
         const res = await fetch('/api/tles');
         if (!res.ok) {
-          if (!cancelled) setError('Failed to fetch TLE data');
+          if (!cancelled) {
+            // Name the cause — three different failures used to share one
+            // message, and telling them apart took a debugging session.
+            setError(
+              res.status === 429
+                ? 'Rate limit reached — pass predictions will return tomorrow.'
+                : res.status === 502
+                  ? 'Orbital-element feed unreachable from the server (upstream refused the request). Usually transient — try again in a few hours.'
+                  : 'Failed to fetch TLE data'
+            );
+          }
           return;
         }
         const data = await res.json();
