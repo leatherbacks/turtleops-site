@@ -221,7 +221,13 @@ export interface LotekBasicAux {
   streamSeconds: number;
   /** Volts, raw/20 — inferred scale; null when outside any plausible battery. */
   batteryV: number | null;
-  /** The five unidentified bytes after battery; light is likely among them. */
+  /**
+   * Light, 0-255 on the sensor's own log-like scale, uncalibrated — not
+   * comparable to the health message's light units. Identified by its diel
+   * behaviour, phase-locked to the sunrise and sunset the tag itself measured.
+   */
+  lightRaw: number;
+  /** The four remaining unidentified bytes. */
   raw: number[];
 }
 

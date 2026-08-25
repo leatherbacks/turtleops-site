@@ -31,10 +31,28 @@
  * conversion from any co-timed calibrated reference. Do not ship a hardcoded
  * scale.
  *
- * The aux record's first byte is battery: volts = raw/20, inferred from the
- * manufacturer's 3.6 V nominal and a month of readings sitting at 3.65-3.70 V.
- * The remaining five bytes are unidentified (light is known to be sampled on
- * this cadence and is presumably among them).
+ * The aux record is [E2][battery][light][u1][u2][u3][u4]:
+ *
+ * Battery: volts = raw/20, inferred from the manufacturer's 3.6 V nominal and
+ * a month of readings sitting at 3.65-3.70 V.
+ *
+ * Light: 0-255 on a log-like scale of its own — NOT the health message's
+ * units. Identified, not assumed: it is the only aux field with any diel
+ * signal (17.6x midday over midnight, medians across 28 days), and deriving
+ * sunrise and sunset from it by threshold crossing reproduces the times the
+ * tag's own geolocation recorded in the day log to within minutes in the
+ * first week. Later in the record the derived day narrows symmetrically —
+ * dawn late, dusk early by a similar amount — which is what light attenuation
+ * at depth does and what a clock error cannot do, since a slipping minute
+ * clock moves both ends the same way. The residual symmetric-component slip
+ * works out to ~7 minutes over the month, which doubles as the best available
+ * measurement of the minute clock's health. The narrowing steps up around the
+ * record's deepest days and does not fully track depth after that; the cause
+ * is unresolved and deriving twilight from this channel without the tag's own
+ * depth-corrected template fit will read tens of minutes off. Treat it as a
+ * relative light level, good for day/night and cloud/depth structure.
+ *
+ * The remaining four bytes stay unidentified.
  *
  * TIMING IS RELATIVE AND ANCHORLESS. Sample time = minutes-of-aux-seen x 60 +
  * slot x 12, from a stream start the file does not date. The caller must
@@ -170,7 +188,8 @@ export function parseLotekBasicLog(data: Uint8Array): LotekBasicLogResult {
           batteryV > MIN_BATTERY_V && batteryV < MAX_BATTERY_V
             ? Number(batteryV.toFixed(2))
             : null,
-        raw: Array.from(data.slice(p + 2, p + AUX_LEN)),
+        lightRaw: data[p + 2],
+        raw: Array.from(data.slice(p + 3, p + AUX_LEN)),
       });
       minute++;
       slot = 0;

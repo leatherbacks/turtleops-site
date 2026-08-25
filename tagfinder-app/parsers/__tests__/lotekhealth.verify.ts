@@ -430,7 +430,10 @@ console.log('\n== OFFLOADED BASIC LOG (.bin) ==');
   chk('pressure counts round-trip through the split nibbles',
     r.samples.slice(0, 5).map((x) => x.pressureCounts), press);
   chk('battery is raw/20 volts', r.aux[0].batteryV, 3.65);
-  chk('the five unidentified aux bytes are preserved', r.aux[0].raw, [1, 2, 3, 4, 5]);
+  // Light was identified by its diel behaviour against the tag's own measured
+  // sunrise and sunset — the only aux field with any day/night signal.
+  chk('light is the second aux byte', r.aux[0].lightRaw, 1);
+  chk('the four remaining unidentified bytes are preserved', r.aux[0].raw, [2, 3, 4, 5]);
 
   // Corruption deep in the stream is skipped and counted, and parsing resumes.
   // (Garbage inside the first twelve records instead shifts the discovered
