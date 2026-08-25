@@ -1088,6 +1088,8 @@ export type Manufacturer = 'wildlife_computers' | 'lotek';
 export type FileSource = 'wildlife_computers' | 'lotek' | 'argos_cls';
 
 export type FileType =
+  // Lotek recovered-tag offload (.bin — activity, day or basic log, or the LVS container)
+  | 'lotek_offload'
   // Wildlife Computers
   | 'locations'
   | 'argos'

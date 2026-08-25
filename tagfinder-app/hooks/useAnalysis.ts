@@ -15,6 +15,14 @@ import {
   type LotekHealthResult,
 } from '@/parsers/lotek/healthMessage';
 import { parseLotekDayLog } from '@/parsers/lotek/dayLog';
+import {
+  detectOffloadKind,
+  parseLotekOffload,
+  mergeOffloads,
+  anchorActivityEpoch,
+  offloadSeries,
+  type LotekOffloadResult,
+} from '@/parsers/lotek/offload';
 import { parseLotekDiveLog } from '@/parsers/lotek/diveLog';
 import { parseLocations } from '@/parsers/wc/locations';
 import { parseSummary } from '@/parsers/wc/summary';
@@ -89,14 +97,40 @@ export function useAnalysis(): UseAnalysisReturn {
       const detected: DetectedFile[] = [];
       const parsedData: Record<string, Record<string, string>[]> = {};
       let argosDS: ArgosDSResult | null = null;
+      const offloadParses: LotekOffloadResult[] = [];
 
       for (const file of files) {
         // Classify from content, never from the extension. Wildlife Computers
         // and Lotek both ship .csv, CLS ships .txt, and users rename files.
-        const magic = new Uint8Array(await file.slice(0, 8).arrayBuffer());
+        const magic = new Uint8Array(await file.slice(0, 16).arrayBuffer());
         const spreadsheet = detectSpreadsheet(file, magic);
         if (spreadsheet) {
           detected.push(spreadsheet);
+          continue;
+        }
+
+        // Lotek recovered-tag offload — binary, so it must be caught before
+        // anything tries to read it as text. These only exist for a tag
+        // physically in hand, which is exactly when the archive matters most.
+        if (detectOffloadKind(magic)) {
+          const bytes = new Uint8Array(await file.arrayBuffer());
+          const parsed = parseLotekOffload(bytes);
+          if (parsed) {
+            offloadParses.push(parsed);
+            const parts: string[] = [];
+            if (parsed.activity) parts.push(`activity ${parsed.activity.records.length} records`);
+            if (parsed.day) parts.push(`day log ${parsed.day.records.length} days`);
+            if (parsed.basic) parts.push(`basic ${parsed.basic.samples.length} samples`);
+            detected.push({
+              file,
+              manufacturer: 'lotek',
+              source: 'lotek',
+              fileType: 'lotek_offload',
+              warning: parts.length
+                ? undefined
+                : 'Recognised as a Lotek offload but no record stream was found.',
+            });
+          }
           continue;
         }
 
@@ -233,13 +267,41 @@ export function useAnalysis(): UseAnalysisReturn {
         temperature: r.temperatureC,
         temperatureRange: null,
       }));
-      const seriesReadings = parsedData.series
-        ? parseSeries(parsedData.series)
-        : lotekDive && lotekDive.readings.length > 0
-          ? [...lotekDive.readings, ...healthSeries].sort(
-              (a, b) => a.date.getTime() - b.date.getTime()
-            )
-          : healthSeries;
+      // A recovered tag's offloaded archive, when present and dateable, is the
+      // fullest series available — on the reference deployment 7,888 records
+      // against the 3,225 that survived Argos. Anchored exactly against the
+      // manufacturer's Dive Log CSV when both are uploaded; to the day log's
+      // first date (±half a day, kept away from anything diel) otherwise.
+      const offload = offloadParses.length ? mergeOffloads(offloadParses) : null;
+      const offloadAnchor = offload?.activity?.records.length
+        ? anchorActivityEpoch(offload.activity, lotekDive?.readings ?? null, offload.day)
+        : null;
+      const archiveSeries =
+        offload?.activity && offloadAnchor
+          ? offloadSeries(offload.activity, offloadAnchor)
+          : null;
+      for (const d of detected) {
+        if (d.fileType !== 'lotek_offload') continue;
+        d.warning = !offload?.activity?.records.length
+          ? d.warning
+          : !offloadAnchor
+            ? 'Archive decoded but undated: its clock is relative. Upload the Lotek Dive Log CSV or Day Log alongside to date it.'
+            : offloadAnchor.method === 'day'
+              ? `Archive dated to the day (±12 h) from the day log. Upload the Lotek Dive Log CSV for exact times.`
+              : undefined;
+      }
+
+      const seriesReadings = archiveSeries
+        ? [...archiveSeries, ...healthSeries].sort(
+            (a, b) => a.date.getTime() - b.date.getTime()
+          )
+        : parsedData.series
+          ? parseSeries(parsedData.series)
+          : lotekDive && lotekDive.readings.length > 0
+            ? [...lotekDive.readings, ...healthSeries].sort(
+                (a, b) => a.date.getTime() - b.date.getTime()
+              )
+            : healthSeries;
       // Health-message temperatures are post-release by construction and are
       // the tag's own external sensor, so they are the right input for the
       // temperature-environment check. Prefer a real SST export where one
