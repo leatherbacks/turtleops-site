@@ -57,7 +57,7 @@ const TagMap = dynamic(() => import('@/components/tagfinder/TagMap'), {
 });
 
 export default function TagFinderPage() {
-  const { detectedFiles, result, statuses, series, passes, dailySummaries, histograms, error, analyzing, analyze, reset } = useAnalysis();
+  const { detectedFiles, result, archive, statuses, series, passes, dailySummaries, histograms, error, analyzing, analyze, reset } = useAnalysis();
   const { session, email, loading: authLoading, authRequired, signOut } = useTagFinderAuth();
 
   const [satCoverage, setSatCoverage] = useState<SatCoverage | null>(null);
@@ -720,7 +720,7 @@ export default function TagFinderPage() {
 
       <main className="max-w-7xl mx-auto px-6 py-8">
         {/* Idle state: show upload (after email verification) */}
-        {!result && !analyzing && (
+        {!result && !analyzing && !archive && (
           <div className="max-w-2xl mx-auto">
             <div className="text-center mb-8">
               <h2 className="text-3xl font-bold mb-3 tracking-tight">
@@ -768,6 +768,80 @@ export default function TagFinderPage() {
             <div className="mt-8 text-center text-xs text-muted space-y-1">
               <p>Your data stays in your browser. Only computed coordinates are sent to APIs for environmental context.</p>
               <p>Currently supports Wildlife Computers tags. More formats coming soon.</p>
+            </div>
+          </div>
+        )}
+
+        {archive && !result && (
+          <div className="max-w-3xl mx-auto space-y-4">
+            <div className="bg-surface rounded-xl border border-border p-5">
+              <h2 className="text-xl font-bold tracking-tight mb-1">
+                Recovered-tag archive
+              </h2>
+              <p className="text-sm text-muted">
+                {archive.profile.totalReadings.toLocaleString()} archived readings,{' '}
+                {archive.from.toLocaleDateString()} &ndash; {archive.to.toLocaleDateString()}
+                {archive.basicSamples > 0 &&
+                  ` · basic log ${archive.basicSamples.toLocaleString()} samples`}
+                {archive.anchorMethod === 'day' &&
+                  ' · dated to the day (±12 h) — add the Lotek Dive Log CSV for exact times'}
+              </p>
+              <p className="text-xs text-muted mt-2">
+                No Argos positions in this upload, so there is no search to plan —
+                position, drift and recovery analyses need a CLS export or raw Argos
+                file alongside. The archive itself is below.
+              </p>
+            </div>
+
+            <DiveProfilePanel profile={archive.profile} />
+
+            {archive.dayRecords.length > 0 && (
+              <div className="bg-surface rounded-xl border border-border p-5">
+                <h3 className="font-semibold mb-2">Day log — onboard geolocation</h3>
+                <p className="text-xs text-muted mb-3">
+                  Latitude from the tag&apos;s own light geolocation (longitude is not
+                  decodable from the offload). Sunrise/sunset UTC as the tag measured them.
+                </p>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm font-mono">
+                    <thead>
+                      <tr className="text-left text-xs text-muted uppercase">
+                        <th className="pr-4 pb-1">Date</th>
+                        <th className="pr-4 pb-1">Lat °N</th>
+                        <th className="pr-4 pb-1">SST °C</th>
+                        <th className="pr-4 pb-1">Sunrise</th>
+                        <th className="pb-1">Sunset</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {archive.dayRecords.map((d) => {
+                        const hm = (m: number | null) =>
+                          m === null
+                            ? '—'
+                            : `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+                        return (
+                          <tr key={d.date.toISOString()} className="border-t border-border/50">
+                            <td className="pr-4 py-1">{d.date.toISOString().slice(0, 10)}</td>
+                            <td className="pr-4 py-1">{d.latitudeNorth?.toFixed(2) ?? 'no fix'}</td>
+                            <td className="pr-4 py-1">{d.sstC?.toFixed(1) ?? '—'}</td>
+                            <td className="pr-4 py-1">{hm(d.sunriseMinutesUtc)}</td>
+                            <td className="py-1">{hm(d.sunsetMinutesUtc)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            <div className="text-center">
+              <button
+                onClick={handleReset}
+                className="text-sm text-muted hover:text-primary underline underline-offset-2"
+              >
+                Analyze different files
+              </button>
             </div>
           </div>
         )}
