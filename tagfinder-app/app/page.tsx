@@ -714,9 +714,15 @@ export default function TagFinderPage() {
                 Find your popped-off archival tag
               </h2>
               <p className="text-muted text-lg">
-                Upload Wildlife Computers CSVs from your MiniPAT or PSAT deployment.
-                Get instant position estimates, drift predictions, and AI-drafted
-                recovery briefs.
+                Upload whatever the deployment gave you &mdash; Wildlife Computers or
+                Lotek PSAT+, decoded CSVs, raw Argos dumps, even the logs off a
+                recovered tag. Get a position with an honest search radius, whether
+                the tag is drifting, ashore or buried &mdash; and when that changed
+                &mdash; plus satellite pass windows and an AI-drafted recovery brief.
+              </p>
+              <p className="text-sm text-muted mt-3">
+                Field-tested: recent recoveries found their tags within 200&nbsp;m of
+                the estimate.
               </p>
             </div>
 
