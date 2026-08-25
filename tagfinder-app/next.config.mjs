@@ -38,6 +38,10 @@ const csp = [
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // This app renders no <Image> and serves no optimized images, so the
+  // optimizer endpoint is pure attack surface — it is also where sharp (and
+  // its libvips CVEs) would be reachable. Off entirely.
+  images: { unoptimized: true },
   async headers() {
     return [
       {

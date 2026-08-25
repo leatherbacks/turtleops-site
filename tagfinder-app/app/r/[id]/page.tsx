@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { use, useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { Loader2, MapPin, Copy, Check, Share2, AlertTriangle } from 'lucide-react';
 import type { AnalysisResult, EnvironmentData } from '@/lib/types';
@@ -28,9 +28,9 @@ interface ReportPayload {
 export default function ReportPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
-  const { id } = params;
+  const { id } = use(params);
   const [report, setReport] = useState<ReportPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);

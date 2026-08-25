@@ -32,13 +32,11 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Client IP. request.ip and x-real-ip are set by the platform and cannot be
-  // supplied by the client; the leftmost x-forwarded-for entry can be, and
-  // keying the limit on it let anyone dodge the cap by rotating fake values.
-  const ip =
-    request.ip ||
-    request.headers.get('x-real-ip') ||
-    'unknown';
+  // Client IP. x-real-ip is set by the platform and cannot be supplied by the
+  // client; the leftmost x-forwarded-for entry can be, and keying the limit on
+  // it let anyone dodge the cap by rotating fake values. (request.ip existed
+  // here briefly and was removed in Next 15 — the header is the stable field.)
+  const ip = request.headers.get('x-real-ip') || 'unknown';
 
   try {
     const result = await checkRateLimit({
