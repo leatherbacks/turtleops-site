@@ -17,10 +17,12 @@ export const metadata: Metadata = {
   metadataBase: new URL("https://tagfinder.turtleops.org"),
   title: "TurtleTag Recovery — Pop-up Satellite Tag Analysis | TurtleOps",
   description:
-    "Find your popped-off archival tag. Free analysis for marine researchers using Wildlife Computers MiniPATs and other PSATs — position estimates, drift predictions, and AI-drafted recovery briefs.",
+    "Find your popped-off archival tag. Free analysis for marine researchers using Wildlife Computers and Lotek PSATs — decoded CSVs, raw Argos dumps, or recovered-tag logs in; position, tag state, and an AI-drafted recovery brief out. Field-tested on real recoveries.",
   keywords: [
     "satellite tag",
     "wildlife computers",
+    "lotek",
+    "PSAT+",
     "MiniPAT",
     "PSAT",
     "sea turtle",
@@ -37,7 +39,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "TurtleTag Recovery — Pop-up Satellite Tag Analysis",
     description:
-      "Find your popped-off archival tag. Upload MiniPAT/PSAT CSVs and get position, drift prediction, and an AI-drafted recovery brief.",
+      "Find your popped-off archival tag. Upload Wildlife Computers or Lotek PSAT files and get position, tag state, and an AI-drafted recovery brief.",
     url: "https://tagfinder.turtleops.org",
     siteName: "TurtleTag Recovery",
     type: "website",
@@ -46,7 +48,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "TurtleTag Recovery — Pop-up Satellite Tag Analysis",
     description:
-      "Find your popped-off archival tag. Upload MiniPAT/PSAT CSVs, get position + state + recovery brief.",
+      "Find your popped-off archival tag. Wildlife Computers or Lotek PSAT files in — position + state + recovery brief out.",
   },
   robots: {
     index: true,
