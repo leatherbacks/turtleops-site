@@ -30,8 +30,9 @@ export async function GET(
     .maybeSingle();
 
   if (error) {
+    console.error('report fetch failed:', error.message);
     return NextResponse.json(
-      { error: 'Failed to fetch report', detail: error.message },
+      { error: 'Failed to fetch report' },
       { status: 500 }
     );
   }

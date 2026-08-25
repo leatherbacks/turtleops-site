@@ -9,9 +9,11 @@ import { createSupabaseAdminClient } from './supabase';
  *   - `ip:1.2.3.4` for anonymous IP-based limits
  */
 export async function checkRateLimit({
+  strict = false,
   key,
   maxPerDay,
 }: {
+  strict?: boolean;
   key: string;
   maxPerDay: number;
 }): Promise<{ allowed: boolean; remaining: number; resetAt: Date }> {
@@ -25,11 +27,19 @@ export async function checkRateLimit({
   const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
 
   // Get current count
-  const { data: existing } = await supabase
+  const { data: existing, error: readError } = await supabase
     .from('tag_rate_limits')
     .select('count, day_start')
     .eq('key', key)
     .maybeSingle();
+
+  // Fail-open is the right default for the free environment proxies — an
+  // outage of the limit table should not take the tool down. It is the wrong
+  // default anywhere a request costs money: for those callers pass strict, and
+  // a limiter that cannot count refuses rather than waving spend through.
+  if (readError && strict) {
+    throw new Error(`rate limit unavailable: ${readError.message}`);
+  }
 
   const currentCount =
     existing && existing.day_start === dayStart.toISOString()

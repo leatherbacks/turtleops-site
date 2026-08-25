@@ -15,10 +15,13 @@ const RATE_LIMITED_ROUTES = [
   '/api/elevation',
   '/api/weather',
   '/api/tides',
+  '/api/tide-extremes',
+  '/api/water-temp',
   '/api/geocode',
   '/api/tles',
   '/api/forecast',
   '/api/bathymetry',
+  '/api/drift-forcing',
 ];
 
 export async function middleware(request: NextRequest) {
@@ -29,9 +32,11 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Derive client IP from Vercel/proxy headers
+  // Client IP. request.ip and x-real-ip are set by the platform and cannot be
+  // supplied by the client; the leftmost x-forwarded-for entry can be, and
+  // keying the limit on it let anyone dodge the cap by rotating fake values.
   const ip =
-    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    request.ip ||
     request.headers.get('x-real-ip') ||
     'unknown';
 
@@ -60,12 +65,20 @@ export async function middleware(request: NextRequest) {
   }
 }
 
+// The matcher and RATE_LIMITED_ROUTES must list the same routes. They drifted
+// once — two routes were listed above but never matched here, and three newer
+// routes were added to neither — which silently exempted five of the ten.
 export const config = {
   matcher: [
     '/api/elevation/:path*',
     '/api/weather/:path*',
     '/api/tides/:path*',
+    '/api/tide-extremes/:path*',
+    '/api/water-temp/:path*',
     '/api/geocode/:path*',
     '/api/tles/:path*',
+    '/api/forecast/:path*',
+    '/api/bathymetry/:path*',
+    '/api/drift-forcing/:path*',
   ],
 };

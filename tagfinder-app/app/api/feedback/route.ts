@@ -21,6 +21,10 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const raw = await request.text();
+  if (raw.length > 100_000) {
+    return NextResponse.json({ error: 'Payload too large.' }, { status: 413 });
+  }
   let body: {
     rating?: number;
     comment?: string;
@@ -28,9 +32,12 @@ export async function POST(request: NextRequest) {
     pageUrl?: string;
   };
   try {
-    body = await request.json();
+    body = JSON.parse(raw);
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+  }
+  if (typeof body.comment === 'string' && body.comment.length > 5000) {
+    body.comment = body.comment.slice(0, 5000);
   }
 
   const rating = body.rating;
