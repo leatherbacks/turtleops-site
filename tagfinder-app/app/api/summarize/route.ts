@@ -216,6 +216,11 @@ hotels, piers, popular parks), expand the search to include:
 This guidance is especially important when the geocoded location suggests an urban, populated,
 or tourist beach area (as opposed to a remote/undeveloped shoreline).
 
+A field that is absent from the environment block is genuinely unavailable, not still
+loading — the brief is not written until those lookups have settled. So say "no seabed
+depth is available here" rather than treating a gap as a reason to withhold a conclusion
+you could otherwise draw, and never contradict a value that IS present.
+
 IMPORTANT: Use the environment data (location name, elevation, coastal vs inland) as the source of truth
 for geography. Don't guess county names — use env.location.name verbatim if available.
 
@@ -395,6 +400,35 @@ Two things follow for the search that are not obvious:
   and obvious at ten, so a receiver sweep needs to hug the structure rather than cover the
   open ground, and long silences on the open beach are not evidence of absence.
 
+**When receptionQuality.verdict is 'obstructed', say the tag is covered.** The measure is
+messages per pass against the four Argos needs for a quality fix, and it is calibrated on two
+tags recovered by hand — buried in sand at 2.3, lying exposed on a bank at 5.1. 'degraded'
+means partial cover, an awkward resting angle, or intermittent wetting, and is what a tag in
+wet wrack produces; it is NOT a clean bill of health. Where this and the satellite coverage
+rate disagree, follow this one and say why: coverage counts whether an overpass produced
+anything at all, not how much came through, so a tag heard briefly on many passes scores well
+there while being substantially covered.
+
+**Closing the last hundred metres is a radio-homing problem, not a visual one.** On two
+recovered tags the finder never saw the tag until they were standing over it: one wedged in a
+seawall corner, one lying in dark organic wrack at a waterline, both small, dark and matte
+against a dark background. Do not write recommendations that assume the tag will be spotted,
+and do not treat "search the wrack line" as an instruction someone can carry out by eye.
+
+The endgame that actually worked was homing on the Argos transmitter itself. The PSAT+ has
+no separate recovery beacon — the manufacturer's manual documents Argos transmission and
+nothing else — so the thing to home on is the tag's own uplink near 401.68 MHz, which is
+UHF. Quote the MEASURED frequency from the data rather than a nominal: Argos assigns PTT
+channels across roughly 401.62-401.68 MHz and a receiver parked on the wrong one hears
+nothing.
+
+Then DELIBERATELY DESTROY the receiver's sensitivity to shrink the search. Detaching the
+antenna and hunting on the bare receiver input cuts the useful range to a few metres, which
+turns a saturated signal that points everywhere into one that points at the tag. Say this
+plainly wherever a tag is judged obstructed, buried, or lying in wrack or debris: at close
+range a strong reading is not progress on its own, and the move is to cut gain or pull the
+antenna rather than keep sweeping at full sensitivity.
+
 A reflector also corrupts the fixes themselves, and the class letter hides it. Argos solves
 position from the frequency history of a pass, so a signal arriving by two paths — direct and
 reflected — fits a distorted curve. The solver still returns a fix and still counts messages
@@ -447,6 +481,36 @@ When strength is 'strong' or 'moderate' AND robust is true, tidePhase.bestWindow
 the next productive stretch — lead recovery timing with it, and warn that silence during
 the opposite phase is expected rather than evidence the tag has gone.
 
+**Water-temperature match — the strongest in-water/out-of-water evidence available.**
+waterMatch compares each post-release tag reading against water temperature AT THAT
+READING'S OWN MOMENT, from the nearest gauge. It exists because a single sea-surface
+figure cannot carry a trend: on a reference deployment the bay warmed 30.1 to 32.0 C
+across the six days the tag transmitted, comparable to the signal being looked for, so
+one snapshot could hide a tag that left the water or invent a departure for one that
+did not.
+
+- **waterMatch.transition is the headline when present.** It brackets the moment the tag
+  stopped tracking the water, as lastImmersed and firstExposed. Paired with the position
+  track that says WHERE it came ashore, which is the single most useful thing a search
+  team can be told. Give both bounds, not a midpoint — the tag left the water somewhere
+  in that interval and the data does not say where inside it.
+- **A negative coldestDeltaC below about -3 C is close to proof.** Nothing immersed has
+  a mechanism to be colder than the water around it. State it as the physical argument
+  it is. The reverse does NOT hold: a tag can run several degrees WARMER than the water
+  while still floating, because sun falls on a dark housing and the sensor can ride in
+  air on the upper face. Never argue exposure from warmth alone.
+- **waterMatch.diurnal.separationC is the corroborating signal** — warm by day, cold by
+  night means the tag is following air. Quote it only when nDay and nNight are both at
+  least 2; a separation computed from one daylight reading is not a diurnal cycle.
+- If **waterMatch is absent or available is false, say nothing about water temperature.**
+  The usual cause is no gauge within 60 km, which is a real limit rather than a null
+  result: water temperature varies far too much over longer distances to compare
+  against. Do NOT fall back to the single sstTempC snapshot to fill the gap, and do not
+  treat a missing comparison as evidence the tag is afloat.
+- Where waterMatch and tempComparison disagree, **prefer waterMatch** — tempComparison
+  works from a single reference value and one verdict for the whole record, so it cannot
+  see a tag that changed state part way through.
+
 **Transmission health trend is time-urgent.** If transmissionHealth.trend is 'degrading' or
 'failing', the tag's signal quality is worsening across the post-release window — rising CRC
 failure rate, dropping received power, or frequency drifting off 401.650 MHz. This is a
@@ -474,14 +538,22 @@ passes. Use the description verbatim in the brief — e.g. "antenna lying nearly
 pointing SE" tells the field team the wire is pointing along the ground in a known
 direction, which dramatically narrows the visual search.
 
-**Cross-tag precedent for buried beach tags:** PTT 285932 (turtle, recovered Caminada
-Headland LA) was buried with body ~10 cm under sand, antenna whip ~5 cm above the
-surface, depth sensor reading 1.35 m of sand-pressure pseudo-depth. Its signal stats
-(mean −134 dBm, ~70% CRC failure) match what we see on similarly-buried tags. If a
-current tag's signal pattern resembles that one (mean power −130 to −135 dBm, mixed
-clean/CRC decodes, on-land position) and burialDetection or other signals point to
-sand burial, you can cite this precedent for confidence — "matches the signal
-signature of PTT 285932, which was recovered intact from beach sand."
+**NEVER name another deployment.** Precedents below are recorded so you can weigh a
+pattern, not so you can cite an identifier. Write "a previously recovered tag" or "an
+earlier deployment on this programme" — never a PTT number, deploy ID, animal name, or
+the specific beach another tag was found on. The reader owns one tag; naming somebody
+else's helps them not at all and discloses it to whoever the report is forwarded to.
+
+**Precedent for buried beach tags.** A previously recovered tag was found with its body
+about 10 cm under sand and the antenna whip roughly 5 cm proud of the surface, its depth
+sensor reading 1.35 m of sand-pressure pseudo-depth, at a mean −134 dBm with heavy CRC
+failure. A second, recovered buried on a different coast, read no depth at all — dry sand
+arches and carries its load through grain contact rather than onto the pressure port, so a
+zero depth neither confirms nor refutes burial. What both share is the reception signature:
+messages per pass far below the four Argos needs for a quality fix. If the current tag
+shows on-land position, poor reception at unremarkable power, and receptionQuality reading
+'obstructed', you may say the pattern matches tags previously recovered from sand — without
+identifying them.
 
 Guidelines:
 - Start with a one-sentence headline about where the tag is and your best guess at its state.
@@ -489,6 +561,15 @@ Guidelines:
 - Explain the tag's physical state with specific evidence from the data.
 - **If release type is 'Floater', 'Sitter', 'Sinker', or 'Crush depth', acknowledge that the animal
   likely died** — phrase it compassionately but factually. These are mortality signals.
+- **A Lotek PSAT+ releasing on inactivity is genuinely ambiguous, and must be reported that
+  way.** The manufacturer offers three release triggers — elapsed days, overpressure, and no
+  change in pressure over several days — and their own manual states that the third fires
+  either because the tag was shed and is floating at the surface OR because the animal died
+  and sank to the bottom and stopped moving. Do not resolve that ambiguity from the release
+  cause alone. What resolves it is what happened next: a tag that then drifts with wind and
+  current was shed and is afloat, and a tag that then reports a constant depth matching the
+  local seabed was on the bottom. Say which one the subsequent record supports, or say the
+  data does not distinguish them.
 - **If release type is 'Detachment', the animal shed the tag but is likely still alive.**
 - **If crush-depth event was detected (pre-release depths >1500m), note this strongly suggests
   mortality followed by sinking, and the tag released via the failsafe just above crush depth.**
@@ -666,6 +747,21 @@ ${JSON.stringify(a.transmissionHealth, null, 2)}
 
 ## Reception vs tide (does the tag get heard preferentially on a falling or rising tide?)
 ${JSON.stringify((a as Record<string, unknown>).tidePhase, null, 2)}
+
+## Antenna exposure from reception alone (no orbital elements needed)
+Messages heard per pass, against the four Argos needs to solve a quality position.
+Calibrated on two physically recovered tags: one buried in beach sand at 2.3 messages
+per pass, one lying exposed on an organic bank at 5.1. Prefer this over the satellite
+coverage rate when the two disagree — the coverage rate only counts whether a pass
+produced anything, not how much, and it called the wrack-bound tag "well-exposed".
+${JSON.stringify((a as Record<string, unknown>).receptionQuality, null, 2)}
+
+## Water-temperature match (did the tag stop tracking the water, and when?)
+Each post-release reading against water temperature at the same moment, from the gauge
+named in waterStation, waterStationDistanceKm away. transition, when present, brackets
+the tag leaving the water.
+${JSON.stringify((a as Record<string, unknown>).waterMatch, null, 2)}
+Gauge: ${JSON.stringify((a as Record<string, unknown>).waterStation ?? null)} at ${JSON.stringify((a as Record<string, unknown>).waterStationDistanceKm ?? null)} km
 
 ## Transmission repetition rate (how often the tag actually transmits)
 Measured from the tag's own message timestamps, not looked up. This is the number a

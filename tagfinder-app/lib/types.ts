@@ -186,6 +186,76 @@ export interface CorruptMessage {
 
 // ─── Deploy Summary ───
 
+/**
+ * One sample from the Lotek activity log (message type 0xA0). Temperature only —
+ * the pressure channel in the same record is not yet decoded. Timed by the tag's
+ * own clock, not by reception, since the archive is replayed long after it was
+ * recorded.
+ */
+/**
+ * One archived sample read from a recovered tag's offloaded activity log.
+ * Pressure is exact against the manufacturer's decode; temperature is good to a
+ * few tenths pending the per-tag calibration block. Timed by the tag's own
+ * relative clock — see resolveEpoch.
+ */
+/**
+ * One daily summary from a recovered tag's offloaded day log. Latitude comes in
+ * two solutions because light-based geolocation cannot distinguish north from
+ * south by day length alone; null means the tag recorded no fix. Longitude is
+ * deliberately absent — its field is identified but its scaling is unresolved.
+ */
+/**
+ * One 12-second sample from a recovered tag's offloaded basic log. Pressure is
+ * in raw sensor counts — the per-tag conversion to dBar must be fitted against
+ * a calibrated reference (see fitPressureCalibration). streamSeconds counts
+ * from an undated stream start that the caller must anchor externally.
+ */
+export interface LotekBasicSample {
+  streamSeconds: number;
+  temperatureC: number;
+  pressureCounts: number;
+}
+
+/** One 60-second auxiliary record from the basic log. */
+export interface LotekBasicAux {
+  streamSeconds: number;
+  /** Volts, raw/20 — inferred scale; null when outside any plausible battery. */
+  batteryV: number | null;
+  /**
+   * Light, 0-255 on the sensor's own log-like scale, uncalibrated — not
+   * comparable to the health message's light units. Identified by its diel
+   * behaviour, phase-locked to the sunrise and sunset the tag itself measured.
+   */
+  lightRaw: number;
+  /** The four remaining unidentified bytes. */
+  raw: number[];
+}
+
+export interface LotekDayRecord {
+  date: Date;
+  sunriseMinutesUtc: number | null;
+  sunsetMinutesUtc: number | null;
+  latitudeNorth: number | null;
+  latitudeSouth: number | null;
+  sstC: number | null;
+}
+
+export interface LotekArchiveRecord {
+  tagSeconds: number;
+  temperatureC: number;
+  pressureDbar: number;
+  formatByte: number;
+}
+
+export interface LotekActivityRecord {
+  /** Elapsed tag clock in seconds, modulo the 194.181-day wrap. */
+  tagSeconds: number;
+  temperatureC: number;
+  formatByte: number;
+  /** When this copy arrived — for provenance, not for dating the sample. */
+  receivedAt: Date;
+}
+
 export interface DeploySummary {
   deployId: string;
   ptt: number;
@@ -196,6 +266,30 @@ export interface DeploySummary {
   releaseDate: Date | null; // critical for Nault popoff estimation
   releaseType: string;
   deployDate: Date | null;
+  /** First and last transmissions actually received, per Summary.csv. */
+  earliestXmit: Date | null;
+  /** Last sample in the onboard archive, per Summary.csv. */
+  latestData: Date | null;
+  /**
+   * Latest moment the tag can still have been on the animal, recovered from the
+   * record when ReleaseDate is blank.
+   *
+   * A pop-up tag only transmits once it is free, so reception postdating the
+   * last archived sample proves it came off. It does NOT date the event: PSAT
+   * tethers are built to let go easily so a caught tag cannot entangle the
+   * animal, so detachment is often mechanical and premature, and a tag can float
+   * and keep recording for days before the archive ends. Treat this as an upper
+   * bound — the tag was free by this time, possibly well before it.
+   *
+   * Bounding late is the safe direction here: it is used to keep the animal's
+   * dive record out of analyses about the tag's own situation, and an upper
+   * bound only ever discards post-release readings rather than admitting
+   * pre-release ones.
+   *
+   * Kept separate from releaseDate so nothing needing the manufacturer's own
+   * figure — popoff estimation, for one — silently consumes an inference.
+   */
+  inferredReleaseDate: Date | null;
 }
 
 // ─── Drift State ───
@@ -552,6 +646,9 @@ export interface TidalIntrusion {
   wetPct: number;
   /** Max depth seen post-release (tidal peak) */
   maxPostReleaseDepth: number;
+  /** Isolated deep readings excluded as corrupt — see analysis/depthScreen. */
+  screenedReadings: number;
+  screenNote: string | null;
   /** Estimated cycle period in hours (should be ~12 for semidiurnal, ~24 for diurnal) */
   cyclePeriodHours: number | null;
 }
@@ -567,6 +664,9 @@ export interface DiveProfile {
   surfaceTimePct: number;
   /** Downsampled series for display (max 300 points) */
   displaySeries: { date: Date; depth: number | null; temp: number | null }[];
+  /** Isolated deep readings excluded as corrupt — see analysis/depthScreen. */
+  screenedReadings: number;
+  screenNote: string | null;
 }
 
 // ─── Release Type Interpretation ───
@@ -939,7 +1039,7 @@ export interface EnvironmentData {
     stationDistanceKm: number;
   } | null;
   location: {
-    name: string; // e.g., "Caminada Headland, Lafourche Parish, LA"
+    name: string; // e.g., "<Headland>, <Parish>, <State>"
     county: string;
     state: string;
     source: 'census' | 'nominatim';

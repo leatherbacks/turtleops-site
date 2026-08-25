@@ -40,10 +40,10 @@ chk('PTT from filename', pttFromFilename(`RAW_ID_0${REF_PTT}_2026.txt`), REF_PTT
 chk('PTT from Lotek CSV name', pttFromFilename(`PSAT+-${REF_PTT}_Day Log.csv`), REF_PTT);
 // WC regression
 chk('WC Locations still detected',
-  detectFile(mk('285931-Locations.csv'),
+  detectFile(mk('123456-Locations.csv'),
     ['DeployID','Ptt','Date','Quality','Latitude','Longitude','Error radius']).fileType, 'locations');
 chk('WC Series still detected',
-  detectFile(mk('285931-Series.csv'),
+  detectFile(mk('123456-Series.csv'),
     ['DeployID','Day','Time','Depth','DRange']).fileType, 'series');
 
 console.log('\n== DATE ORDER ==');

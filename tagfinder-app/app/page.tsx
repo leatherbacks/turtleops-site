@@ -5,10 +5,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAnalysis } from '@/hooks/useAnalysis';
 import { useEnvironment } from '@/hooks/useEnvironment';
 import { useTidePhase } from '@/hooks/useTidePhase';
+import { useWaterMatch } from '@/hooks/useWaterMatch';
 import { analyzeTagState } from '@/analysis/tagState';
 import { predictPassesInWindow } from '@/analysis/satPrediction';
 import { analyzePassGeometry } from '@/analysis/passGeometry';
 import { analyzeSatCoverage } from '@/analysis/satCoverage';
+import { analyzeReceptionQuality } from '@/analysis/receptionQuality';
 import { analyzeAntennaExposure } from '@/analysis/antennaExposure';
 import { compareTemperatures } from '@/analysis/tempComparison';
 import { analyzeBathymetry } from '@/analysis/bathymetry';
@@ -34,6 +36,8 @@ import SearchBriefPanel from '@/components/tagfinder/SearchBriefPanel';
 import MirrorCheckPanel from '@/components/tagfinder/MirrorCheckPanel';
 import TransmissionHealthPanel from '@/components/tagfinder/TransmissionHealthPanel';
 import TidePhasePanel from '@/components/tagfinder/TidePhasePanel';
+import WaterMatchPanel from '@/components/tagfinder/WaterMatchPanel';
+import ReceptionQualityPanel from '@/components/tagfinder/ReceptionQualityPanel';
 import SkyChart from '@/components/tagfinder/SkyChart';
 import UpcomingPassesPanel from '@/components/tagfinder/UpcomingPassesPanel';
 import EmailGate from '@/components/tagfinder/EmailGate';
@@ -87,12 +91,47 @@ export default function TagFinderPage() {
     result?.bestLon ?? null
   );
 
+  // Did the tag stop tracking water temperature, and when? Post-release
+  // readings only — before release the sensor is on a diving animal, where
+  // depth explains the temperature and a comparison against surface water
+  // means nothing.
+  const postReleaseTemps = useMemo(() => {
+    const release = result?.summary?.releaseDate?.getTime() ?? null;
+    return series
+      .filter(
+        (s) =>
+          s.temperature !== null &&
+          !isNaN(s.date.getTime()) &&
+          (release === null || s.date.getTime() >= release)
+      )
+      .map((s) => ({ date: s.date, temperatureC: s.temperature as number }));
+  }, [series, result?.summary?.releaseDate]);
+
+  const waterMatch = useWaterMatch(
+    postReleaseTemps,
+    result?.bestLat ?? null,
+    result?.bestLon ?? null
+  );
+
   // Predict upcoming satellite passes over the tag's position (next 48h)
   const upcoming = useUpcomingPasses({
     lat: result?.bestLat ?? null,
     lon: result?.bestLon ?? null,
     hoursAhead: 48,
   });
+
+  // How much sky the antenna can see, from the received passes alone. Unlike
+  // satCoverage this needs no orbital elements, so it still works on a tag whose
+  // transmissions ended months ago — which is every recovered tag.
+  const receptionQuality = useMemo(() => {
+    if (!result || passes.length === 0) return null;
+    const located = result.allFixes.filter((f) => !f.isOutlier);
+    return analyzeReceptionQuality(
+      passes,
+      located.length,
+      located.map((f) => f.quality)
+    );
+  }, [result, passes]);
 
   // Re-run tag state classification with environment + series + sat coverage + fixes
   const fusedTagState = useMemo(() => {
@@ -104,9 +143,10 @@ export default function TagFinderPage() {
       envData,
       series,
       satCoverage,
-      result.allFixes
+      result.allFixes,
+      receptionQuality
     );
-  }, [result, statuses, series, envData, satCoverage]);
+  }, [result, statuses, series, envData, satCoverage, receptionQuality]);
 
   // Fetch TLEs and compute satellite coverage once we have a result
   useEffect(() => {
@@ -318,12 +358,25 @@ export default function TagFinderPage() {
     return merged;
   }, [result, fusedTagState, satCoverage, antennaExposure, landfall, driftForcing, tempComparison, bathymetry, burialDetection]);
 
-  // Fetch AI brief once environment + sat coverage are loaded
+  // Fetch AI brief once environment + sat coverage are loaded.
+  //
+  // Bathymetry belongs in this gate and was missing from it. An elevation model
+  // reports 0 m over open sea just as it does on a beach, so at a sea-level
+  // coordinate the seabed depth is the field that decides water from shore —
+  // the brief's own instructions say exactly that. Without it in the gate the
+  // brief fired as soon as elevation returned 0, wrote "the environment fields
+  // are empty, so I cannot tell you whether this sits in water or on shore",
+  // and was then printed above a panel showing a 2.0 m seabed.
+  //
+  // Forecast is deliberately left out: it is displayed but never changes a
+  // conclusion about where the tag is, so waiting on it would delay the brief
+  // for nothing.
   const envReady =
     !envLoading.elevation &&
     !envLoading.weather &&
     !envLoading.tides &&
-    !envLoading.location;
+    !envLoading.location &&
+    !envLoading.bathymetry;
 
   const fetchBrief = async () => {
     if (!displayResult) return;
@@ -368,6 +421,12 @@ export default function TagFinderPage() {
         burialDetection: displayResult.burialDetection,
         transmissionHealth: displayResult.transmissionHealth,
         tidePhase: tidePhase.analysis,
+        waterMatch: waterMatch.analysis
+          ? { ...waterMatch.analysis, matched: waterMatch.analysis.matched.slice(-40) }
+          : null,
+        receptionQuality,
+        waterStation: waterMatch.station,
+        waterStationDistanceKm: waterMatch.stationDistanceKm,
         repetitionRate: displayResult.repetitionRate,
         passGeometry: passGeometry
           ? { ...passGeometry, fixes: passGeometry.fixes.slice(-20) }
@@ -492,6 +551,7 @@ export default function TagFinderPage() {
           environment: envData,
           brief,
           tidePhase: tidePhase.analysis,
+          waterMatch: waterMatch.analysis,
           upcomingPasses: upcoming.passes,
         }),
       });
@@ -849,6 +909,20 @@ export default function TagFinderPage() {
                 )}
                 {displayResult.transmissionHealth && (
                   <TransmissionHealthPanel health={displayResult.transmissionHealth} />
+                )}
+
+                {/* How much sky the antenna can see, from received passes alone */}
+                {receptionQuality && receptionQuality.verdict !== 'insufficient' && (
+                  <ReceptionQualityPanel quality={receptionQuality} />
+                )}
+
+                {/* Did the tag stop tracking the water, and when */}
+                {waterMatch.analysis?.available && (
+                  <WaterMatchPanel
+                    analysis={waterMatch.analysis}
+                    station={waterMatch.station}
+                    stationDistanceKm={waterMatch.stationDistanceKm}
+                  />
                 )}
 
                 {/* Does reception track the tide — when to be there with a receiver */}

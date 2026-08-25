@@ -23,7 +23,16 @@ export default function UpcomingPassesPanel({
   // Otherwise assume a moderate threshold of 30°.
   const elevThreshold = exposure?.elevationCutoffDeg ?? 30;
 
-  const nextLikely = passes.find((p) => p.maxElevation >= elevThreshold);
+  // Must be a pass that has not already finished. The predictions are computed
+  // when the analysis runs, but a report can be rendered or printed minutes to
+  // hours later, and picking the first qualifying pass regardless of time
+  // produced a headline reading "next likely reception in -3 min" — a pass that
+  // had already come and gone.
+  const now = Date.now();
+  const stillToCome = passes.filter(
+    (p) => p.riseTime.getTime() + p.duration * 1000 > now
+  );
+  const nextLikely = stillToCome.find((p) => p.maxElevation >= elevThreshold);
   const displayCount = 8;
 
   return (
@@ -140,7 +149,11 @@ export default function UpcomingPassesPanel({
 
 function formatRelativeTime(date: Date): string {
   const diffMs = date.getTime() - Date.now();
+  // A pass already underway is the most useful thing that can be said, and a
+  // negative countdown is never a sensible thing to print.
+  if (diffMs <= 0) return 'overhead now';
   const minutes = Math.round(diffMs / 60_000);
+  if (minutes < 1) return 'in under a minute';
   if (minutes < 60) return `in ${minutes} min`;
   const hours = Math.floor(minutes / 60);
   const rem = minutes % 60;

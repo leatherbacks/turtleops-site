@@ -14,6 +14,43 @@ import type {
  * - **Azimuth bias**: if received passes cluster in one compass direction, the
  *   antenna is obstructed on the opposite side.
  */
+/**
+ * Reception rate as a function of pass elevation.
+ *
+ * The elevation tests used to key off the LOWEST elevation at which anything was
+ * received, which is an extreme-value statistic and behaves like one: across a
+ * couple of hundred passes at least one low pass always gets through, the
+ * minimum collapses, and the test that should have fired never does. On a tag
+ * lying in wrack — horizon blocked all round, misses concentrated at the rim —
+ * it fell through to the directional branch instead and reported the tag as
+ * being indoors beside a south-facing window.
+ *
+ * Binning every pass and comparing rates uses all the evidence and cannot be
+ * overturned by one lucky reception.
+ */
+const ELEVATION_BANDS: [number, number][] = [
+  [0, 15],
+  [15, 30],
+  [30, 50],
+  [50, 90],
+];
+/** Predicted passes a band needs before its rate means anything. */
+const MIN_BAND_PASSES = 5;
+/**
+ * Rate gap between the lowest and highest populated band that marks a blocked
+ * horizon. A clear tag is heard slightly better high up simply because those
+ * passes last longer, so the bar sits well above that.
+ */
+const HORIZON_RATE_GAP = 0.25;
+
+function elevationProfile(passes: AnnotatedPass[]) {
+  return ELEVATION_BANDS.map(([lo, hi]) => {
+    const inBand = passes.filter((p) => p.maxElevation >= lo && p.maxElevation < hi);
+    const rec = inBand.filter((p) => p.received).length;
+    return { lo, hi, predicted: inBand.length, rate: inBand.length ? rec / inBand.length : 0 };
+  }).filter((b) => b.predicted >= MIN_BAND_PASSES);
+}
+
 export function analyzeAntennaExposure(passes: AnnotatedPass[]): AntennaExposure {
   const received = passes.filter((p) => p.received);
   const missed = passes.filter((p) => !p.received);
@@ -59,8 +96,17 @@ export function analyzeAntennaExposure(passes: AnnotatedPass[]): AntennaExposure
   let confidence = 0;
 
   const elevDiff = meanReceived - meanMissed;
+
+  // Rate-based, so a single low reception cannot suppress the finding.
+  const profile = elevationProfile(passes);
+  const lowBand = profile[0];
+  const highBand = profile[profile.length - 1];
+  const rateGap =
+    profile.length >= 2 ? highBand.rate - lowBand.rate : 0;
+  const horizonByRate = profile.length >= 2 && rateGap >= HORIZON_RATE_GAP;
+
   const narrowCone = minReceived >= 60 && elevDiff > 20;
-  const horizonBlocked = minReceived >= 30 && elevDiff > 15;
+  const horizonBlocked = (minReceived >= 30 && elevDiff > 15) || horizonByRate;
 
   if (narrowCone) {
     pattern = 'narrow_cone';
@@ -69,12 +115,22 @@ export function analyzeAntennaExposure(passes: AnnotatedPass[]): AntennaExposure
   } else if (horizonBlocked) {
     pattern = 'horizon_obstructed';
     confidence = cleanCutoff ? 0.85 : 0.65;
-    reasoning = `Reception only succeeds for passes above ~${minReceived.toFixed(0)}°. The horizon is obstructed all around — typical of a partially buried tag where the antenna is below surface level but can see sky nearly overhead. Received passes average ${meanReceived.toFixed(0)}° elevation vs ${meanMissed.toFixed(0)}° for missed passes.`;
+    reasoning = horizonByRate
+      ? `Reception improves steadily with elevation — ${(lowBand.rate * 100).toFixed(0)}% of passes below ${lowBand.hi}° are heard against ${(highBand.rate * 100).toFixed(0)}% above ${highBand.lo}°. The horizon is obstructed all round rather than on one side, which is what sand, wrack, vegetation or a depression over the tag produces. Overhead sky is still reaching the antenna, so the tag is covered or sunk into its surroundings rather than sealed away.`
+      : `Reception only succeeds for passes above ~${minReceived.toFixed(0)}°. The horizon is obstructed all around — typical of a partially buried tag where the antenna is below surface level but can see sky nearly overhead. Received passes average ${meanReceived.toFixed(0)}° elevation vs ${meanMissed.toFixed(0)}° for missed passes.`;
   } else if (azimuthBias && azimuthBias !== 'symmetric') {
     pattern = 'directional';
     confidence = 0.7;
-    const windowFaces = { N: 'north', E: 'east', S: 'south', W: 'west' }[azimuthBias];
-    reasoning = `Reception is biased toward the ${azimuthBias} (mean received azimuth ${meanReceivedAz.toFixed(0)}°). Passes from the opposite direction are consistently missed, suggesting a directional obstruction — e.g., the tag is indoors near a window facing ${windowFaces}, or the antenna is blocked by a wall/roof/vehicle on one side.`;
+    // Quotes the quadrant reception rates, which are what the verdict is
+    // actually computed from. The old text quoted the circular mean of received
+    // azimuths instead — an unrelated statistic that can point anywhere, and on
+    // one report announced a bias "toward the S" alongside a mean azimuth of
+    // 61°, which is ENE. It also guessed at indoor storage, which for a tag
+    // sitting in a bay is not a hypothesis the data can support.
+    const rates = quadrantReceptionRates(received, missed);
+    const worst = rates.reduce((a, b) => (a.rate < b.rate ? a : b));
+    const best = rates.reduce((a, b) => (a.rate > b.rate ? a : b));
+    reasoning = `Reception is strongly directional: ${(best.rate * 100).toFixed(0)}% of passes from the ${best.q} are heard against ${(worst.rate * 100).toFixed(0)}% from the ${worst.q}. Something solid stands between the tag and the ${worst.q} — a seawall, bank, hull, piling, vegetation or the object it is resting against. Search that side first, and expect a receiver to go quiet when the tag is between you and the obstruction.`;
   } else if (received.length / passes.length > 0.3) {
     pattern = 'clear';
     confidence = 0.6;
@@ -250,35 +306,47 @@ function circularMean(angles: number[]): number {
  * Detect whether received passes are biased toward one compass quadrant
  * while missed passes come predominantly from the opposite quadrant.
  */
+type Quadrant = 'N' | 'E' | 'S' | 'W';
+
+/** Count passes by quadrant (N: 315-45, E: 45-135, S: 135-225, W: 225-315). */
+function quadrantCounts(passes: AnnotatedPass[]): Record<Quadrant, number> {
+  const counts: Record<Quadrant, number> = { N: 0, E: 0, S: 0, W: 0 };
+  for (const p of passes) {
+    const az = p.peakAzimuth;
+    if (az >= 315 || az < 45) counts.N++;
+    else if (az < 135) counts.E++;
+    else if (az < 225) counts.S++;
+    else counts.W++;
+  }
+  return counts;
+}
+
+/**
+ * Reception rate per compass quadrant. Shared so the sentence reported to the
+ * user quotes the same numbers the verdict was computed from — they used to be
+ * derived separately, and the report ended up pairing a quadrant verdict with an
+ * unrelated mean azimuth that contradicted it.
+ */
+export function quadrantReceptionRates(
+  received: AnnotatedPass[],
+  missed: AnnotatedPass[]
+): { q: Quadrant; rate: number; predicted: number }[] {
+  const rec = quadrantCounts(received);
+  const mis = quadrantCounts(missed);
+  const quadrants: Quadrant[] = ['N', 'E', 'S', 'W'];
+  return quadrants.map((q) => {
+    const total = rec[q] + mis[q];
+    return { q, rate: total > 0 ? rec[q] / total : 0, predicted: total };
+  });
+}
+
 function detectAzimuthBias(
   received: AnnotatedPass[],
   missed: AnnotatedPass[]
 ): AntennaExposure['azimuthBias'] {
   if (received.length < 3 || missed.length < 3) return 'symmetric';
 
-  // Count passes by quadrant (N: 315-45, E: 45-135, S: 135-225, W: 225-315)
-  const quadrantCounts = (passes: AnnotatedPass[]) => {
-    const counts = { N: 0, E: 0, S: 0, W: 0 };
-    for (const p of passes) {
-      const az = p.peakAzimuth;
-      if (az >= 315 || az < 45) counts.N++;
-      else if (az < 135) counts.E++;
-      else if (az < 225) counts.S++;
-      else counts.W++;
-    }
-    return counts;
-  };
-
-  const rec = quadrantCounts(received);
-  const mis = quadrantCounts(missed);
-
-  // Reception rate per quadrant
-  type Q = 'N' | 'E' | 'S' | 'W';
-  const quadrants: Q[] = ['N', 'E', 'S', 'W'];
-  const rates = quadrants.map((q): { q: Q; rate: number; predicted: number } => {
-    const total = rec[q] + mis[q];
-    return { q, rate: total > 0 ? rec[q] / total : 0, predicted: total };
-  });
+  const rates = quadrantReceptionRates(received, missed);
 
   // Only meaningful if each quadrant has at least 2 predicted passes
   if (rates.some((r) => r.predicted < 2)) return 'symmetric';

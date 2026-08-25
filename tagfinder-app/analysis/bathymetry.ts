@@ -72,7 +72,16 @@ export function analyzeBathymetry(
     };
   }
 
-  const maxTagDepth = Math.max(...depths);
+  // A tag resting on the bottom reports seabed depth over and over, so the
+  // deepest reading it ever produced is the wrong statistic: one corrupt record
+  // is enough to place a floating tag on the seabed. Uses the 90th percentile
+  // instead, which still reflects how deep the tag genuinely gets while needing
+  // corroboration from the rest of the record.
+  const sortedDepths = [...depths].sort((a, b) => a - b);
+  const maxTagDepth =
+    depths.length >= 5
+      ? sortedDepths[Math.floor((sortedDepths.length - 1) * 0.9)]
+      : Math.max(...depths);
   const meanTagDepth = depths.reduce((a, b) => a + b, 0) / depths.length;
 
   // Consider the tag "on the seabed" if its max depth is within 15m of bathymetry

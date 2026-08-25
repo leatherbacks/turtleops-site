@@ -1,4 +1,5 @@
 import type { SeriesReading, DiveProfile } from '@/lib/types';
+import { screenIsolatedDepths } from './depthScreen';
 
 const MAX_DISPLAY_POINTS = 300;
 const SURFACE_DEPTH_THRESHOLD = 1; // meters — below this is "at surface"
@@ -8,8 +9,18 @@ const SURFACE_DEPTH_THRESHOLD = 1; // meters — below this is "at surface"
  * Downsamples to MAX_DISPLAY_POINTS for rendering.
  */
 export function buildDiveProfile(readings: SeriesReading[]): DiveProfile | null {
-  const withDepth = readings.filter((r) => r.depth !== null);
-  if (withDepth.length === 0) return null;
+  const allWithDepth = readings.filter((r) => r.depth !== null);
+  if (allWithDepth.length === 0) return null;
+
+  // A corrupt decode reading 32 m in an otherwise flat surface record is not a
+  // dive, and quoting it as the maximum is the single most misleading number
+  // this panel can produce.
+  const screen = screenIsolatedDepths(
+    allWithDepth,
+    (r) => r.depth!,
+    (r) => r.date.getTime()
+  );
+  const withDepth = screen.kept.length > 0 ? screen.kept : allWithDepth;
 
   const depths = withDepth.map((r) => r.depth!);
   const temps = readings
@@ -38,6 +49,8 @@ export function buildDiveProfile(readings: SeriesReading[]): DiveProfile | null 
     firstReading: readings[0].date,
     lastReading: readings[readings.length - 1].date,
     maxDepth,
+    screenedReadings: screen.rejected.length,
+    screenNote: screen.reason,
     avgDepth,
     tempRange,
     surfaceTimePct,

@@ -23,9 +23,9 @@ import { parseTimestamp } from '@/lib/timestamp';
  *   ----  -------------------------------  ------------------------------
  *   0     message type, always ED           all three tags
  *   1     format/config version             constant per tag, varies between
- *   2-4   u24 seconds counter              exact against record timestamps
- *   5     sub-second, units of 1/256 s     bytes[2:6] as u32 at 256 Hz
- *   6     status flags, 0x80 = wet         31/31 vs ReleaseCause
+ *   2-5   u32 counter at 256 Hz            exact against record timestamps,
+ *                                          WRAPS every 194.181 days
+ *   6     latched release cause            31/31 vs ReleaseCause
  *   7-8   u16 serial number                31/31 exact
  *   9-10  u16 depth, metres                11/11 exact
  *   11-12 u16 message counter              monotonic with time
@@ -39,9 +39,16 @@ import { parseTimestamp } from '@/lib/timestamp';
  *   30    probable CRC                     unidentified
  *
  * NOT present anywhere in this message: a live battery voltage. Every
- * unidentified byte was range-checked for a value near 3.5 V at any plausible
- * scaling and none matches, so a quoted battery figure does not originate here.
- * The corrosion voltages are latched from the release event and never change.
+ * unidentified byte was range-checked for a value near the 3.6 V nominal at any
+ * plausible scaling and none matches, so a quoted battery figure does not
+ * originate here. The corrosion voltages are latched from the release event and
+ * never change.
+ *
+ * The tag does sample battery — every 60 s, per the manufacturer's manual —
+ * but into the onboard Basic Log, which is never transmitted. It comes back only
+ * with the physical tag. So on a RECOVERED tag the battery history exists and is
+ * worth downloading; on a tag still at sea it does not exist at any price, and a
+ * battery figure in a report about one is invented.
  */
 
 /**
@@ -54,6 +61,45 @@ import { parseTimestamp } from '@/lib/timestamp';
  */
 const HEALTH_TYPE_BYTE = 0xed;
 const PAYLOAD_LEN = 31;
+
+/**
+ * The tag clock is 32 bits at 256 Hz, so it rolls over every 194.181 days and
+ * tagSeconds is elapsed time MODULO that.
+ *
+ * This cost a wrong diagnosis and nearly a wrong warranty claim. A tag still
+ * transmitting 200 days after activation reported a clock of 6.5 days. Working
+ * back from that gave an apparent activation date months after the tag's own
+ * archive proved it was already running, which reads exactly like a device that
+ * rebooted — and two sibling tags on the same programme showed nothing similar,
+ * which looked like corroboration. It was not: those two stopped transmitting a
+ * few days before their own counters would have wrapped, so only the surviving
+ * tag ever crossed it. Adding one wrap put all three activations within four
+ * minutes of each other.
+ *
+ * Never derive an activation or release time from a single tagSeconds value.
+ * Use estimateClockEpoch, which is explicit about the ambiguity.
+ */
+export const TAG_CLOCK_WRAP_S = 4_294_967_296 / 256;
+
+/**
+ * Lead on the undecoded traffic, recorded rather than acted on.
+ *
+ * Type 0xA0 is the overwhelming majority of what these tags send — over 80% of
+ * payloads on every deployment seen — and is not decoded here. The
+ * manufacturer's manual names three logs, and only two of them are transmitted:
+ * the Activity Log (time-series pressure and temperature, or pressure,
+ * temperature and light) and the Day Log (processed geolocation). The Basic Log
+ * stays onboard and comes back only with the physical tag.
+ *
+ * The manual's configurator shows the Activity Log packing "Dive (8 recs/msg)",
+ * which would put eight pressure/temperature pairs in a 31-byte payload — about
+ * three bytes a record after a header, which is the right order of magnitude.
+ * That makes 0xA0 most likely the Activity Log in Dive form. Not decoded on that
+ * basis: a plausible field count is not a layout, and the way to settle it is
+ * the way the health message was settled — pair raw payloads against the
+ * manufacturer's own decode of the same deployment and require agreement on the
+ * corrupt records as well as the clean ones.
+ */
 
 /** Physical screens, since the raw feed carries no CRC column of its own. */
 const MAX_PLAUSIBLE_VOLTS = 10;
@@ -88,14 +134,30 @@ export function decodeHealthMessage(
     /** Format/config version — constant per deployment, varies between them. */
     formatByte: payload[1],
     // bytes[2:6] as fixed-point at 256 Hz reproduces the record timestamps to
-    // 0.01 s, so byte 5 is the fractional second rather than a separate field.
+    // 0.01 s. It is a 32-bit field, so it is elapsed time MODULO 194.181 days —
+    // see TAG_CLOCK_WRAP_S. A single message cannot tell you how many wraps have
+    // passed.
     tagSeconds: (u24(payload, 2) * 256 + payload[5]) / 256,
     statusByte: status,
-    // Lotek renders 0x80 as "Wet Schedule". Whether that is a live conductivity
-    // reading or a latched release-cause enum is unresolved: it has never once
-    // differed on a coherently-decoding message, so it cannot currently
-    // distinguish "wet now" from "always says wet". Exposed rather than
-    // interpreted.
+    // A latched release cause, not a live conductivity reading. The
+    // manufacturer's manual settles it: the PSAT+ offers exactly three
+    // programmed release conditions — a scheduled number of days, a minimum
+    // time above an overpressure threshold, and no change in pressure over
+    // several days ("inactivity"). Three conditions, and exactly three values
+    // observed across deployments, each constant within its own deployment and
+    // matching the ReleaseCause string in the manufacturer's own decode:
+    //
+    //   0x80  scheduled elapsed time
+    //   0x81  overpressure
+    //   0x82  inactivity / constant depth
+    //
+    // The manual is explicit that the inactivity trigger is ambiguous by
+    // design: it fires either because the tag was shed and is floating, or
+    // because the animal died and the tag sank to the bottom and stopped
+    // moving. A tag reporting 0x82 has not told you which.
+    //
+    // wetFlag is kept because the high bit is what Lotek renders as "Wet", but
+    // it says nothing about whether the tag is wet NOW.
     wetFlag: (status & 0x80) !== 0,
     serial: u16(payload, 7),
     depthM: u16(payload, 9),
@@ -251,3 +313,35 @@ function modalLatched(records: LotekHealthRecord[]) {
   };
 }
 
+
+/**
+ * Recover the moment the tag's clock started, allowing for rollover.
+ *
+ * Returns every epoch consistent with the records — one per possible wrap count
+ * — rather than a single answer, because the data genuinely does not contain
+ * one. A caller with an outside constraint (a known deployment date, a sibling
+ * tag from the same batch) can pick; a caller without one should say the record
+ * is ambiguous rather than take the smallest.
+ *
+ * `wraps` is capped by the plausible life of the hardware rather than by
+ * arithmetic: at roughly 194 days a wrap, four covers more than two years.
+ */
+export function estimateClockEpoch(
+  records: LotekHealthRecord[],
+  maxWraps = 4
+): { wraps: number; epoch: Date; residualS: number }[] {
+  const dated = records.filter((r) => !isNaN(r.date.getTime()));
+  if (dated.length === 0) return [];
+
+  const out: { wraps: number; epoch: Date; residualS: number }[] = [];
+  for (let w = 0; w <= maxWraps; w++) {
+    // Each record implies an epoch; a correct wrap count makes them agree.
+    const implied = dated.map(
+      (r) => r.date.getTime() - (r.tagSeconds + w * TAG_CLOCK_WRAP_S) * 1000
+    );
+    const mean = implied.reduce((a, b) => a + b, 0) / implied.length;
+    const spread = Math.max(...implied) - Math.min(...implied);
+    out.push({ wraps: w, epoch: new Date(mean), residualS: spread / 1000 });
+  }
+  return out;
+}

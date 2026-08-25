@@ -62,6 +62,25 @@ chk('WC + no summary -> tracker', detectTagCategory(null, 'wildlife_computers').
 chk('Lotek + no summary -> psat', detectTagCategory(null, 'lotek').category, 'psat');
 chk('unknown + no summary -> tracker', detectTagCategory(null).category, 'tracker');
 
+// A named pop-up tag whose export omits ReleaseDate is still a pop-up tag.
+// Requiring both sent a real MiniPAT down the live-tracker path, where its
+// post-release fixes were read as animal movement.
+const sum = (instrument: string, releaseDate: Date | null) =>
+  ({ instrument, releaseDate }) as unknown as Parameters<typeof detectTagCategory>[0];
+chk('MiniPAT without ReleaseDate -> psat',
+  detectTagCategory(sum('MiniPAT', null), 'wildlife_computers').category, 'psat');
+chk('...and says the release moment is unavailable',
+  /no ReleaseDate/.test(detectTagCategory(sum('MiniPAT', null), 'wildlife_computers').reasoning), true);
+chk('MiniPAT with ReleaseDate -> psat',
+  detectTagCategory(sum('MiniPAT', new Date()), 'wildlife_computers').category, 'psat');
+// SPLASH is normally carried by the animal, so the name alone must not promote it.
+chk('SPLASH without ReleaseDate stays tracker',
+  detectTagCategory(sum('SPLASH', null), 'wildlife_computers').category, 'tracker');
+chk('SPLASH with ReleaseDate -> psat',
+  detectTagCategory(sum('SPLASH', new Date()), 'wildlife_computers').category, 'psat');
+chk('SPOT stays a tracker',
+  detectTagCategory(sum('SPOT-300', null), 'wildlife_computers').category, 'tracker');
+
 console.log('\n== DATA REACHED THE ANALYZERS ==');
 const dive = parseLotekDiveLog(parsedData.lotek_divelog);
 const day = parseLotekDayLog(parsedData.lotek_daylog);
