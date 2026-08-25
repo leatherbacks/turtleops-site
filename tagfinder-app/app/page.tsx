@@ -1041,6 +1041,70 @@ export default function TagFinderPage() {
           </a>
           .
         </p>
+        <p className="mt-1">
+          Predation &amp; post-release interpretation:{' '}
+          <a
+            href="https://doi.org/10.3354/esr01165"
+            target="_blank"
+            rel="noopener"
+            className="hover:text-primary underline underline-offset-2"
+          >
+            Hall &amp; James 2021, Endang. Species Res. 46:279&ndash;291
+          </a>
+          . Satellite passes: SGP4 via{' '}
+          <a
+            href="https://github.com/shashwatak/satellite-js"
+            target="_blank"
+            rel="noopener"
+            className="hover:text-primary underline underline-offset-2"
+          >
+            satellite.js
+          </a>
+          {' '}(Vallado et al. 2006, AIAA 2006-6753). Solar position: Astronomical
+          Almanac low-precision algorithm. Tag configuration &amp; release logic:
+          Lotek PSAT+ User Manual rev. 02 (2026). Lotek binary log and Argos
+          payload layouts reverse-engineered for this tool.
+        </p>
+        <p className="mt-1">
+          Data: weather &amp; ocean forcing by{' '}
+          <a
+            href="https://open-meteo.com"
+            target="_blank"
+            rel="noopener"
+            className="hover:text-primary underline underline-offset-2"
+          >
+            Open-Meteo.com
+          </a>
+          {' '}(CC BY 4.0). Geocoding &copy;{' '}
+          <a
+            href="https://www.openstreetmap.org/copyright"
+            target="_blank"
+            rel="noopener"
+            className="hover:text-primary underline underline-offset-2"
+          >
+            OpenStreetMap contributors
+          </a>
+          {' '}via Nominatim, and U.S. Census Bureau. Bathymetry:{' '}
+          <a
+            href="https://doi.org/10.5285/a29c5465-b138-234d-e053-6c86abc040b9"
+            target="_blank"
+            rel="noopener"
+            className="hover:text-primary underline underline-offset-2"
+          >
+            GEBCO 2020 Grid
+          </a>
+          . Tides &amp; water temperature: NOAA CO-OPS. Orbital elements:{' '}
+          <a
+            href="https://celestrak.org"
+            target="_blank"
+            rel="noopener"
+            className="hover:text-primary underline underline-offset-2"
+          >
+            CelesTrak
+          </a>
+          {' '}(T. S. Kelso). Elevation: Open-Elevation. Basemap: Esri, Maxar,
+          Earthstar Geographics, and the GIS User Community.
+        </p>
         <p className="mt-2">
           If this tool informed your recovery or research, please cite: TurtleTag Recovery (Johnson, 2026) — tagfinder.turtleops.org
         </p>
