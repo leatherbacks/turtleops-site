@@ -5,6 +5,8 @@ import { checkRateLimit } from '@/lib/rateLimit';
 import { notifyAnalysis } from '@/lib/notifyAnalysis';
 
 const MAX_ANALYSES_PER_DAY = 10;
+/** Generous for a slimmed analysis, hostile to anything else. */
+const MAX_BODY_BYTES = 300_000;
 
 /**
  * Generate a natural-language recovery brief from the structured analysis.
@@ -37,11 +39,21 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Per-email rate limit
-  const limit = await checkRateLimit({
-    key: `email:${user.email.toLowerCase()}`,
-    maxPerDay: MAX_ANALYSES_PER_DAY,
-  });
+  // Per-email rate limit — strict: this route spends money per call, so a
+  // limiter that cannot count must refuse, not wave requests through.
+  let limit;
+  try {
+    limit = await checkRateLimit({
+      key: `email:${user.email.toLowerCase()}`,
+      maxPerDay: MAX_ANALYSES_PER_DAY,
+      strict: true,
+    });
+  } catch {
+    return NextResponse.json(
+      { error: 'Rate limiting is temporarily unavailable. Please try again shortly.' },
+      { status: 503 }
+    );
+  }
   if (!limit.allowed) {
     return NextResponse.json(
       {
@@ -51,9 +63,19 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Cap the payload before parsing. The prompt embeds this JSON, so its size
+  // is token spend: the client sends a slimmed analysis measured in tens of
+  // kilobytes, and anything approaching the platform body limit is not a tag.
+  const raw = await request.text();
+  if (raw.length > MAX_BODY_BYTES) {
+    return NextResponse.json(
+      { error: 'Payload too large for a tag analysis.' },
+      { status: 413 }
+    );
+  }
   let body: { analysis?: unknown; environment?: unknown };
   try {
-    body = await request.json();
+    body = JSON.parse(raw);
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }

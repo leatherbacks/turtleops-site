@@ -5,6 +5,7 @@ import {
 } from '@/lib/supabase';
 
 const REPORTS_PER_DAY = 20;
+const MAX_BODY_BYTES = 300_000;
 const ID_ALPHABET = 'abcdefghijkmnpqrstuvwxyz23456789'; // unambiguous chars
 const ID_LENGTH = 8;
 
@@ -32,6 +33,13 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const raw = await request.text();
+  if (raw.length > MAX_BODY_BYTES) {
+    return NextResponse.json(
+      { error: 'Payload too large for a report snapshot.' },
+      { status: 413 }
+    );
+  }
   let body: {
     analysis?: unknown;
     environment?: unknown;
@@ -39,7 +47,7 @@ export async function POST(request: NextRequest) {
     upcomingPasses?: unknown;
   };
   try {
-    body = await request.json();
+    body = JSON.parse(raw);
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
@@ -85,8 +93,9 @@ export async function POST(request: NextRequest) {
   });
 
   if (error) {
+    console.error('report insert failed:', error.message);
     return NextResponse.json(
-      { error: 'Failed to save report', detail: error.message },
+      { error: 'Failed to save report' },
       { status: 500 }
     );
   }
