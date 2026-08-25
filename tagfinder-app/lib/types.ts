@@ -192,6 +192,19 @@ export interface CorruptMessage {
  * own clock, not by reception, since the archive is replayed long after it was
  * recorded.
  */
+/**
+ * One archived sample read from a recovered tag's offloaded activity log.
+ * Pressure is exact against the manufacturer's decode; temperature is good to a
+ * few tenths pending the per-tag calibration block. Timed by the tag's own
+ * relative clock — see resolveEpoch.
+ */
+export interface LotekArchiveRecord {
+  tagSeconds: number;
+  temperatureC: number;
+  pressureDbar: number;
+  formatByte: number;
+}
+
 export interface LotekActivityRecord {
   /** Elapsed tag clock in seconds, modulo the 194.181-day wrap. */
   tagSeconds: number;

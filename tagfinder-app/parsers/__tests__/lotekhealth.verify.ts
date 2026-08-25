@@ -1,6 +1,7 @@
 import { parseTimestamp } from '@/lib/timestamp';
 import { estimateClockEpoch, TAG_CLOCK_WRAP_S } from '@/parsers/lotek/healthMessage';
 import { decodeActivityMessage, parseLotekActivityMessages } from '@/parsers/lotek/activityMessage';
+import { parseLotekActivityLog, resolveEpoch, recordTime } from '@/parsers/lotek/activityLogBinary';
 import { readFileSync } from 'fs';
 import Papa from 'papaparse';
 import { requireFixture, MESSAGES_CSV } from './fixtures';
@@ -285,6 +286,67 @@ console.log('\n== ACTIVITY LOG (0xA0) — PARTIAL DECODE ==');
     decodeActivityMessage(Uint8Array.from(new Array(31).fill(0xed))), null);
   chk('a wrong-length payload is refused',
     decodeActivityMessage(Uint8Array.from(new Array(20).fill(0xa0))), null);
+}
+
+console.log('\n== OFFLOADED ACTIVITY LOG (.bin) ==');
+{
+  // The archive as the tag stored it rather than as Argos delivered it. Built
+  // from a synthetic file so the suite needs no fixture; the layout is the one
+  // verified against a manufacturer decode at 100% on pressure.
+  const entry = (baseSeconds: number, temps: number[], press: number[]) => {
+    const b = new Uint8Array(40);
+    b[0] = 0xa0;
+    b[1] = baseSeconds & 0xff;
+    b[2] = (baseSeconds >> 8) & 0xff;
+    b[3] = (baseSeconds >> 16) & 0xff;
+    b[4] = 0x31;
+    temps.forEach((t, i) => {
+      const raw = Math.round((t + 20) * 50);
+      b[5 + 2 * i] = raw & 0xff;
+      b[6 + 2 * i] = raw >> 8;
+    });
+    press.forEach((p, i) => {
+      b[21 + 2 * i] = p & 0xff;
+      b[22 + 2 * i] = p >> 8;
+    });
+    b[37] = 0x6a; b[38] = 0x7b; b[39] = 0xde;
+    return b;
+  };
+
+  const T = [30.5, 30.4, 30.2, 30.1, 29.9, 30.0, 30.3, 30.6];
+  const P = [0, 19, 30, 29, 39, 45, 35, 12];
+  // A realistic header precedes the entries, so the start must be discovered.
+  const header = new TextEncoder().encode('[PSAT3_ALOG]TagParams....FLEX....LogSettings....TagCalInfo....');
+  const file = new Uint8Array(header.length + 40 * 3);
+  file.set(header, 0);
+  [0, 1, 2].forEach((k) => file.set(entry(14154716 + k * 2400, T, P), header.length + k * 40));
+
+  const r = parseLotekActivityLog(file);
+  chk('entries found past a variable-length header', r.entries, 3);
+  chk('eight records per entry', r.records.length, 24);
+  chk('nothing rejected', r.implausible, 0);
+  chk('pressure round-trips exactly', r.records.slice(0, 8).map((x) => x.pressureDbar), P);
+  chk('temperature round-trips', r.records[0].temperatureC, 30.5);
+  chk('records are 300 s apart', r.records[1].tagSeconds - r.records[0].tagSeconds, 300);
+  chk('entries are 2400 s apart', r.records[8].tagSeconds - r.records[0].tagSeconds, 2400);
+
+  // The clock is relative. Reading it as absolute produced two wrong diagnoses,
+  // so the parser must not convert on its own.
+  const epoch = resolveEpoch(new Date('2026-07-01T16:25:00Z'), r.records[0].tagSeconds);
+  chk('an epoch can be recovered from one known record',
+    epoch.toISOString(), '2026-01-18T20:33:04.000Z');
+  chk('...and dates a record correctly',
+    recordTime(r.records[0], epoch).toISOString(), '2026-07-01T16:25:00.000Z');
+
+  // Physically impossible readings are dropped rather than carried.
+  const bad = new Uint8Array(file);
+  bad[header.length + 21] = 0xff; bad[header.length + 22] = 0xff;  // 65535 dBar
+  chk('an impossible pressure is rejected', parseLotekActivityLog(bad).implausible, 1);
+
+  const wrong = parseLotekActivityLog(new Uint8Array(64));
+  chk('a file with no entry stream is refused', wrong.records.length, 0);
+  chk('...with a reason naming the other log types',
+    /Basic Log or Day Log/.test(wrong.reason ?? ''), true);
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`);
