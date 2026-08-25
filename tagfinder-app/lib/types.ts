@@ -198,6 +198,21 @@ export interface CorruptMessage {
  * few tenths pending the per-tag calibration block. Timed by the tag's own
  * relative clock — see resolveEpoch.
  */
+/**
+ * One daily summary from a recovered tag's offloaded day log. Latitude comes in
+ * two solutions because light-based geolocation cannot distinguish north from
+ * south by day length alone; null means the tag recorded no fix. Longitude is
+ * deliberately absent — its field is identified but its scaling is unresolved.
+ */
+export interface LotekDayRecord {
+  date: Date;
+  sunriseMinutesUtc: number | null;
+  sunsetMinutesUtc: number | null;
+  latitudeNorth: number | null;
+  latitudeSouth: number | null;
+  sstC: number | null;
+}
+
 export interface LotekArchiveRecord {
   tagSeconds: number;
   temperatureC: number;

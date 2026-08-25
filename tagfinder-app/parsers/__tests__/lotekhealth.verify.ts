@@ -2,6 +2,7 @@ import { parseTimestamp } from '@/lib/timestamp';
 import { estimateClockEpoch, TAG_CLOCK_WRAP_S } from '@/parsers/lotek/healthMessage';
 import { decodeActivityMessage, parseLotekActivityMessages } from '@/parsers/lotek/activityMessage';
 import { parseLotekActivityLog, resolveEpoch, recordTime } from '@/parsers/lotek/activityLogBinary';
+import { parseLotekDayLog } from '@/parsers/lotek/dayLogBinary';
 import { readFileSync } from 'fs';
 import Papa from 'papaparse';
 import { requireFixture, MESSAGES_CSV } from './fixtures';
@@ -347,6 +348,54 @@ console.log('\n== OFFLOADED ACTIVITY LOG (.bin) ==');
   chk('a file with no entry stream is refused', wrong.records.length, 0);
   chk('...with a reason naming the other log types',
     /Basic Log or Day Log/.test(wrong.reason ?? ''), true);
+}
+
+console.log('\n== OFFLOADED DAY LOG (.bin) ==');
+{
+  // 40-byte daily records. Dates count days from 2000-01-01, which is a
+  // different reference again from the relative clock the other logs use.
+  const day = (dayNo: number, sunrise: number, sunset: number, latRaw: number, sstRaw: number) => {
+    const b = new Uint8Array(40);
+    const put = (slot: number, v: number) => { b[slot * 2] = v & 0xff; b[slot * 2 + 1] = v >> 8; };
+    put(0, dayNo); put(1, sunrise); put(2, sunset); put(3, latRaw); put(4, latRaw); put(11, sstRaw);
+    return b;
+  };
+  const header = new TextEncoder().encode('[PSAT3_DLOG]TagParams....TagCalInfo....');
+  const file = new Uint8Array(header.length + 40 * 4);
+  file.set(header, 0);
+  // 9678 = 2026-07-01. Latitude 588 -> 25.85 N. SST 2579 -> 31.58 C.
+  [0, 1, 2, 3].forEach((k) =>
+    file.set(day(9678 + k, 630 + k, 23 + k, 588 + k, 2579), header.length + k * 40));
+
+  const r = parseLotekDayLog(file);
+  chk('records found past the header', r.records.length, 4);
+  chk('the date reference is 2000-01-01',
+    r.records[0].date.toISOString().slice(0, 10), '2026-07-01');
+  chk('...and advances by a day',
+    r.records[1].date.toISOString().slice(0, 10), '2026-07-02');
+  chk('sunrise is minutes past midnight', r.records[0].sunriseMinutesUtc, 630);
+  chk('latitude is raw * 90/2047', Math.abs(r.records[0].latitudeNorth! - 25.85) < 0.01, true);
+  chk('SST uses the same raw/50-20 as every other Lotek temperature',
+    r.records[0].sstC, 31.58);
+  chk('both latitude solutions are carried, unresolved',
+    r.records[0].latitudeSouth !== null, true);
+
+  // Sentinels must not reach a caller as numbers. The SST one is the dangerous
+  // case: raw 0 decodes to -20.00 C, which a physical range check would pass.
+  const sentinel = new Uint8Array(file);
+  const rec2 = header.length + 40;
+  const put = (slot: number, v: number) => {
+    sentinel[rec2 + slot * 2] = v & 0xff; sentinel[rec2 + slot * 2 + 1] = v >> 8;
+  };
+  put(3, 2047); put(4, 2047); put(11, 0); put(1, 0xffff);
+  const s2 = parseLotekDayLog(sentinel).records[1];
+  chk('a no-fix latitude is null, not 100 degrees', s2.latitudeNorth, null);
+  chk('an absent SST is null, not -20 C', s2.sstC, null);
+  chk('an absent sunrise is null', s2.sunriseMinutesUtc, null);
+
+  const wrong = parseLotekDayLog(new Uint8Array(200));
+  chk('a file with no day records is refused', wrong.records.length, 0);
+  chk('...naming the other log types', /Activity Log or Basic Log/.test(wrong.reason ?? ''), true);
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`);
