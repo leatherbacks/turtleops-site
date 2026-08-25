@@ -23,6 +23,21 @@ import {
   offloadSeries,
   type LotekOffloadResult,
 } from '@/parsers/lotek/offload';
+import type { LotekDayRecord, DiveProfile } from '@/lib/types';
+
+/**
+ * What an offload-only upload produces. A recovered tag has no search to run —
+ * the archive IS the result — so refusing to analyse it because there are no
+ * Argos positions was answering the wrong question.
+ */
+export interface ArchiveOnlyResult {
+  profile: DiveProfile;
+  dayRecords: LotekDayRecord[];
+  basicSamples: number;
+  anchorMethod: 'exact' | 'day';
+  from: Date;
+  to: Date;
+}
 import { parseLotekDiveLog } from '@/parsers/lotek/diveLog';
 import { parseLocations } from '@/parsers/wc/locations';
 import { parseSummary } from '@/parsers/wc/summary';
@@ -61,6 +76,8 @@ import {
 interface UseAnalysisReturn {
   detectedFiles: DetectedFile[];
   result: AnalysisResult | null;
+  /** Set instead of result for an offload-only upload — see ArchiveOnlyResult. */
+  archive: ArchiveOnlyResult | null;
   statuses: import('@/lib/types').TagStatus[];
   series: import('@/lib/types').SeriesReading[];
   passes: import('@/lib/types').ArgosPass[];
@@ -75,6 +92,7 @@ interface UseAnalysisReturn {
 export function useAnalysis(): UseAnalysisReturn {
   const [detectedFiles, setDetectedFiles] = useState<DetectedFile[]>([]);
   const [result, setResult] = useState<AnalysisResult | null>(null);
+  const [archive, setArchive] = useState<ArchiveOnlyResult | null>(null);
   const [statuses, setStatuses] = useState<import('@/lib/types').TagStatus[]>([]);
   const [series, setSeries] = useState<import('@/lib/types').SeriesReading[]>([]);
   const [passesState, setPassesState] = useState<import('@/lib/types').ArgosPass[]>([]);
@@ -87,6 +105,7 @@ export function useAnalysis(): UseAnalysisReturn {
     setAnalyzing(true);
     setError(null);
     setResult(null);
+    setArchive(null);
 
     try {
       // 1. Parse and detect all files.
@@ -205,14 +224,62 @@ export function useAnalysis(): UseAnalysisReturn {
         }
       }
 
+      // A recovered tag's offloaded archive, when present and dateable, is the
+      // fullest series available — on the reference deployment 7,888 records
+      // against the 3,225 that survived Argos. Anchored exactly against the
+      // manufacturer's Dive Log CSV when both are uploaded; to the day log's
+      // first date (±half a day, kept away from anything diel) otherwise.
+      const offload = offloadParses.length ? mergeOffloads(offloadParses) : null;
+      const offloadAnchor = offload?.activity?.records.length
+        ? anchorActivityEpoch(offload.activity, lotekDive?.readings ?? null, offload.day)
+        : null;
+      const archiveSeries =
+        offload?.activity && offloadAnchor
+          ? offloadSeries(offload.activity, offloadAnchor)
+          : null;
+      for (const d of detected) {
+        if (d.fileType !== 'lotek_offload') continue;
+        d.warning = !offload?.activity?.records.length
+          ? d.warning
+          : !offloadAnchor
+            ? 'Archive decoded but undated: its clock is relative. Upload the Lotek Dive Log CSV or Day Log alongside to date it.'
+            : offloadAnchor.method === 'day'
+              ? `Archive dated to the day (±12 h) from the day log. Upload the Lotek Dive Log CSV for exact times.`
+              : undefined;
+      }
+
       setDetectedFiles(detected);
 
       // 3. Positions can come from a Wildlife Computers Locations export or
       //    from the CLS DS dump, which carries no manufacturer of its own.
       if (!parsedData.locations && !argosDS && !argosMessages) {
+        // An offload-only upload is not an error — the tag is in hand and the
+        // archive is the result. Position analyses simply have nothing to say.
+        if (archiveSeries && archiveSeries.length > 0) {
+          const profile = buildDiveProfile(archiveSeries);
+          if (profile) {
+            setArchive({
+              profile,
+              dayRecords: offload?.day?.records ?? [],
+              basicSamples: offload?.basic?.samples.length ?? 0,
+              anchorMethod: offloadAnchor!.method,
+              from: archiveSeries[0].date,
+              to: archiveSeries[archiveSeries.length - 1].date,
+            });
+            setAnalyzing(false);
+            return;
+          }
+        }
         setError(
-          'No Argos positions found. Include a Wildlife Computers Locations CSV, ' +
-            'or the raw Argos file from CLS.'
+          offload
+            ? 'The offloaded archive was decoded' +
+              (offload.activity?.records.length && !offloadAnchor
+                ? ' but cannot be dated — upload the Lotek Dive Log CSV or Day Log .bin alongside.'
+                : '.') +
+              ' For position analyses, also include the CLS export or raw Argos file. ' +
+              '(The day log carries latitude only, so it cannot substitute for Argos positions.)'
+            : 'No Argos positions found. Include a Wildlife Computers Locations CSV, ' +
+              'or the raw Argos file from CLS.'
         );
         setAnalyzing(false);
         return;
@@ -267,30 +334,6 @@ export function useAnalysis(): UseAnalysisReturn {
         temperature: r.temperatureC,
         temperatureRange: null,
       }));
-      // A recovered tag's offloaded archive, when present and dateable, is the
-      // fullest series available — on the reference deployment 7,888 records
-      // against the 3,225 that survived Argos. Anchored exactly against the
-      // manufacturer's Dive Log CSV when both are uploaded; to the day log's
-      // first date (±half a day, kept away from anything diel) otherwise.
-      const offload = offloadParses.length ? mergeOffloads(offloadParses) : null;
-      const offloadAnchor = offload?.activity?.records.length
-        ? anchorActivityEpoch(offload.activity, lotekDive?.readings ?? null, offload.day)
-        : null;
-      const archiveSeries =
-        offload?.activity && offloadAnchor
-          ? offloadSeries(offload.activity, offloadAnchor)
-          : null;
-      for (const d of detected) {
-        if (d.fileType !== 'lotek_offload') continue;
-        d.warning = !offload?.activity?.records.length
-          ? d.warning
-          : !offloadAnchor
-            ? 'Archive decoded but undated: its clock is relative. Upload the Lotek Dive Log CSV or Day Log alongside to date it.'
-            : offloadAnchor.method === 'day'
-              ? `Archive dated to the day (±12 h) from the day log. Upload the Lotek Dive Log CSV for exact times.`
-              : undefined;
-      }
-
       const seriesReadings = archiveSeries
         ? [...archiveSeries, ...healthSeries].sort(
             (a, b) => a.date.getTime() - b.date.getTime()
@@ -531,6 +574,7 @@ export function useAnalysis(): UseAnalysisReturn {
   return {
     detectedFiles,
     result,
+    archive,
     statuses,
     series,
     passes: passesState,
