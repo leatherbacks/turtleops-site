@@ -237,6 +237,24 @@ export function useAnalysis(): UseAnalysisReturn {
         offload?.activity && offloadAnchor
           ? offloadSeries(offload.activity, offloadAnchor)
           : null;
+
+      // The archive is an exhibit, not an input. Argos-relayed data is the
+      // primary source — it is what exists while there is still a tag to find,
+      // and the analyses must reach the same conclusions whether or not the
+      // offload is present. The recovered tag's logs are shown alongside.
+      if (archiveSeries && archiveSeries.length > 0) {
+        const profile = buildDiveProfile(archiveSeries);
+        if (profile) {
+          setArchive({
+            profile,
+            dayRecords: offload?.day?.records ?? [],
+            basicSamples: offload?.basic?.samples.length ?? 0,
+            anchorMethod: offloadAnchor!.method,
+            from: archiveSeries[0].date,
+            to: archiveSeries[archiveSeries.length - 1].date,
+          });
+        }
+      }
       for (const d of detected) {
         if (d.fileType !== 'lotek_offload') continue;
         d.warning = !offload?.activity?.records.length
@@ -256,19 +274,8 @@ export function useAnalysis(): UseAnalysisReturn {
         // An offload-only upload is not an error — the tag is in hand and the
         // archive is the result. Position analyses simply have nothing to say.
         if (archiveSeries && archiveSeries.length > 0) {
-          const profile = buildDiveProfile(archiveSeries);
-          if (profile) {
-            setArchive({
-              profile,
-              dayRecords: offload?.day?.records ?? [],
-              basicSamples: offload?.basic?.samples.length ?? 0,
-              anchorMethod: offloadAnchor!.method,
-              from: archiveSeries[0].date,
-              to: archiveSeries[archiveSeries.length - 1].date,
-            });
-            setAnalyzing(false);
-            return;
-          }
+          setAnalyzing(false);
+          return;
         }
         setError(
           offload
@@ -334,17 +341,16 @@ export function useAnalysis(): UseAnalysisReturn {
         temperature: r.temperatureC,
         temperatureRange: null,
       }));
-      const seriesReadings = archiveSeries
-        ? [...archiveSeries, ...healthSeries].sort(
-            (a, b) => a.date.getTime() - b.date.getTime()
-          )
-        : parsedData.series
-          ? parseSeries(parsedData.series)
-          : lotekDive && lotekDive.readings.length > 0
-            ? [...lotekDive.readings, ...healthSeries].sort(
-                (a, b) => a.date.getTime() - b.date.getTime()
-              )
-            : healthSeries;
+      // Argos-relayed data only. The offloaded archive is richer but is
+      // display-only by design: conclusions about where the tag is must not
+      // change based on whether the tag has already been found.
+      const seriesReadings = parsedData.series
+        ? parseSeries(parsedData.series)
+        : lotekDive && lotekDive.readings.length > 0
+          ? [...lotekDive.readings, ...healthSeries].sort(
+              (a, b) => a.date.getTime() - b.date.getTime()
+            )
+          : healthSeries;
       // Health-message temperatures are post-release by construction and are
       // the tag's own external sensor, so they are the right input for the
       // temperature-environment check. Prefer a real SST export where one
