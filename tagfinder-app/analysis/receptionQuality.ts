@@ -109,7 +109,10 @@ export function analyzeReceptionQuality(
     };
   }
 
-  const messagesPerPass = base.totalMessages / withCounts.length;
+  // Rounded once, here, and used everywhere — the headline and the prose both
+  // derive from this value. Rounding the raw figure separately in two places
+  // put 5.5 and 5.4 on the same panel (5.45 twice-rounded vs once).
+  const messagesPerPass = Number((base.totalMessages / withCounts.length).toFixed(1));
   const resolving = withCounts.filter((p) => p.msgCount >= MESSAGES_FOR_QUALITY_FIX).length;
   const resolvingFraction = resolving / withCounts.length;
   const locationYield =
@@ -135,7 +138,7 @@ export function analyzeReceptionQuality(
   return {
     ...base,
     verdict,
-    messagesPerPass: Number(messagesPerPass.toFixed(2)),
+    messagesPerPass,
     resolvingFraction: Number(resolvingFraction.toFixed(3)),
     locationYield: locationYield === null ? null : Number(locationYield.toFixed(3)),
     qualityFixFraction:
