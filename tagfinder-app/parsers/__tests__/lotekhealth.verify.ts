@@ -3,6 +3,7 @@ import { estimateClockEpoch, TAG_CLOCK_WRAP_S } from '@/parsers/lotek/healthMess
 import { decodeActivityMessage, parseLotekActivityMessages } from '@/parsers/lotek/activityMessage';
 import { parseLotekActivityLog, resolveEpoch, recordTime } from '@/parsers/lotek/activityLogBinary';
 import { parseLotekDayLog } from '@/parsers/lotek/dayLogBinary';
+import { parseLotekBasicLog, fitPressureCalibration, pressureDbar } from '@/parsers/lotek/basicLogBinary';
 import { readFileSync } from 'fs';
 import Papa from 'papaparse';
 import { requireFixture, MESSAGES_CSV } from './fixtures';
@@ -396,6 +397,78 @@ console.log('\n== OFFLOADED DAY LOG (.bin) ==');
   const wrong = parseLotekDayLog(new Uint8Array(200));
   chk('a file with no day records is refused', wrong.records.length, 0);
   chk('...naming the other log types', /Activity Log or Basic Log/.test(wrong.reason ?? ''), true);
+}
+
+console.log('\n== OFFLOADED BASIC LOG (.bin) ==');
+{
+  // A self-delimiting stream: 4-byte 0xA2 samples, 7-byte 0xE2 auxiliaries.
+  // Assuming a fixed stride instead cost two failed decodes on the real file.
+  const sample = (tempC: number, pressCounts: number) => {
+    const t = Math.round((tempC + 20) * 50);
+    return [0xa2, t & 0xff, ((pressCounts & 0x0f) << 4) | ((t >> 8) & 0x0f), pressCounts >> 4];
+  };
+  const auxRec = (batteryRaw: number) => [0xe2, batteryRaw, 1, 2, 3, 4, 5];
+
+  const bytes: number[] = Array.from(new TextEncoder().encode('[PSAT3_BLOG]TagParams..LogSettings..TagCalInfo..'));
+  // three minutes: five samples then an aux, battery 73-74 (3.65-3.70 V)
+  const press = [0, 12, 30, 55, 131];
+  for (let m = 0; m < 3; m++) {
+    for (let k = 0; k < 5; k++) bytes.push(...sample(30.14 + m * 0.1, press[k] + m));
+    bytes.push(...auxRec(73 + (m % 2)));
+  }
+  bytes.push(0, 0, 0, 0);                       // unwritten flash
+  const r = parseLotekBasicLog(Uint8Array.from(bytes));
+
+  chk('stream found past the header', r.reason, null);
+  chk('fifteen samples', r.samples.length, 15);
+  chk('three auxiliaries', r.aux.length, 3);
+  chk('trailing zeros counted as pad, not corruption', r.padBytes, 4);
+  chk('no resyncs on a clean stream', r.resyncBytes, 0);
+  chk('samples are 12 s apart', r.samples[1].streamSeconds - r.samples[0].streamSeconds, 12);
+  chk('minutes advance on the auxiliary', r.samples[5].streamSeconds, 60);
+  chk('temperature round-trips on the family scale', r.samples[0].temperatureC, 30.14);
+  chk('pressure counts round-trip through the split nibbles',
+    r.samples.slice(0, 5).map((x) => x.pressureCounts), press);
+  chk('battery is raw/20 volts', r.aux[0].batteryV, 3.65);
+  chk('the five unidentified aux bytes are preserved', r.aux[0].raw, [1, 2, 3, 4, 5]);
+
+  // Corruption deep in the stream is skipped and counted, and parsing resumes.
+  // (Garbage inside the first twelve records instead shifts the discovered
+  // stream start past the damage — the head is dropped, not resynced. Placed
+  // after the discovery chain here, which is the realistic position: on the
+  // real file every resync sat megabytes in.)
+  const dirty = bytes.slice(0, 48 + 54).concat([0x17, 0x99], bytes.slice(48 + 54));
+  const rd = parseLotekBasicLog(Uint8Array.from(dirty));
+  chk('garbage bytes are resynced past', rd.resyncBytes, 2);
+  chk('...and every record still parses', rd.samples.length, 15);
+
+  // A physically impossible value is dropped but its slot still advances —
+  // the record existed; only its value is untrustworthy.
+  const badTemp = bytes.slice();
+  const s0 = 48; // first sample offset
+  badTemp[s0 + 1] = 0xff; badTemp[s0 + 2] = 0x0f | badTemp[s0 + 2]; // temp -> huge
+  const rb = parseLotekBasicLog(Uint8Array.from(badTemp));
+  chk('an impossible sample is counted', rb.implausible, 1);
+  chk('...without shifting later timestamps', rb.samples[0].streamSeconds, 12);
+
+  chk('a non-basic-log file is refused',
+    parseLotekBasicLog(new Uint8Array(200)).reason !== null, true);
+
+  // Calibration: recover a known conversion through noise and outliers.
+  // Slope/intercept chosen to match the real tag: dBar = 0.827*counts - 6.6.
+  const noise = (i: number) => 2.5 * Math.sin(i * 2.399963);
+  const pairs = Array.from({ length: 200 }, (_, i) => ({
+    counts: 20 + i, dBar: 0.827 * (20 + i) - 6.6 + noise(i),
+  }));
+  pairs[50] = { counts: 70, dBar: 500 };   // one corrupt pair
+  const cal = fitPressureCalibration(pairs)!;
+  chk('calibration recovers the slope', Math.abs(cal.slope - 0.827) < 0.02, true);
+  chk('...and the intercept', Math.abs(cal.intercept - -6.6) < 2.5, true);
+  chk('...having trimmed the outlier', cal.n, 199);
+  chk('applying it converts counts to dBar',
+    Math.abs(pressureDbar({ streamSeconds: 0, temperatureC: 30, pressureCounts: 120 }, cal) - (0.827 * 120 - 6.6)) < 3,
+    true);
+  chk('too few pairs refuses rather than fits', fitPressureCalibration(pairs.slice(0, 10)), null);
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`);

@@ -32,6 +32,13 @@
  * decoded here. Treat temperatures as good to a few tenths rather than exact,
  * and prefer the manufacturer's values where both exist.
  *
+ * THE FILE ENDS AT CAPACITY, NOT AT AN EVENT. On the reference deployment the
+ * entries exactly fill the allocation, and the last one landed about twelve
+ * hours BEFORE the scheduled release — reading the log's end as the release
+ * produced a wrong conclusion that stood for a day. Corroborating detail: one
+ * entry decoded from the satellite stream predates this file's first entry,
+ * which is what a ring buffer that wrapped by one entry would leave behind.
+ *
  * THE CLOCK IS RELATIVE, and getting this wrong cost two wrong diagnoses. The
  * seconds count from a reference shared across tags — 2026-01-18 20:33:04 on
  * this programme, matching two other tags to the second — and NOT from the

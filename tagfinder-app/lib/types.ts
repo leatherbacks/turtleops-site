@@ -204,6 +204,27 @@ export interface CorruptMessage {
  * south by day length alone; null means the tag recorded no fix. Longitude is
  * deliberately absent — its field is identified but its scaling is unresolved.
  */
+/**
+ * One 12-second sample from a recovered tag's offloaded basic log. Pressure is
+ * in raw sensor counts — the per-tag conversion to dBar must be fitted against
+ * a calibrated reference (see fitPressureCalibration). streamSeconds counts
+ * from an undated stream start that the caller must anchor externally.
+ */
+export interface LotekBasicSample {
+  streamSeconds: number;
+  temperatureC: number;
+  pressureCounts: number;
+}
+
+/** One 60-second auxiliary record from the basic log. */
+export interface LotekBasicAux {
+  streamSeconds: number;
+  /** Volts, raw/20 — inferred scale; null when outside any plausible battery. */
+  batteryV: number | null;
+  /** The five unidentified bytes after battery; light is likely among them. */
+  raw: number[];
+}
+
 export interface LotekDayRecord {
   date: Date;
   sunriseMinutesUtc: number | null;
