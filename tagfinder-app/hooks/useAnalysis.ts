@@ -7,7 +7,12 @@ import type {
   PopoffResult,
 } from '@/lib/types';
 import { parseCSV } from '@/parsers/csv';
-import { detectFile, detectTextFile, detectSpreadsheet } from '@/parsers/detect';
+import { detectFile, detectTextFile, detectSpreadsheet, pttFromFilename } from '@/parsers/detect';
+import { readXlsx, isZipMagic } from '@/parsers/xlsx';
+import {
+  parseLotekPortalWorkbook,
+  type LotekPortalLogResult,
+} from '@/parsers/lotek/portalLog';
 import { parseArgosDS, type ArgosDSResult } from '@/parsers/argos/ds';
 import { parseArgosMessages, type ArgosMessagesResult } from '@/parsers/argos/messages';
 import {
@@ -31,6 +36,13 @@ import type { LotekDayRecord, DiveProfile } from '@/lib/types';
  * Argos positions was answering the wrong question.
  */
 export interface ArchiveOnlyResult {
+  /**
+   * Where the logs came from: the flash of a recovered tag, or Lotek's portal
+   * workbook of Argos-relayed logs. Same panels, different provenance — and the
+   * wording must say which, because one means the tag is in hand and the other
+   * means it is still out there.
+   */
+  source: 'offload' | 'portal';
   profile: DiveProfile;
   dayRecords: LotekDayRecord[];
   basicSamples: number;
@@ -39,6 +51,16 @@ export interface ArchiveOnlyResult {
   to: Date;
 }
 import { parseLotekDiveLog } from '@/parsers/lotek/diveLog';
+
+/** The Lotek portal workbook, or null when this zip is not one (or unreadable). */
+async function readPortalWorkbook(file: File): Promise<LotekPortalLogResult | null> {
+  try {
+    const sheets = await readXlsx(new Uint8Array(await file.arrayBuffer()));
+    return parseLotekPortalWorkbook(sheets);
+  } catch {
+    return null;
+  }
+}
 import { parseLocations } from '@/parsers/wc/locations';
 import { parseSummary } from '@/parsers/wc/summary';
 import { parseStatus } from '@/parsers/wc/status';
@@ -117,6 +139,8 @@ export function useAnalysis(): UseAnalysisReturn {
       const parsedData: Record<string, Record<string, string>[]> = {};
       let argosDS: ArgosDSResult | null = null;
       const offloadParses: LotekOffloadResult[] = [];
+      const portalLogs: LotekPortalLogResult[] = [];
+      let portalPtt: number | null = null;
 
       for (const file of files) {
         // Classify from content, never from the extension. Wildlife Computers
@@ -124,6 +148,29 @@ export function useAnalysis(): UseAnalysisReturn {
         const magic = new Uint8Array(await file.slice(0, 16).arrayBuffer());
         const spreadsheet = detectSpreadsheet(file, magic);
         if (spreadsheet) {
+          // Lotek's portal ships its decoded Day, Dive and Health logs as one
+          // workbook, which is what a user has when the tag pops off and the
+          // manufacturer emails the data. Read it; every other spreadsheet
+          // gets the save-as-CSV guidance.
+          const portal = isZipMagic(magic) ? await readPortalWorkbook(file) : null;
+          if (portal) {
+            portalLogs.push(portal);
+            const parts: string[] = [];
+            if (portal.diveLog) parts.push(`dive log ${portal.diveLog.readings.length} samples`);
+            if (portal.dayLog) parts.push(`day log ${portal.dayLog.records} days`);
+            if (portal.healthLog) parts.push(`health log ${portal.healthLog.records.length} records`);
+            detected.push({
+              file,
+              manufacturer: 'lotek',
+              source: 'lotek',
+              fileType: 'lotek_portal_log',
+              warning: parts.length
+                ? undefined
+                : 'Recognised as a Lotek workbook, but no record in it passed its CRC.',
+            });
+            portalPtt = portalPtt ?? pttFromFilename(file.name);
+            continue;
+          }
           detected.push(spreadsheet);
           continue;
         }
@@ -224,6 +271,21 @@ export function useAnalysis(): UseAnalysisReturn {
         }
       }
 
+      // The portal workbook carries the same three logs as the CSVs. The CSV
+      // wins where both were uploaded — it is the tag software's own output —
+      // and the workbook fills in whatever the CSVs did not cover. Its health
+      // log likewise stands in only when there is no CLS export to decode the
+      // records from directly, which recovers more of them.
+      const portal = portalLogs[0] ?? null;
+      const diveReadings = lotekDive?.readings.length
+        ? lotekDive.readings
+        : portal?.diveLog?.readings ?? [];
+      const dayDives = lotekDay?.dailyDives.length
+        ? lotekDay.dailyDives
+        : portal?.dayLog?.dailyDives ?? [];
+      const daySst = lotekDay?.sst.length ? lotekDay.sst : portal?.dayLog?.sst ?? [];
+      if (!lotekHealth && portal?.healthLog?.records.length) lotekHealth = portal.healthLog;
+
       // A recovered tag's offloaded archive, when present and dateable, is the
       // fullest series available — on the reference deployment 7,888 records
       // against the 3,225 that survived Argos. Anchored exactly against the
@@ -231,7 +293,7 @@ export function useAnalysis(): UseAnalysisReturn {
       // first date (±half a day, kept away from anything diel) otherwise.
       const offload = offloadParses.length ? mergeOffloads(offloadParses) : null;
       const offloadAnchor = offload?.activity?.records.length
-        ? anchorActivityEpoch(offload.activity, lotekDive?.readings ?? null, offload.day)
+        ? anchorActivityEpoch(offload.activity, diveReadings.length ? diveReadings : null, offload.day)
         : null;
       const archiveSeries =
         offload?.activity && offloadAnchor
@@ -246,6 +308,7 @@ export function useAnalysis(): UseAnalysisReturn {
         const profile = buildDiveProfile(archiveSeries);
         if (profile) {
           setArchive({
+            source: 'offload',
             profile,
             dayRecords: offload?.day?.records ?? [],
             basicSamples: offload?.basic?.samples.length ?? 0,
@@ -277,8 +340,33 @@ export function useAnalysis(): UseAnalysisReturn {
           setAnalyzing(false);
           return;
         }
+        // Likewise a Lotek portal workbook on its own. It holds the transmitted
+        // dive and day logs but no Argos positions — Lotek's portal does not
+        // include them — so show the logs and say what is missing, rather than
+        // refusing a file the front page promises to take.
+        if (portal?.diveLog?.readings.length) {
+          const readings = portal.diveLog.readings;
+          const profile = buildDiveProfile(readings);
+          if (profile) {
+            setArchive({
+              source: 'portal',
+              profile,
+              dayRecords: portal.dayLog?.dayRecords ?? [],
+              basicSamples: 0,
+              anchorMethod: 'exact',
+              from: readings[0].date,
+              to: readings[readings.length - 1].date,
+            });
+            setAnalyzing(false);
+            return;
+          }
+        }
         setError(
-          offload
+          portal
+            ? 'The Lotek workbook was read, but it carries no Argos positions — ' +
+              "Lotek's portal export does not include them. Add the CLS per-message " +
+              'export or the raw Argos file for the same PTT alongside it.'
+            : offload
             ? 'The offloaded archive was decoded' +
               (offload.activity?.records.length && !offloadAnchor
                 ? ' but cannot be dated — upload the Lotek Dive Log CSV or Day Log .bin alongside.'
@@ -312,7 +400,7 @@ export function useAnalysis(): UseAnalysisReturn {
       if (!summary && lotekHealth && lotekHealth.records.length > 0) {
         summary = {
           deployId: '',
-          ptt: argosMessages?.ptt ?? 0,
+          ptt: argosMessages?.ptt ?? portalPtt ?? 0,
           instrument: '',
           software: '',
           percentDecoded: 0,
@@ -346,8 +434,8 @@ export function useAnalysis(): UseAnalysisReturn {
       // change based on whether the tag has already been found.
       const seriesReadings = parsedData.series
         ? parseSeries(parsedData.series)
-        : lotekDive && lotekDive.readings.length > 0
-          ? [...lotekDive.readings, ...healthSeries].sort(
+        : diveReadings.length > 0
+          ? [...diveReadings, ...healthSeries].sort(
               (a, b) => a.date.getTime() - b.date.getTime()
             )
           : healthSeries;
@@ -365,10 +453,10 @@ export function useAnalysis(): UseAnalysisReturn {
         ? parseSST(parsedData.sst)
         : healthSst.length > 0
           ? healthSst
-          : lotekDay?.sst ?? [];
+          : daySst;
       const dailyDives = parsedData.minmaxdepth
         ? parseMinMaxDepth(parsedData.minmaxdepth)
-        : lotekDay?.dailyDives ?? [];
+        : dayDives;
       const corruptMsgs = parsedData.corrupt ? parseCorrupt(parsedData.corrupt) : [];
       const lightCurves = parsedData.lightloc ? parseLightLoc(parsedData.lightloc) : [];
       const dailySummaries = parsedData.dailydata ? parseDailyData(parsedData.dailydata) : [];

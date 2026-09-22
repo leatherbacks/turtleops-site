@@ -145,8 +145,10 @@ export function detectTextFile(file: File, text: string): DetectedFile | null {
  * "export this as CSV" instead of failing with a parse error. Covers .xlsx /
  * .ods (a zip, "PK\x03\x04") and legacy .xls (an OLE2 compound file).
  *
- * Worth handling explicitly: the CLS Doppler export — the one product that
- * carries a continuous per-fix error radius — is distributed as .xlsx.
+ * The one workbook that IS read directly — Lotek's portal "Day, Dive, and
+ * Health Log" — is tried first by the caller (parsers/lotek/portalLog.ts);
+ * this is the answer for every other spreadsheet, including the CLS Doppler
+ * export, which is distributed as .xlsx and carries the per-fix error radius.
  */
 export function detectSpreadsheet(file: File, magic: Uint8Array): DetectedFile | null {
   const is = (...bytes: number[]) => bytes.every((b, i) => magic[i] === b);
@@ -159,10 +161,8 @@ export function detectSpreadsheet(file: File, magic: Uint8Array): DetectedFile |
     source: 'unknown',
     fileType: 'unknown',
     warning:
-      'Spreadsheet files are not read directly. If this is a Lotek activity-health ' +
-      'log, you do not need it — the same records are decoded straight from the ' +
-      'CLS per-message export, and that recovers more of them. Otherwise save it ' +
-      'as CSV and upload that.',
+      'Spreadsheet files other than the Lotek "Day, Dive, and Health Log" workbook ' +
+      'are not read directly. Save this one as CSV and upload that.',
   };
 }
 
