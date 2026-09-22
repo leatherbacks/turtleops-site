@@ -21,14 +21,16 @@ const hm = (m: number | null) =>
     : `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 
 export default function ArchivePanels({ archive, standalone, onReset }: ArchivePanelsProps) {
+  const portal = archive.source === 'portal';
   return (
     <div className={standalone ? 'max-w-3xl mx-auto space-y-4' : 'space-y-4 mt-6'}>
       <div className="bg-surface rounded-xl border border-border p-5">
         <h2 className="text-xl font-bold tracking-tight mb-1">
-          Recovered-tag archive
+          {portal ? 'Lotek transmitted logs' : 'Recovered-tag archive'}
         </h2>
         <p className="text-sm text-muted">
-          {archive.profile.totalReadings.toLocaleString()} archived readings,{' '}
+          {archive.profile.totalReadings.toLocaleString()}{' '}
+          {portal ? 'dive samples relayed by Argos' : 'archived readings'},{' '}
           {archive.from.toLocaleDateString()} &ndash; {archive.to.toLocaleDateString()}
           {archive.basicSamples > 0 &&
             ` · basic log ${archive.basicSamples.toLocaleString()} samples`}
@@ -36,7 +38,12 @@ export default function ArchivePanels({ archive, standalone, onReset }: ArchiveP
             ' · dated to the day (±12 h) — add the Lotek Dive Log CSV for exact times'}
         </p>
         <p className="text-xs text-muted mt-2">
-          {standalone
+          {standalone && portal
+            ? "No Argos positions in this upload — Lotek's portal workbook does not " +
+              'include them. Position, drift and recovery analyses need the CLS ' +
+              'per-message export or raw Argos file for this PTT alongside. The ' +
+              'transmitted dive and day logs are below.'
+            : standalone
             ? 'No Argos positions in this upload, so there is no search to plan — ' +
               'position, drift and recovery analyses need a CLS export or raw Argos ' +
               'file alongside. The archive itself is below.'
@@ -52,8 +59,9 @@ export default function ArchivePanels({ archive, standalone, onReset }: ArchiveP
         <div className="bg-surface rounded-xl border border-border p-5">
           <h3 className="font-semibold mb-2">Day log — onboard geolocation</h3>
           <p className="text-xs text-muted mb-3">
-            Latitude from the tag&apos;s own light geolocation (longitude is not
-            decodable from the offload). Sunrise/sunset UTC as the tag measured them.
+            Latitude from the tag&apos;s own light geolocation
+            {portal ? '' : ' (longitude is not decodable from the offload)'}.
+            Sunrise/sunset UTC as the tag measured them.
           </p>
           <div className="overflow-x-auto">
             <table className="w-full text-sm font-mono">

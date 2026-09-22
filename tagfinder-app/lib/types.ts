@@ -518,6 +518,9 @@ export interface LotekHealthRecord {
    *  field has never varied, so it cannot yet distinguish a live conductivity
    *  reading from a latched enum. Do not present it as current wet/dry state. */
   wetFlag: boolean;
+  /** Lotek's rendered release cause, when the source carries the string rather
+   *  than the byte (the portal workbook). Absent on payload-decoded records. */
+  releaseCause?: string;
   serial: number;
   depthM: number;
   messageCounter: number;
@@ -1105,6 +1108,8 @@ export type FileType =
   // Lotek
   | 'lotek_daylog'
   | 'lotek_divelog'
+  // Lotek portal workbook: Day, Dive and Health logs in one .xlsx
+  | 'lotek_portal_log'
   // Argos / CLS — manufacturer-agnostic
   | 'argos_ds'
   | 'argos_messages'

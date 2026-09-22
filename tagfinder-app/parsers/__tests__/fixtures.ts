@@ -65,6 +65,8 @@ export const MESSAGES_CSV = /_messages\.csv$/i;
 export const RAW_DS_TXT = /^RAW_ID_.*\.txt$/i;
 export const LOTEK_DAY_LOG = /Day Log\.csv$/i;
 export const LOTEK_DIVE_LOG = /Dive Log\.csv$/i;
+/** Lotek portal workbook: "Day, Dive, and Health Log_ID NNNNN_YYYY-MM-DD.xlsx". */
+export const LOTEK_PORTAL_XLSX = /^Day, Dive, and Health Log_ID \d+.*\.xlsx$/i;
 
 /**
  * PTT of whatever reference dataset is present, read from the fixture filename.

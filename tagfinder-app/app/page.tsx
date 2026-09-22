@@ -774,8 +774,8 @@ export default function TagFinderPage() {
                 Anthropic; sharing a report stores that summary.
               </p>
               <p>
-                Supports Wildlife Computers and Lotek PSAT+ &mdash; decoded CSVs, raw
-                Argos dumps, and the logs off a recovered tag.
+                Supports Wildlife Computers and Lotek PSAT+ &mdash; decoded CSVs, the
+                Lotek portal workbook, raw Argos dumps, and the logs off a recovered tag.
               </p>
             </div>
           </div>
