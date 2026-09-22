@@ -76,8 +76,9 @@ export default function DropZone({ onFiles, disabled }: DropZoneProps) {
         or click to browse. Supports Wildlife Computers and Lotek exports.
       </p>
       <p className="text-xs text-muted mt-3">
-        Needs positions: a Wildlife Computers Locations.csv, or the raw Argos file from CLS.
-        Everything else is optional but improves the analysis.
+        To find the tag you need its Argos positions: the ArgosWeb Messages export (CSV)
+        or the raw DS file from CLS, or a Wildlife Computers Locations.csv. Manufacturer
+        logs on their own show the dive record, not where the tag is.
       </p>
     </div>
   );
