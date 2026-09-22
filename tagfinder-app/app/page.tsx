@@ -728,9 +728,10 @@ export default function TagFinderPage() {
                 Find your popped-off archival tag
               </h2>
               <p className="text-muted text-lg">
-                Upload whatever the deployment gave you &mdash; Wildlife Computers or
-                Lotek PSAT+, decoded CSVs, raw Argos dumps, even the logs off a
-                recovered tag. Get a position with an honest search radius, whether
+                Upload the Argos positions from CLS plus whatever else the deployment
+                gave you &mdash; Wildlife Computers or Lotek PSAT+, decoded CSVs, the
+                Lotek workbook, even the logs off a recovered tag. Get a position with
+                an honest search radius, whether
                 the tag is drifting, ashore or buried &mdash; and when that changed
                 &mdash; plus satellite pass windows and an AI-drafted recovery brief.
               </p>
