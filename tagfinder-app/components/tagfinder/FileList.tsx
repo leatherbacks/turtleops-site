@@ -24,6 +24,7 @@ const FILE_TYPE_LABELS: Record<string, string> = {
   lotek_daylog: 'Day Log',
   lotek_divelog: 'Dive Log',
   lotek_portal_log: 'Day, Dive & Health Log',
+  lotek_argos_container: 'Argos fixes + logs (.bin)',
   // Argos / CLS
   argos_ds: 'Argos Raw (CLS)',
   unknown: 'Not recognized',

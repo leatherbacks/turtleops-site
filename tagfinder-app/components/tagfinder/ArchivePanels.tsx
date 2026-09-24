@@ -59,8 +59,8 @@ export default function ArchivePanels({ archive, standalone, onReset }: ArchiveP
         <div className="bg-surface rounded-xl border border-border p-5">
           <h3 className="font-semibold mb-2">Day log — onboard geolocation</h3>
           <p className="text-xs text-muted mb-3">
-            Latitude from the tag&apos;s own light geolocation
-            {portal ? '' : ' (longitude is not decodable from the offload)'}.
+            Position from the tag&apos;s own light geolocation, northern solution;
+            longitude from its solar-noon time, good to about 0.15&deg;.
             Sunrise/sunset UTC as the tag measured them.
           </p>
           <div className="overflow-x-auto">
@@ -69,6 +69,7 @@ export default function ArchivePanels({ archive, standalone, onReset }: ArchiveP
                 <tr className="text-left text-xs text-muted uppercase">
                   <th className="pr-4 pb-1">Date</th>
                   <th className="pr-4 pb-1">Lat °N</th>
+                  <th className="pr-4 pb-1">Lon °E</th>
                   <th className="pr-4 pb-1">SST °C</th>
                   <th className="pr-4 pb-1">Sunrise</th>
                   <th className="pb-1">Sunset</th>
@@ -79,6 +80,7 @@ export default function ArchivePanels({ archive, standalone, onReset }: ArchiveP
                   <tr key={d.date.toISOString()} className="border-t border-border/50">
                     <td className="pr-4 py-1">{d.date.toISOString().slice(0, 10)}</td>
                     <td className="pr-4 py-1">{d.latitudeNorth?.toFixed(2) ?? 'no fix'}</td>
+                    <td className="pr-4 py-1">{d.longitudeNorth?.toFixed(2) ?? '—'}</td>
                     <td className="pr-4 py-1">{d.sstC?.toFixed(1) ?? '—'}</td>
                     <td className="pr-4 py-1">{hm(d.sunriseMinutesUtc)}</td>
                     <td className="py-1">{hm(d.sunsetMinutesUtc)}</td>

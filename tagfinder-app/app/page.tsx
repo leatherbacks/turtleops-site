@@ -776,7 +776,8 @@ export default function TagFinderPage() {
               </p>
               <p>
                 Supports Wildlife Computers and Lotek PSAT+ &mdash; decoded CSVs, the
-                Lotek portal workbook, raw Argos dumps, and the logs off a recovered tag.
+                Lotek downloader .bin or portal workbook, raw Argos dumps, and the logs off a
+                recovered tag.
               </p>
             </div>
           </div>

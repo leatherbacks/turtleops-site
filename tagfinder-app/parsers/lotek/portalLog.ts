@@ -242,6 +242,8 @@ function parseDayLog(sheet: XlsxSheet): LotekPortalDayLog | null {
       sunsetMinutesUtc: b1 ? minutesOfDay(b1['Sunset']) : null,
       latitudeNorth: b1 ? lat(b1['LatN']) : null,
       latitudeSouth: b1 ? lat(b1['LatS']) : null,
+      longitudeNorth: b1 ? lon(b1['LonN']) : null,
+      longitudeSouth: b1 ? lon(b1['LonS']) : null,
       sstC,
     });
   }
