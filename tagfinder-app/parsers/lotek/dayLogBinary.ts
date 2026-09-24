@@ -35,12 +35,12 @@
  *                  inside the plausible range for a sea temperature sensor and
  *                  therefore invisible to a physical screen.
  *
- * LONGITUDE IS NOT DECODED. Its slot is certain — it tracks the manufacturer's
- * values monotonically — but no linear scaling reproduces them: the field moves
- * about 3.6 counts per degree, which is coarser than the 0.1 degree the
- * manufacturer reports, so their value is not a simple transform of this slot
- * alone. Reporting a fitted approximation would put a tag tens of kilometres
- * from where the tag itself said it was, so nothing is returned.
+ * LONGITUDE, slots 5 and 6, is the minute of the UTC day at which the tag saw
+ * solar noon, not a longitude. That is why no linear scaling of the slot ever
+ * reproduced the manufacturer's values: the missing term was the equation of
+ * time, which drifts by minutes across a deployment. With it applied
+ * (solarNoon.ts) the decode lands within 0.16 degrees of the manufacturer's
+ * figure on every day of two deployments.
  *
  * The temperature scale is the same raw/50 - 20 used by the health message and
  * the activity log, which is a useful consistency check when identifying fields
@@ -48,6 +48,7 @@
  */
 
 import type { LotekDayRecord } from '@/lib/types';
+import { longitudeFromNoonMinute } from './solarNoon';
 
 const RECORD_LEN = 40;
 const SLOTS = RECORD_LEN / 2;
@@ -123,6 +124,8 @@ export function parseLotekDayLog(data: Uint8Array): LotekDayLogResult {
       sunsetMinutesUtc: minutes(slot[2]),
       latitudeNorth: latitude(slot[3]),
       latitudeSouth: latitude(slot[4]),
+      longitudeNorth: longitudeFromNoonMinute(slot[5], new Date(DAY_EPOCH_MS + day * DAY_MS)),
+      longitudeSouth: longitudeFromNoonMinute(slot[6], new Date(DAY_EPOCH_MS + day * DAY_MS)),
       sstC: slot[11] === 0 ? null : Number((slot[11] / 50 - 20).toFixed(2)),
     });
   }

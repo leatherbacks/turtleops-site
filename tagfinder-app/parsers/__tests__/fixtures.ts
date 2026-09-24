@@ -23,6 +23,9 @@ const ROOTS = [
   process.env.HOME
     ? resolve(process.env.HOME, 'Documents/Apps/tagfinder/data/wc-41008')
     : undefined,
+  process.env.HOME
+    ? resolve(process.env.HOME, 'Documents/Apps/tagfinder/data/lotek/47128')
+    : undefined,
 ].filter((r): r is string => typeof r === 'string' && r.length > 0);
 
 /** Absolute path to a fixture, or null when it is not present on this machine. */
@@ -67,6 +70,8 @@ export const LOTEK_DAY_LOG = /Day Log\.csv$/i;
 export const LOTEK_DIVE_LOG = /Dive Log\.csv$/i;
 /** Lotek portal workbook: "Day, Dive, and Health Log_ID NNNNN_YYYY-MM-DD.xlsx". */
 export const LOTEK_PORTAL_XLSX = /^Day, Dive, and Health Log_ID \d+.*\.xlsx$/i;
+/** Lotek downloader container: "PIDnnnnnn_TagIDnnnnn_PsatPlus_LVS.bin". */
+export const LOTEK_ARGOS_BIN = /^PID\d+_TagID\d+_PsatPlus_LVS\.bin$/i;
 
 /**
  * PTT of whatever reference dataset is present, read from the fixture filename.

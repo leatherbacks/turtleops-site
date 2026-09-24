@@ -237,6 +237,9 @@ export interface LotekDayRecord {
   sunsetMinutesUtc: number | null;
   latitudeNorth: number | null;
   latitudeSouth: number | null;
+  /** From the tag's solar-noon minute and the equation of time — see solarNoon.ts. */
+  longitudeNorth: number | null;
+  longitudeSouth: number | null;
   sstC: number | null;
 }
 
@@ -1110,6 +1113,8 @@ export type FileType =
   | 'lotek_divelog'
   // Lotek portal workbook: Day, Dive and Health logs in one .xlsx
   | 'lotek_portal_log'
+  // Lotek downloader container (.bin): Argos fixes plus the three logs
+  | 'lotek_argos_container'
   // Argos / CLS — manufacturer-agnostic
   | 'argos_ds'
   | 'argos_messages'
