@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
-import { createSupabaseRouteClient } from '@/lib/supabase';
+import { createSupabaseRouteClient, createSupabaseAdminClient } from '@/lib/supabase';
 import { checkRateLimit } from '@/lib/rateLimit';
-import { notifyAnalysis } from '@/lib/notifyAnalysis';
 
 const MAX_ANALYSES_PER_DAY = 10;
 /** Generous for a slimmed analysis, hostile to anything else. */
@@ -73,7 +72,7 @@ export async function POST(request: NextRequest) {
       { status: 413 }
     );
   }
-  let body: { analysis?: unknown; environment?: unknown };
+  let body: { analysis?: unknown; environment?: unknown; analysisId?: unknown };
   try {
     body = JSON.parse(raw);
   } catch {
@@ -133,19 +132,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Fire-and-forget real-time alert to hello@turtleops.org.
-    // Skips operator's own addresses internally so this doesn't ping on
-    // self-testing. Not awaited — never block or fail the brief response on it.
-    const a = body.analysis as Record<string, unknown> | undefined;
-    notifyAnalysis({
-      userEmail: user.email,
-      ptt: typeof a?.ptt === 'number' ? (a.ptt as number) : null,
-      briefExcerpt: textBlock.text,
-      bestLat: typeof a?.bestLat === 'number' ? (a.bestLat as number) : null,
-      bestLon: typeof a?.bestLon === 'number' ? (a.bestLon as number) : null,
-      inputTokens: response.usage.input_tokens,
-      outputTokens: response.usage.output_tokens,
-    }).catch(() => {});
+    // Mark the analysis record (/api/analyses) as having produced a brief.
+    // Not awaited — never block or fail the brief response on bookkeeping.
+    const analysisId = typeof body.analysisId === 'string' ? body.analysisId : null;
+    if (analysisId && /^[0-9a-f-]{36}$/i.test(analysisId)) {
+      createSupabaseAdminClient()
+        .from('tag_analyses')
+        .update({
+          brief_generated: true,
+          brief_input_tokens: response.usage.input_tokens,
+          brief_output_tokens: response.usage.output_tokens,
+        })
+        .eq('id', analysisId)
+        .eq('user_email', user.email.toLowerCase())
+        .then(({ error }) => {
+          if (error) console.error('tag_analyses update failed:', error.message);
+        });
+    }
 
     return NextResponse.json(
       {

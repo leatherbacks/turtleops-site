@@ -13,6 +13,8 @@
  * generate self-pings.
  */
 
+let warnedUnconfigured = false;
+
 const ALERT_TO = 'hello@turtleops.org';
 const ALERT_FROM_NAME = 'TagFinder';
 const ALERT_FROM_EMAIL = 'hello@turtleops.org';
@@ -39,12 +41,37 @@ interface AnalysisAlertInput {
   outputTokens: number | null;
 }
 
-export async function notifyAnalysis(input: AnalysisAlertInput): Promise<void> {
+/** What happened to one alert — returned so a test route can show it. */
+export interface AlertOutcome {
+  sent: boolean;
+  reason: 'sent' | 'not_configured' | 'self_skipped' | 'brevo_rejected' | 'send_failed';
+  status?: number;
+  detail?: string;
+  to: string;
+  from: string;
+}
+
+export async function notifyAnalysis(input: AnalysisAlertInput): Promise<AlertOutcome> {
+  const base = { to: ALERT_TO, from: ALERT_FROM_EMAIL };
   const apiKey = process.env.BREVO_API_KEY;
-  if (!apiKey) return; // not configured — silently skip
+  if (!apiKey) {
+    // Not configured. This used to return silently, and three months of
+    // "alerts" turned out never to have been sent. Say so in the server log
+    // so a missing key is visible the first time the route runs.
+    if (!warnedUnconfigured) {
+      warnedUnconfigured = true;
+      console.warn('[TagFinder] BREVO_API_KEY is not set — analysis alert emails are disabled.');
+    }
+    return { ...base, sent: false, reason: 'not_configured' };
+  }
 
   const normalized = input.userEmail.trim().toLowerCase();
-  if (SELF_ADDRESSES.has(normalized)) return; // skip operator's own usage
+  // ALERT_INCLUDE_SELF=1 (set on Preview only) lets the operator's own
+  // analyses trigger the alert, which is the only way to test the whole path
+  // — Brevo send, Cloudflare routing, inbox — without waiting for a stranger.
+  if (SELF_ADDRESSES.has(normalized) && process.env.ALERT_INCLUDE_SELF !== '1') {
+    return { ...base, sent: false, reason: 'self_skipped' };
+  }
 
   // First-line teaser from the brief, capped so the email subject stays terse
   const teaser =
@@ -92,11 +119,14 @@ export async function notifyAnalysis(input: AnalysisAlertInput): Promise<void> {
       }),
       signal: AbortSignal.timeout(5000),
     });
+    const detail = await res.text().catch(() => '');
     if (!res.ok) {
-      const detail = await res.text().catch(() => '');
       console.warn('[notifyAnalysis] Brevo non-OK:', res.status, detail.slice(0, 200));
+      return { ...base, sent: false, reason: 'brevo_rejected', status: res.status, detail: detail.slice(0, 300) };
     }
+    return { ...base, sent: true, reason: 'sent', status: res.status, detail: detail.slice(0, 300) };
   } catch (err) {
     console.warn('[notifyAnalysis] send failed:', err);
+    return { ...base, sent: false, reason: 'send_failed', detail: err instanceof Error ? err.message : String(err) };
   }
 }
