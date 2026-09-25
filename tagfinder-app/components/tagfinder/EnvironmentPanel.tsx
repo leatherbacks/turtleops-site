@@ -13,6 +13,14 @@ import {
 
 interface EnvironmentPanelProps {
   data: EnvironmentData;
+  /**
+   * The tag is adrift at sea. The panel was written for a tag on a beach —
+   * storm alerts about being washed off the sand, a low-tide search window —
+   * and read verbatim for a tag 40 km offshore, telling the crew to start a
+   * ground search. Afloat, the same forecast means the opposite: the vessel
+   * window is closing and the drift is about to speed up.
+   */
+  afloat?: boolean;
   loading: {
     elevation: boolean;
     weather: boolean;
@@ -22,10 +30,10 @@ interface EnvironmentPanelProps {
   };
 }
 
-export default function EnvironmentPanel({ data, loading }: EnvironmentPanelProps) {
+export default function EnvironmentPanel({ data, loading, afloat = false }: EnvironmentPanelProps) {
   return (
     <div className="space-y-4">
-      {data.forecast?.stormAlert && <StormAlertBanner data={data} />}
+      {data.forecast?.stormAlert && <StormAlertBanner data={data} afloat={afloat} />}
       <div className="bg-surface rounded-xl border border-border p-5">
         <h3 className="font-semibold mb-4">Environmental Context</h3>
 
@@ -33,7 +41,7 @@ export default function EnvironmentPanel({ data, loading }: EnvironmentPanelProp
           <LocationSection data={data} loading={loading.location} />
           <ElevationSection data={data} loading={loading.elevation} />
           <WeatherSection data={data} loading={loading.weather} />
-          <TidesSection data={data} loading={loading.tides} />
+          <TidesSection data={data} loading={loading.tides} afloat={afloat} />
         </div>
         {data.forecast && !data.forecast.stormAlert && (
           <div className="mt-4 pt-4 border-t border-border">
@@ -50,19 +58,25 @@ export default function EnvironmentPanel({ data, loading }: EnvironmentPanelProp
   );
 }
 
-function StormAlertBanner({ data }: { data: EnvironmentData }) {
+function StormAlertBanner({ data, afloat }: { data: EnvironmentData; afloat: boolean }) {
   if (!data.forecast?.stormAlert) return null;
   return (
     <div className="bg-error/10 border border-error/40 rounded-xl p-4 flex items-start gap-3">
       <AlertTriangle className="w-5 h-5 text-error flex-shrink-0 mt-0.5" />
       <div>
         <div className="font-semibold text-error text-sm uppercase tracking-wide">
-          Storm alert — recover ASAP
+          {afloat ? 'Storm alert — vessel window closing' : 'Storm alert — recover ASAP'}
         </div>
         <div className="text-sm mt-1">
-          {data.forecast.alertReason}. Tag could be washed off the beach into open
-          water, making recovery much harder. Prioritize a ground search in the next
-          24–48 hours before conditions deteriorate.
+          {afloat
+            ? `${data.forecast.alertReason}. The tag is adrift: goniometer work from a boat ` +
+              'will be impractical in these conditions, and wind this strong will move the ' +
+              'tag tens of kilometres a day. Intercept before it arrives if a boat can go ' +
+              'now; otherwise re-run the drift projection each morning and plan for wherever ' +
+              'it comes ashore once the wind eases.'
+            : `${data.forecast.alertReason}. Tag could be washed off the beach into open ` +
+              'water, making recovery much harder. Prioritize a ground search in the next ' +
+              '24–48 hours before conditions deteriorate.'}
         </div>
       </div>
     </div>
@@ -241,7 +255,7 @@ function WeatherSection({ data, loading }: { data: EnvironmentData; loading: boo
   );
 }
 
-function TidesSection({ data, loading }: { data: EnvironmentData; loading: boolean }) {
+function TidesSection({ data, loading, afloat = false }: { data: EnvironmentData; loading: boolean; afloat?: boolean }) {
   const stateColors: Record<string, string> = {
     rising: 'text-info',
     falling: 'text-warning',
@@ -284,11 +298,16 @@ function TidesSection({ data, loading }: { data: EnvironmentData; loading: boole
               </div>
             )}
           </div>
-          {data.tides.nextLow && (
+          {data.tides.nextLow && !afloat && (
             <div className="text-xs text-success mt-1">
               ★ Best beach-search window: around low tide ({formatTime(
                 data.tides.nextLow.time
               )}). Widest exposed sand + easiest to scan the wrack line.
+            </div>
+          )}
+          {afloat && (
+            <div className="text-xs text-muted mt-1">
+              Tag is adrift; the low-tide search window applies once it comes ashore.
             </div>
           )}
           <div className="text-xs text-muted opacity-70">

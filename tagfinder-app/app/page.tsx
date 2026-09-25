@@ -895,7 +895,11 @@ export default function TagFinderPage() {
                 </div>
 
                 {/* Environment panel below the map */}
-                <EnvironmentPanel data={envData} loading={envLoading} />
+                <EnvironmentPanel
+                  data={envData}
+                  loading={envLoading}
+                  afloat={displayResult.driftPrediction !== null}
+                />
 
                 {/* Dive profile (if we have Series data) */}
                 {displayResult.diveProfile && (

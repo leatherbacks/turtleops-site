@@ -96,3 +96,66 @@ export function interpretReleaseType(
     severity: 'info',
   };
 }
+
+/**
+ * Release cause from a Lotek PSAT+ health message.
+ *
+ * Lotek ships no Summary.csv, so the Wildlife Computers path above reported
+ * "unknown" for every Lotek tag while the answer sat in byte 6 of each health
+ * payload. The manufacturer's manual names three programmed release
+ * conditions and exactly three values have been observed, each constant
+ * within its deployment and matching the ReleaseCause string in the
+ * manufacturer's own decode (see parsers/lotek/healthMessage.ts):
+ *
+ *   0x80  scheduled elapsed time     (rendered "Wet Schedule")
+ *   0x81  overpressure
+ *   0x82  inactivity / constant depth
+ *
+ * The inactivity trigger is ambiguous by design — a shed tag floating and a
+ * dead animal on the bottom both stop changing depth — so it maps to the same
+ * category the WC "Sitter" does, with the same caution.
+ */
+export function interpretLotekReleaseStatus(statusByte: number): ReleaseInterpretation {
+  const raw = `0x${statusByte.toString(16).padStart(2, '0')}`;
+  switch (statusByte) {
+    case 0x80:
+      return {
+        category: 'scheduled',
+        rawType: `Wet Schedule (${raw})`,
+        label: 'Scheduled release',
+        implication:
+          'The tag reports a scheduled (elapsed-time) release. Check the burn date against the ' +
+          'programmed deployment length: a burn days early with this cause still recorded means ' +
+          'the schedule fired, not the inactivity or pressure trigger.',
+        severity: 'info',
+      };
+    case 0x81:
+      return {
+        category: 'crush_depth',
+        rawType: `Overpressure (${raw})`,
+        label: 'Premature: Overpressure',
+        implication:
+          'The tag released after exceeding its depth threshold for the programmed time. ' +
+          'Consistent with the animal diving beyond the tag rating, or with a dead animal sinking.',
+        severity: 'alert',
+      };
+    case 0x82:
+      return {
+        category: 'sitter',
+        rawType: `Inactivity (${raw})`,
+        label: 'Premature: Inactivity',
+        implication:
+          'The tag saw no change in pressure for several days. Lotek documents this trigger as ' +
+          'ambiguous: a tag shed and floating and an animal dead on the bottom look the same to it.',
+        severity: 'alert',
+      };
+    default:
+      return {
+        category: 'unknown',
+        rawType: raw,
+        label: 'Unknown',
+        implication: `Health-message status byte ${raw} does not match any documented Lotek release condition.`,
+        severity: 'info',
+      };
+  }
+}
