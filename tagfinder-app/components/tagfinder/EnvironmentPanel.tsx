@@ -69,11 +69,12 @@ function StormAlertBanner({ data, afloat }: { data: EnvironmentData; afloat: boo
         </div>
         <div className="text-sm mt-1">
           {afloat
-            ? `${data.forecast.alertReason}. The tag is adrift: goniometer work from a boat ` +
-              'will be impractical in these conditions, and wind this strong will move the ' +
-              'tag tens of kilometres a day. Intercept before it arrives if a boat can go ' +
-              'now; otherwise re-run the drift projection each morning and plan for wherever ' +
-              'it comes ashore once the wind eases.'
+            ? `${data.forecast.alertReason}. The tag is adrift, and wind this strong will move ` +
+              'it tens of kilometres a day. Plan for the beach: onshore weather usually ' +
+              'brings a floating tag in, and a stranded tag is a walk, not a search. A boat ' +
+              'only makes sense when the tag is close to a port with fresh fixes; far ' +
+              'offshore it is not a reasonable target. Re-run the drift projection each ' +
+              'morning and watch for the fixes to stop moving.'
             : `${data.forecast.alertReason}. Tag could be washed off the beach into open ` +
               'water, making recovery much harder. Prioritize a ground search in the next ' +
               '24–48 hours before conditions deteriorate.'}
