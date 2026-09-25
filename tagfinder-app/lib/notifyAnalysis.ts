@@ -55,7 +55,10 @@ export async function notifyAnalysis(input: AnalysisAlertInput): Promise<void> {
   }
 
   const normalized = input.userEmail.trim().toLowerCase();
-  if (SELF_ADDRESSES.has(normalized)) return; // skip operator's own usage
+  // ALERT_INCLUDE_SELF=1 (set on Preview only) lets the operator's own
+  // analyses trigger the alert, which is the only way to test the whole path
+  // — Brevo send, Cloudflare routing, inbox — without waiting for a stranger.
+  if (SELF_ADDRESSES.has(normalized) && process.env.ALERT_INCLUDE_SELF !== '1') return;
 
   // First-line teaser from the brief, capped so the email subject stays terse
   const teaser =
