@@ -12,6 +12,8 @@ import { getDriftClassificationFixes } from './quality';
  * Returns labels for recent (24h), medium (72h), and all-time,
  * plus a human-readable pattern string.
  */
+const RECENT_WINDOW_HOURS = 24;
+
 export function classifyDrift(fixes: ArgosFix[]): DriftState {
   const hqFixes = getDriftClassificationFixes(fixes);
 
@@ -30,11 +32,18 @@ export function classifyDrift(fixes: ArgosFix[]): DriftState {
   const now = hqFixes[hqFixes.length - 1].date.getTime();
 
   const recent24h = hqFixes.filter(
-    (f) => now - f.date.getTime() <= 24 * 60 * 60 * 1000
+    (f) => now - f.date.getTime() <= RECENT_WINDOW_HOURS * 60 * 60 * 1000
   );
   const medium72h = hqFixes.filter(
     (f) => now - f.date.getTime() <= 72 * 60 * 60 * 1000
   );
+
+  // The recent window is capped at 24 h, so a 24 h minimum could only ever
+  // be met by a fix sitting exactly on the boundary — in practice the label
+  // was always "insufficient", even for a tag doing 36 km a day, and the
+  // panel contradicted the headline it fell back to. Half the window is
+  // enough track to call it.
+  const recentMinHours = RECENT_WINDOW_HOURS / 2;
 
   const recentSpread = maxPairwiseDistance(recent24h);
   const mediumSpread = maxPairwiseDistance(medium72h);
@@ -44,25 +53,26 @@ export function classifyDrift(fixes: ArgosFix[]): DriftState {
   const mediumDuration = windowDurationHours(medium72h);
   const allTimeDuration = windowDurationHours(hqFixes);
 
-  const recent = classify(recentSpread, recentDuration);
-  const medium = classify(mediumSpread, mediumDuration);
-  const allTime = classify(allTimeSpread, allTimeDuration);
+  const recent = classify(recentSpread, recentDuration, recentMinHours);
+  const medium = classify(mediumSpread, mediumDuration, MIN_WINDOW_HOURS);
+  const allTime = classify(allTimeSpread, allTimeDuration, MIN_WINDOW_HOURS);
 
   // If ambiguous (insufficient label), check implied drift speed.
   // Slow implied speed (< 0.1 km/h) = likely stuck, not drifting.
   const refineAmbiguous = (
     label: DriftLabel,
     spreadKm: number,
-    durationHours: number
+    durationHours: number,
+    minHours: number = MIN_WINDOW_HOURS
   ): DriftLabel => {
     if (label !== 'insufficient') return label;
-    if (durationHours < MIN_WINDOW_HOURS) return label;
+    if (durationHours < minHours) return label;
     const impliedSpeedKmH = spreadKm / durationHours;
     if (impliedSpeedKmH < 0.1) return 'stuck';
     return label;
   };
 
-  const recentRefined = refineAmbiguous(recent, recentSpread, recentDuration);
+  const recentRefined = refineAmbiguous(recent, recentSpread, recentDuration, recentMinHours);
   const mediumRefined = refineAmbiguous(medium, mediumSpread, mediumDuration);
   const allTimeRefined = refineAmbiguous(allTime, allTimeSpread, allTimeDuration);
 
@@ -79,8 +89,8 @@ export function classifyDrift(fixes: ArgosFix[]): DriftState {
   };
 }
 
-function classify(spreadKm: number, durationHours: number): DriftLabel {
-  if (durationHours < MIN_WINDOW_HOURS) return 'insufficient';
+function classify(spreadKm: number, durationHours: number, minHours: number): DriftLabel {
+  if (durationHours < minHours) return 'insufficient';
   const spreadM = spreadKm * 1000;
   if (spreadM < STUCK_THRESHOLD_M) return 'stuck';
   if (spreadM > DRIFT_THRESHOLD_M) return 'drifting';

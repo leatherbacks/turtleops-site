@@ -13,6 +13,9 @@ import { longitudeFromNoonMinute, equationOfTimeMinutes } from '@/parsers/lotek/
 import { detectOffloadKind } from '@/parsers/lotek/offload';
 import { classifyDrift } from '@/analysis/drift';
 import { predictDrift } from '@/analysis/driftPredict';
+import { interpretLotekReleaseStatus } from '@/analysis/releaseType';
+import { analyzeDataQuality } from '@/analysis/dataQuality';
+import { analyzeReceptionQuality } from '@/analysis/receptionQuality';
 import { requireFixture, fixture, LOTEK_ARGOS_BIN, LOTEK_DAY_LOG } from './fixtures';
 
 let pass = 0, fail = 0;
@@ -62,11 +65,15 @@ chk('sorted ascending', c.fixes.every((f, i) => i === 0 || f.date >= c.fixes[i -
 console.log('\n-- receptions and passes (type 13) --');
 chk('message times', c.messageTimes.length, 2343);
 chk('one located pass per fix', c.passes.filter((p) => p.latitude !== null).length, 465);
-chk('every reception is in exactly one pass', c.passes.reduce((s, p) => s + p.msgCount, 0), 2343);
+const msgSum = c.passes.reduce((s, p) => s + p.msgCount, 0);
+chk('every reception counted once, plus class floors only', msgSum >= 2343 && msgSum - 2343 <= 4 * 465, true);
 chk('unlocated passes counted', c.unlocatedPasses, c.passes.filter((p) => p.latitude === null).length);
 chk('located passes never outnumber passes', c.passes.length >= 465, true);
 chk('passes carry the fix class', c.passes.find((p) => p.latitude !== null)!.locationQuality !== '', true);
 chk('passes sorted', c.passes.every((p, i) => i === 0 || p.date >= c.passes[i - 1].date), true);
+chk('a located pass never has fewer messages than its class implies',
+  c.passes.filter((p) => p.latitude !== null).every((p) => p.msgCount >= (p.locationQuality === 'B' ? 2 : p.locationQuality === 'A' ? 3 : 4)), true);
+chk('every pass counts at least one message', c.passes.every((p) => p.msgCount > 0), true);
 const dbm = c.passes.map((p) => p.powerDbm).filter((v): v is number => v !== null);
 near('signal in the CLS-reported range (inferred scale)', dbm.reduce((a, b) => a + b, 0) / dbm.length, -129, 2);
 chk('corrupt counted per pass', c.passes.reduce((s, p) => s + (p.corrupt ?? 0), 0), 903);
@@ -143,6 +150,11 @@ if (csv) {
 console.log('\n== THROUGH THE ANALYSERS ==');
 const drift = classifyDrift(c.fixes);
 chk('all-time label', drift.allTime, 'drifting');
+chk('recent label no longer stuck on insufficient for 34 km/day', drift.recent, 'drifting');
+chk('release cause from the status byte', interpretLotekReleaseStatus(c.health.records[0].statusByte).category, 'scheduled');
+chk('unknown status byte stays unknown', interpretLotekReleaseStatus(0x7e).category, 'unknown');
+chk('data quality and reception quality count the same passes',
+  analyzeDataQuality(c.passes).totalPasses, analyzeReceptionQuality(c.passes)!.passes);
 const pred = predictDrift(c.fixes);
 chk('drift vector resolves', pred !== null, true);
 if (pred) {

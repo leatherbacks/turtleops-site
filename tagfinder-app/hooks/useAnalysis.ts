@@ -98,7 +98,7 @@ import { detectTagCategory } from '@/analysis/tagCategory';
 import { buildDiveProfile } from '@/analysis/diveProfile';
 import { analyzeTidalIntrusion } from '@/analysis/tidalIntrusion';
 import { checkMirrorSolutions } from '@/analysis/mirrorCheck';
-import { interpretReleaseType } from '@/analysis/releaseType';
+import { interpretReleaseType, interpretLotekReleaseStatus } from '@/analysis/releaseType';
 import { detectCrushDepthEvent } from '@/analysis/crushDepth';
 import { analyzeLightLevel } from '@/analysis/lightLevel';
 import { detectTrackerShed } from '@/analysis/trackerShed';
@@ -626,7 +626,14 @@ export function useAnalysis(): UseAnalysisReturn {
           ? analyzeTidalIntrusion(seriesReadings, parsedStatuses, summary)
           : null;
       const mirrorCheck = passes.length > 0 ? checkMirrorSolutions(passes) : null;
-      const releaseInterpretation = interpretReleaseType(summary);
+      // Lotek tags carry their release cause in every health message rather
+      // than in a summary file; read it from there when no summary names one.
+      const releaseInterpretation =
+        summary?.releaseType
+          ? interpretReleaseType(summary)
+          : lotekHealth?.records.length
+            ? interpretLotekReleaseStatus(lotekHealth.records[0].statusByte)
+            : interpretReleaseType(summary);
       const crushDepthEvent = detectCrushDepthEvent(
         seriesReadings,
         dailyDives.length > 0 ? dailyDives : null,

@@ -101,6 +101,14 @@ const PASS_HALF_WINDOW_S = 600;
 const PASS_GAP_S = 900;
 
 /**
+ * A fix implies the messages Argos needed to compute it: four for classes
+ * 0–3, three for A, two for B. A few fixes have no receptions logged within
+ * their window, and a located pass with zero messages made two panels count
+ * passes differently. The class minimum is the floor.
+ */
+const MESSAGES_IMPLIED_BY_CLASS: Record<ArgosQuality, number> = { '3': 4, '2': 4, '1': 4, '0': 4, A: 3, B: 2, Z: 0 };
+
+/**
  * The per-message signal byte reads 224–228 on almost every message of the
  * reference deployment, with a scatter of rarer low values. Read as
  * byte − 356 it gives −132 to −128 dBm, which is the range CLS reported as
@@ -240,7 +248,7 @@ export function parseLotekArgosContainer(bytes: Uint8Array): LotekArgosContainer
     return {
       date: tagDate(fix ? at : start),
       satellite: 'unknown',
-      msgCount: group.length,
+      msgCount: Math.max(group.length, fix ? MESSAGES_IMPLIED_BY_CLASS[fix.quality] : 0),
       duplicates: 0,
       corrupt: group.filter((r) => !r.ok).length,
       avgInterval: group.length > 1 ? (end - start) / (group.length - 1) : 0,
