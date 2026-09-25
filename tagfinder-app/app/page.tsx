@@ -74,6 +74,8 @@ export default function TagFinderPage() {
   const [shareViews, setShareViews] = useState<number | null>(null);
   const [sharing, setSharing] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
+  /** Row id from /api/analyses, handed to the brief route to mark it. */
+  const [analysisId, setAnalysisId] = useState<string | null>(null);
   const [shareCopied, setShareCopied] = useState(false);
 
   // Fetch environment once we have a position
@@ -474,7 +476,7 @@ export default function TagFinderPage() {
       const res = await fetch('/api/summarize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ analysis: slim, environment: envData }),
+        body: JSON.stringify({ analysis: slim, environment: envData, analysisId }),
       });
       const data = await res.json().catch(() => ({} as { error?: string }));
       if (!res.ok) {
@@ -510,6 +512,46 @@ export default function TagFinderPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [displayResult, envReady, upcoming.loading]);
 
+  // Record each analysis the moment its result exists, independently of the
+  // brief: the brief can fail (no API key, rate limit) and the record should
+  // not. Fire-and-forget — nothing the user sees depends on it.
+  useEffect(() => {
+    if (!result) return;
+    const r = result;
+    const lastFix = r.validFixes.length ? r.validFixes[r.validFixes.length - 1] : null;
+    const record = {
+      ptt: r.ptt,
+      manufacturer: detectedFiles.find((f) => f.manufacturer !== 'unknown')?.manufacturer ?? 'unknown',
+      tagCategory: r.tagCategory?.category ?? null,
+      fixCount: r.allFixes.length,
+      lastFixAt: lastFix ? lastFix.date.toISOString() : null,
+      releaseAt: r.summary?.releaseDate ? r.summary.releaseDate.toISOString() : null,
+      releaseCategory: r.releaseInterpretation?.category ?? null,
+      driftRecent: r.driftState.recent,
+      driftMedium: r.driftState.medium,
+      driftAllTime: r.driftState.allTime,
+      driftSpeedKmH: r.driftPrediction?.speedKmH ?? null,
+      driftHeadingDeg: r.driftPrediction?.headingDeg ?? null,
+      bestLat: r.bestLat,
+      bestLon: r.bestLon,
+      positionMethod: r.positionMethod,
+      primaryRadiusM: r.primaryRadiusM,
+      tagState: r.tagState?.phase ?? null,
+      searchRadiusBasis: r.searchRadiusBasis,
+    };
+    fetch('/api/analyses', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ analysis: record, fileTypes: detectedFiles.map((f) => f.fileType) }),
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && typeof data.id === 'string') setAnalysisId(data.id);
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result]);
+
   const handleFiles = async (newFiles: File[]) => {
     await analyze(newFiles);
   };
@@ -525,6 +567,7 @@ export default function TagFinderPage() {
     setShareId(null);
     setShareViews(null);
     setShareError(null);
+    setAnalysisId(null);
   };
 
   // Poll the report's view count every 30 seconds while a share is active
@@ -772,7 +815,9 @@ export default function TagFinderPage() {
                 Your files never leave your browser &mdash; parsing and analysis run
                 client-side. Environmental lookups send only computed coordinates; the
                 AI brief sends the computed analysis summary (never your raw files) to
-                Anthropic; sharing a report stores that summary.
+                Anthropic; sharing a report stores that summary. Each analysis is also
+                recorded with your email and its computed result, so we can follow up on
+                recoveries.
               </p>
               <p>
                 Supports Wildlife Computers and Lotek PSAT+ &mdash; decoded CSVs, the

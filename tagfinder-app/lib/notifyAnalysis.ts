@@ -13,6 +13,8 @@
  * generate self-pings.
  */
 
+let warnedUnconfigured = false;
+
 const ALERT_TO = 'hello@turtleops.org';
 const ALERT_FROM_NAME = 'TagFinder';
 const ALERT_FROM_EMAIL = 'hello@turtleops.org';
@@ -41,7 +43,16 @@ interface AnalysisAlertInput {
 
 export async function notifyAnalysis(input: AnalysisAlertInput): Promise<void> {
   const apiKey = process.env.BREVO_API_KEY;
-  if (!apiKey) return; // not configured — silently skip
+  if (!apiKey) {
+    // Not configured. This used to return silently, and three months of
+    // "alerts" turned out never to have been sent. Say so in the server log
+    // so a missing key is visible the first time the route runs.
+    if (!warnedUnconfigured) {
+      warnedUnconfigured = true;
+      console.warn('[TagFinder] BREVO_API_KEY is not set — analysis alert emails are disabled.');
+    }
+    return;
+  }
 
   const normalized = input.userEmail.trim().toLowerCase();
   if (SELF_ADDRESSES.has(normalized)) return; // skip operator's own usage
