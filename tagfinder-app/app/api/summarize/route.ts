@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { createSupabaseRouteClient, createSupabaseAdminClient } from '@/lib/supabase';
+import { verdictsBlock, findContradiction, contradictionNotice } from '@/lib/briefGuard';
 import { checkRateLimit } from '@/lib/rateLimit';
 
 const MAX_ANALYSES_PER_DAY = 10;
@@ -124,7 +125,42 @@ export async function POST(request: NextRequest) {
     }
 
     // Extract the text response
-    const textBlock = response.content.find((b) => b.type === 'text');
+    let textBlock = response.content.find((b) => b.type === 'text');
+    let usage = response.usage;
+
+    // The brief must not contradict the panels it sits beside. One rewrite
+    // with the disagreement spelled out; if that still disagrees, the reader
+    // is told which to trust rather than being handed a confident wrong
+    // headline. See lib/briefGuard.ts for the case that made this necessary.
+    let contradiction = textBlock && textBlock.type === 'text' ? findContradiction(textBlock.text, body.analysis) : null;
+    if (contradiction && textBlock && textBlock.type === 'text') {
+      console.warn('[summarize] brief contradicted the panels, rewriting:', contradiction);
+      const retry = await client.messages.create({
+        model: 'claude-opus-5',
+        max_tokens: 8000,
+        thinking: { type: 'adaptive' },
+        output_config: { effort: 'high' },
+        system: SYSTEM_PROMPT,
+        messages: [
+          { role: 'user', content: prompt },
+          { role: 'assistant', content: textBlock.text },
+          {
+            role: 'user',
+            content:
+              `${contradiction} Rewrite the brief so that its headline and first paragraph state the ` +
+              'computed tag state and give advice that follows from it. Keep everything else that ' +
+              'was correct. Return only the rewritten brief.',
+          },
+        ],
+      });
+      const retryText = retry.stop_reason === 'refusal' ? null : retry.content.find((b) => b.type === 'text');
+      if (retryText && retryText.type === 'text') {
+        textBlock = retryText;
+        usage = { ...usage, input_tokens: usage.input_tokens + retry.usage.input_tokens, output_tokens: usage.output_tokens + retry.usage.output_tokens };
+        contradiction = findContradiction(retryText.text, body.analysis);
+      }
+    }
+
     if (!textBlock || textBlock.type !== 'text') {
       return NextResponse.json(
         { error: 'No text response from model' },
@@ -140,8 +176,8 @@ export async function POST(request: NextRequest) {
         .from('tag_analyses')
         .update({
           brief_generated: true,
-          brief_input_tokens: response.usage.input_tokens,
-          brief_output_tokens: response.usage.output_tokens,
+          brief_input_tokens: usage.input_tokens,
+          brief_output_tokens: usage.output_tokens,
         })
         .eq('id', analysisId)
         .eq('user_email', user.email.toLowerCase())
@@ -150,12 +186,16 @@ export async function POST(request: NextRequest) {
         });
     }
 
+    const briefText = contradiction
+      ? contradictionNotice(contradiction) + textBlock.text
+      : textBlock.text;
+
     return NextResponse.json(
       {
-        brief: textBlock.text,
+        brief: briefText,
         usage: {
-          input_tokens: response.usage.input_tokens,
-          output_tokens: response.usage.output_tokens,
+          input_tokens: usage.input_tokens,
+          output_tokens: usage.output_tokens,
         },
       },
       { headers: { 'Cache-Control': 'no-store' } }
@@ -677,6 +717,7 @@ function buildPrompt(analysis: unknown, environment: unknown): string {
 
   return `Here is the structured analysis of a satellite tag. Write a recovery brief.
 
+${verdictsBlock(analysis, environment)}
 ## Tag info
 ${JSON.stringify(
   {

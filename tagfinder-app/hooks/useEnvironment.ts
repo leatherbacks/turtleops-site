@@ -27,6 +27,20 @@ interface UseEnvironmentReturn {
  * Fetch environmental context (elevation, weather, tides, location name)
  * for a given coordinate. All 4 APIs called in parallel, independent loading states.
  */
+
+/**
+ * One retry on a gateway failure. The lookups behind these routes (Nominatim,
+ * NOAA, USGS) return 502/503 under load, and a single failed geocode left the
+ * AI brief writing "the geocoder returned no place name" beneath a panel that
+ * resolved the place a moment later.
+ */
+async function fetchWithRetry(url: string): Promise<Response> {
+  const first = await fetch(url).catch(() => null);
+  if (first && first.status < 500) return first;
+  await new Promise((r) => setTimeout(r, 1500));
+  return fetch(url);
+}
+
 export function useEnvironment(
   lat: number | null,
   lon: number | null
@@ -64,7 +78,7 @@ export function useEnvironment(
     };
 
     // Elevation
-    fetch(`/api/elevation?lat=${lat}&lon=${lon}`)
+    fetchWithRetry(`/api/elevation?lat=${lat}&lon=${lon}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((res) => {
         if (res && typeof res.meters === 'number') {
@@ -86,7 +100,7 @@ export function useEnvironment(
       .finally(() => { setLoading((l) => ({ ...l, elevation: false })); done(); });
 
     // Weather
-    fetch(`/api/weather?lat=${lat}&lon=${lon}`)
+    fetchWithRetry(`/api/weather?lat=${lat}&lon=${lon}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((res) => {
         if (res && !res.error) {
@@ -106,7 +120,7 @@ export function useEnvironment(
       .finally(() => { setLoading((l) => ({ ...l, weather: false })); done(); });
 
     // Tides
-    fetch(`/api/tides?lat=${lat}&lon=${lon}`)
+    fetchWithRetry(`/api/tides?lat=${lat}&lon=${lon}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((res) => {
         if (res?.available) {
@@ -138,7 +152,7 @@ export function useEnvironment(
       .finally(() => { setLoading((l) => ({ ...l, tides: false })); done(); });
 
     // Forecast (7-day wind/wave + storm alert)
-    fetch(`/api/forecast?lat=${lat}&lon=${lon}`)
+    fetchWithRetry(`/api/forecast?lat=${lat}&lon=${lon}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((res) => {
         if (res && !res.error) {
@@ -158,7 +172,7 @@ export function useEnvironment(
       .finally(() => { setLoading((l) => ({ ...l, forecast: false })); done(); });
 
     // Bathymetry (GEBCO seabed depth)
-    fetch(`/api/bathymetry?lat=${lat}&lon=${lon}`)
+    fetchWithRetry(`/api/bathymetry?lat=${lat}&lon=${lon}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((res) => {
         if (res && !res.error && typeof res.rawElevationM === 'number') {
@@ -176,7 +190,7 @@ export function useEnvironment(
       .finally(() => { setLoading((l) => ({ ...l, bathymetry: false })); done(); });
 
     // Geocoding
-    fetch(`/api/geocode?lat=${lat}&lon=${lon}`)
+    fetchWithRetry(`/api/geocode?lat=${lat}&lon=${lon}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((res) => {
         if (res && !res.error) {
