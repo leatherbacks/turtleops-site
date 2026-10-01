@@ -1,3 +1,4 @@
+import { classifyHeat } from './sunHeat';
 import type {
   SeriesReading,
   TagStatus,
@@ -12,6 +13,9 @@ interface TempSources {
   /** Most recent sea surface temperature at the tag's position (°C)
    *  — from SST.csv or environment API */
   sstTempC: number | null;
+  /** Tag position, so hot readings can be judged against the sun's elevation. */
+  lat?: number | null;
+  lon?: number | null;
 }
 
 /**
@@ -161,6 +165,7 @@ export function compareTemperatures(
     sources.sstTempC !== null ? Number((tagMean - sources.sstTempC).toFixed(2)) : null;
   const tagMinusAir =
     sources.airTempC !== null ? Number((tagMean - sources.airTempC).toFixed(2)) : null;
+  const heat = classifyHeat(datedTemps.map((d) => ({ date: d.date, temp: d.t })), sources.lat ?? null, sources.lon ?? null);
 
   let environment: TempEnvironment;
   let reasoning: string;
@@ -179,11 +184,17 @@ export function compareTemperatures(
       1
     )}°C but no external reference (air or SST) is available to compare against.`;
     confidence = 0.2;
+  } else if (tagMean > 32 && heat.unexplainedHot === 0 && heat.sunlitHot > 0) {
+    // Hot only while the sun was high: sun on an exposed surface, which is a
+    // beach in summer, not an enclosure. 47127 read 41.6 °C at noon in July.
+    environment = 'in_air_exposed';
+    reasoning = `Tag mean temperature is ${tagMean.toFixed(1)}°C, hot, but only with the sun up. ${heat.note ?? ''}`.trim();
+    confidence = 0.6;
   } else if (tagMean > 32) {
     environment = 'anomalous_hot';
     reasoning = `Tag mean temperature is ${tagMean.toFixed(
       1
-    )}°C — unusually warm. Likely held against a warm body (animal or human) or inside a heated enclosure.`;
+    )}°C — unusually warm${heat.unexplainedHot > 0 ? ` and ${heat.note}` : '. Likely held against a warm body (animal or human) or inside a heated enclosure.'}`;
     confidence = 0.75;
   } else if (tagSwing >= AIR_SWING_MIN_C && tagTemps.length >= MIN_READINGS_FOR_SWING) {
     // Checked BEFORE any mean comparison, because the mean is the weaker signal
