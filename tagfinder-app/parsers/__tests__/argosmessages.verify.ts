@@ -31,6 +31,15 @@ const m = parseArgosMessages(rows);
 
 console.log('\n== PARSE ==');
 chk('PTT resolved', m.ptt, REF_PTT);
+chk('single-device export drops nothing', [m.otherDevices, m.droppedRows], [0, 0]);
+{
+  // A programme-wide export: the dominant device is kept, the rest counted.
+  const mixed = [...rows, ...rows.slice(0, 3).map((r) => ({ ...r, 'Device ID': '99999', 'Doppler Latitude': '40.1', 'Doppler Longitude': '-69.9', 'Doppler Position ID': 'other-' + Math.random() }))];
+  const mm = parseArgosMessages(mixed);
+  chk('mixed export keeps the dominant device', mm.ptt, REF_PTT);
+  chk('mixed export counts the others', [mm.otherDevices, mm.droppedRows], [1, 3]);
+  chk('no fix from the other device leaks in', mm.fixes.every((f) => f.latitude < 35), true);
+}
 chk('unique positions deduped from 1203 rows', m.fixes.length, 137);
 chk('fixes sorted ascending',
   m.fixes.every((f, i) => i === 0 || f.date >= m.fixes[i - 1].date), true);

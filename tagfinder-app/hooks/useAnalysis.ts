@@ -285,6 +285,10 @@ export function useAnalysis(): UseAnalysisReturn {
         if (d && argosMessages.fixes.length === 0) {
           d.warning =
             'Argos message export recognised but contained no resolved positions.';
+        } else if (d && argosMessages.otherDevices > 0) {
+          d.warning =
+            `Export covers ${argosMessages.otherDevices + 1} devices; using PTT ${argosMessages.ptt} ` +
+            `(the most rows) and ignoring ${argosMessages.droppedRows} rows from the others.`;
         }
       }
 

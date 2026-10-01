@@ -45,6 +45,9 @@ export interface ArgosMessagesResult {
   ptt: number | null;
   /** Passes that delivered messages but no resolved position. */
   unlocatedPasses: number;
+  /** Other devices present in the export and dropped — see dominantDevice. */
+  otherDevices: number;
+  droppedRows: number;
 }
 
 /** Read a column tolerantly — CLS varies capitalisation and leaves a BOM. */
@@ -84,7 +87,29 @@ interface Msg {
   positionId: string;
 }
 
-export function parseArgosMessages(rows: Record<string, string>[]): ArgosMessagesResult {
+/**
+ * A CLS export can cover a whole programme. The one that arrived on 1 Oct 2026
+ * held eight devices, including a tag off Massachusetts, and this parser
+ * would have averaged them into one position. Rows are therefore kept for
+ * the device with the most rows only; the rest are counted and reported so
+ * the file list can say so.
+ */
+function dominantDevice(rows: Record<string, string>[]): { ptt: number | null; kept: Record<string, string>[]; otherDevices: number; droppedRows: number } {
+  const counts = new Map<number, number>();
+  for (const row of rows) {
+    const ptt = num(col(row, 'Device ID'));
+    if (ptt !== null) counts.set(ptt, (counts.get(ptt) ?? 0) + 1);
+  }
+  if (counts.size <= 1) return { ptt: counts.size ? Array.from(counts.keys())[0] : null, kept: rows, otherDevices: 0, droppedRows: 0 };
+  let best: number | null = null;
+  let bestN = -1;
+  for (const [p, n] of Array.from(counts.entries())) if (n > bestN) { best = p; bestN = n; }
+  const kept = rows.filter((row) => num(col(row, 'Device ID')) === best);
+  return { ptt: best, kept, otherDevices: counts.size - 1, droppedRows: rows.length - kept.length };
+}
+
+export function parseArgosMessages(allRows: Record<string, string>[]): ArgosMessagesResult {
+  const { ptt: dominant, kept: rows, otherDevices, droppedRows } = dominantDevice(allRows);
   const ptts = new Set<number>();
   const messages: Msg[] = [];
   // Keyed by Doppler Position ID so a position shared by N messages counts once.
@@ -210,7 +235,9 @@ export function parseArgosMessages(rows: Record<string, string>[]): ArgosMessage
     fixes,
     passes,
     messageTimes: messages.map((m) => ({ date: m.date, satellite: m.satellite })),
-    ptt: ptts.size === 1 ? Array.from(ptts)[0] : null,
+    ptt: dominant ?? (ptts.size === 1 ? Array.from(ptts)[0] : null),
     unlocatedPasses,
+    otherDevices,
+    droppedRows,
   };
 }
