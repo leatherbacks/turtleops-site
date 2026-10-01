@@ -31,7 +31,10 @@ const h = parseLotekHealthMessages(rows);
 console.log('\n== DECODES POST-RELEASE SENSOR DATA FROM RAW PAYLOADS ==');
 console.log(`        ${h.records.length} records recovered, ${h.corrupt} failed physics, ` +
   `${h.inconsistent} rejected by the latched-field check`);
-chk('recovers records the manufacturer export omitted', h.records.length >= 15, true);
+// The manufacturer's own decode of this deployment held 11 clean records. The
+// CRC screen (Oct 2026) is stricter than the physics screen alone, so the count
+// fell from 23 to 14 — still more than Lotek's, and every one of them checked.
+chk('recovers at least the records the manufacturer decoded cleanly', h.records.length >= 11, true);
 chk('every record has a valid date', h.records.every((r) => !isNaN(r.date.getTime())), true);
 chk('records are in time order',
   h.records.every((r, i) => i === 0 || r.date >= h.records[i - 1].date), true);
@@ -52,7 +55,9 @@ chk('light spans a full diurnal cycle', Math.min(...lights) < 50 && Math.max(...
 // the majority was corrupted in transit.
 chk('surviving records agree on every latched field',
   new Set(h.records.map((r) => `${r.corrosionStartV}|${r.corrosionEndV}|${r.corrosionTimeS}`)).size, 1);
-chk('...and the check rejected some', h.inconsistent > 0, true);
+// With the CRC screen in front of it, the latched-field check has nothing left
+// to reject on this deployment; the CRC already removed every inconsistent copy.
+chk('...and the screens rejected some', h.corrupt + h.inconsistent > 0, true);
 
 console.log('\n== THE LATCHED FIELDS ARE FLAGGED, NOT TRUSTED ==');
 // Corrosion voltage and the status byte never vary, so neither can describe the
@@ -233,11 +238,10 @@ console.log('\n== THE TAG CLOCK WRAPS, AND A SMALL VALUE IS NOT A NEW TAG ==');
   chk('no records, no epochs', estimateClockEpoch([]).length, 0);
 }
 
-console.log('\n== ACTIVITY LOG (0xA0) — PARTIAL DECODE ==');
+console.log('\n== ACTIVITY LOG (0xA0) ==');
 {
-  // 0xA0 is the bulk of what these tags transmit and was skipped entirely.
-  // Temperature is decoded; pressure is not. The layout was found by pairing
-  // raw payloads against the manufacturer's decode of the same deployment.
+  // 0xA0 is the bulk of what these tags transmit. Fully decoded — see
+  // activity.verify.ts for the pairing against the manufacturer's values.
   const real = rows.find((r) =>
     (r['Raw data'] ?? '').trim().toLowerCase().startsWith('a0'));
   chk('the export contains activity payloads', real !== undefined, true);
@@ -247,19 +251,12 @@ console.log('\n== ACTIVITY LOG (0xA0) — PARTIAL DECODE ==');
       (real['Raw data'].trim().match(/../g) ?? []).map((x) => parseInt(x, 16))
     );
     const d = decodeActivityMessage(bytes)!;
-    chk('seven records per message', d.temperaturesC.length, 7);
-    // Not the same as the health message's on the same tag — 0x31 against 0x32 —
-    // so byte 1 varies by message type, not only by deployment.
-    chk('the format byte differs from the health message\'s',
-      d.formatByte !== h.records[0].formatByte, true);
-    // Not constant — corrupt payloads scatter it across many values. What holds
-    // is that one value dominates, which is why it is too weak to screen on.
-    const fmts = parseLotekActivityMessages(rows).records.map((r) => r.formatByte);
-    const counts = new Map<number, number>();
-    for (const f of fmts) counts.set(f, (counts.get(f) ?? 0) + 1);
-    const modal = Math.max(...Array.from(counts.values()));
-    chk('...and one format byte dominates the rest', modal / fmts.length > 0.9, true);
-    chk('the clock is on the same 256 Hz scale', d.baseTagSeconds > 0, true);
+    chk('eight records per message', d.records.length, 8);
+    // Byte 1 is the top byte of a seconds-since-2000 clock, not a format
+    // byte: it is 0x31 for the first half of 2026 and 0x32 after 18 Jul, and
+    // it is the same clock the health message carries.
+    chk('record 0 is dated inside the deployment',
+      d.baseTagSeconds > 0 && new Date(Date.UTC(2000, 0, 1) + d.baseTagSeconds * 1000).getUTCFullYear() === 2026, true);
   }
 
   const act = parseLotekActivityMessages(rows);
@@ -272,6 +269,9 @@ console.log('\n== ACTIVITY LOG (0xA0) — PARTIAL DECODE ==');
     true);
   chk('every temperature is physical',
     act.records.every((r) => r.temperatureC > -5 && r.temperatureC < 45), true);
+  chk('every record carries a depth', act.records.every((r) => Number.isFinite(r.depth)), true);
+  chk('verified records exist (block 1 CRC)', act.records.some((r) => r.verified), true);
+  chk('records are dated absolutely, in 2026', act.records.every((r) => r.date.getUTCFullYear() === 2026), true);
 
   // Byte 15 is not part of a record. A uniform 3-byte stride decodes the fourth
   // record onward to nothing, which is how the gap was found.
@@ -279,10 +279,10 @@ console.log('\n== ACTIVITY LOG (0xA0) — PARTIAL DECODE ==');
     0x9d, 0xe5, 0x06, 0x9d, 0xcd, 0x06, 0x9d, 0xc5, 0x06, 0x60,
     0x9d, 0xc5, 0x06, 0x9d, 0xcd, 0x06, 0x9d, 0xb8, 0x06, 0x9d, 0x06, 0xcd, 0x06, 0x9d, 0xb8]);
   const d2 = decodeActivityMessage(b)!;
-  chk('records 3 and 4 decode past the skipped byte',
-    d2.temperaturesC[3] !== null && d2.temperaturesC[4] !== null, true);
+  chk('records 3 and 4 decode past the CRC byte',
+    d2.records[3] !== null && d2.records[4] !== null, true);
   chk('...to sane values',
-    d2.temperaturesC[3]! > 25 && d2.temperaturesC[3]! < 35, true);
+    d2.records[3]!.temperatureRaw / 50 - 20 > 25 && d2.records[3]!.temperatureRaw / 50 - 20 < 35, true);
 
   chk('a non-activity payload is refused',
     decodeActivityMessage(Uint8Array.from(new Array(31).fill(0xed))), null);

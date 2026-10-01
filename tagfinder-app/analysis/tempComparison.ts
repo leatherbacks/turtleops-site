@@ -98,7 +98,39 @@ export function compareTemperatures(
   const tagMax = Math.max(...tagTemps);
   const tagMean = tagTemps.reduce((a, b) => a + b, 0) / tagTemps.length;
 
-  const tagSwing = tagMax - tagMin;
+  // The swing that matters is within a day. The overall range of a week of
+  // post-release readings mixes the diurnal cycle with the season: on a tag
+  // adrift for seven days the sea itself cooled 2 °C, the readings ran
+  // 25.0–29.6 °C, and the whole-window range called a floating tag beached.
+  // So the swing is the largest max–min inside any 24-hour window of the
+  // readings — a sliding window, not a calendar day, because a tag heard four
+  // times a day puts its pre-dawn low and midday high on either side of UTC
+  // midnight as often as not, and a beached tag's genuine 28.5 → 32.7 °C must
+  // still count. Falls back to the whole range when no window holds two.
+  const datedTemps = (postReleaseSeries.length
+    ? postReleaseSeries.map((s) => ({ date: s.date, t: s.temperature as number }))
+    : statuses
+        .filter((s) => s.date.getTime() > releaseTime && s.temperature !== null)
+        .map((s) => ({ date: s.date, t: s.temperature as number }))
+  )
+    .filter((s) => !isNaN(s.t))
+    .sort((a, b) => a.date.getTime() - b.date.getTime());
+  const DAY_MS = 86_400_000;
+  let tagSwing = 0;
+  let swingDayTemps: number[] = tagTemps;
+  let anyWindow = false;
+  for (let i = 0; i < datedTemps.length; i++) {
+    const t0 = datedTemps[i].date.getTime();
+    const window = datedTemps.filter((s) => s.date.getTime() >= t0 && s.date.getTime() <= t0 + DAY_MS).map((s) => s.t);
+    if (window.length < 2) continue;
+    anyWindow = true;
+    const swing = Math.max(...window) - Math.min(...window);
+    if (swing > tagSwing) {
+      tagSwing = swing;
+      swingDayTemps = window;
+    }
+  }
+  if (!anyWindow) tagSwing = tagMax - tagMin;
 
   // Trimming the extremes was tried here and reverted. It is the obvious guard
   // against one corrupt record inventing a swing, and it is wrong for this data:
@@ -115,7 +147,7 @@ export function compareTemperatures(
   // judge a single reading on its own merits. The confidence below is lowered
   // when this verdict rests on one reading at each end, so the brief knows to
   // defer.
-  const sortedTemps = [...tagTemps].sort((a, b) => a - b);
+  const sortedTemps = [...swingDayTemps].sort((a, b) => a - b);
   const trimmedSwing =
     sortedTemps.length >= MIN_READINGS_FOR_TRIMMED_SWING
       ? sortedTemps[sortedTemps.length - 2] - sortedTemps[1]
@@ -166,7 +198,7 @@ export function compareTemperatures(
     environment = 'in_air_exposed';
     reasoning =
       `Tag temperature ranges ${tagMin.toFixed(1)}–${tagMax.toFixed(1)}°C, a swing of ` +
-      `${tagSwing.toFixed(1)}°C across ${tagTemps.length} post-release readings. Water is ` +
+      `${tagSwing.toFixed(1)}°C within 24 h, across ${tagTemps.length} post-release readings. Water is ` +
       `too large a thermal reservoir to allow that — anything immersed holds within about a ` +
       `degree over a day — so the tag is out of the water and following air temperature` +
       (tagMinusAir !== null

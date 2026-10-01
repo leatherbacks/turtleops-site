@@ -25,6 +25,7 @@ import {
   parseLotekHealthMessages,
   type LotekHealthResult,
 } from '@/parsers/lotek/healthMessage';
+import { parseLotekActivityMessages } from '@/parsers/lotek/activityMessage';
 import { parseLotekDayLog } from '@/parsers/lotek/dayLog';
 import {
   detectOffloadKind,
@@ -278,6 +279,7 @@ export function useAnalysis(): UseAnalysisReturn {
       let argosMessages: ArgosMessagesResult | null = null;
       let argosPositions: ArgosPositionsResult | null = null;
       let lotekHealth: LotekHealthResult | null = null;
+      let activityReadings: SeriesReading[] = [];
       if (parsedData.argos_positions) {
         argosPositions = parseArgosPositions(parsedData.argos_positions);
         const d = detected.find((f) => f.fileType === 'argos_positions');
@@ -297,6 +299,22 @@ export function useAnalysis(): UseAnalysisReturn {
         // which can be days before the tag releases.
         const health = parseLotekHealthMessages(parsedData.argos_messages);
         if (health.records.length > 0) lotekHealth = health;
+        // The dive log itself rides in the same export, nine payloads in ten.
+        // Decoded here so a CLS export alone yields the depth and temperature
+        // series, before and after release, at five-minute resolution.
+        // Only CRC-verified records reach the analyses: the unverified block
+        // is 95% exact, and the 5% is enough to put a 44 °C reading in the
+        // post-release window and call the tag beached.
+        const activity = parseLotekActivityMessages(parsedData.argos_messages);
+        if (activity.records.length > 0) {
+          activityReadings = activity.records.filter((r) => r.verified).map((r) => ({
+            date: r.date,
+            depth: r.depth,
+            depthRange: null,
+            temperature: r.temperatureC,
+            temperatureRange: null,
+          }));
+        }
         const d = detected.find((f) => f.fileType === 'argos_messages');
         if (d && argosMessages.fixes.length === 0) {
           d.warning =
@@ -336,7 +354,13 @@ export function useAnalysis(): UseAnalysisReturn {
       // other lacked.
       const portal = portalLogs[0] ?? null;
       const container = containers[0] ?? null;
-      const relayedDive = mergeByTime(container?.dive.readings ?? [], portal?.diveLog?.readings ?? []);
+      // Manufacturer-decoded samples first, then the app's own decode of the
+      // CLS payloads, which fills whatever Lotek's files do not cover — on a
+      // tag still at sea that is everything since the last Lotek download.
+      const relayedDive = mergeByTime(
+        mergeByTime(container?.dive.readings ?? [], portal?.diveLog?.readings ?? []),
+        activityReadings
+      );
       const diveReadings = lotekDive?.readings.length ? lotekDive.readings : relayedDive;
       const relayedDay =
         (container?.day.dayRecords.length ?? 0) >= (portal?.dayLog?.dayRecords.length ?? 0)
