@@ -38,6 +38,8 @@ const csp = [
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // The commit this build came from, for the stale-tab check (lib/buildCheck.ts).
+  env: { NEXT_PUBLIC_BUILD_ID: process.env.VERCEL_GIT_COMMIT_SHA ?? 'dev' },
   // This app renders no <Image> and serves no optimized images, so the
   // optimizer endpoint is pure attack surface — it is also where sharp (and
   // its libvips CVEs) would be reachable. Off entirely.
