@@ -45,6 +45,12 @@ export function useTidePhase(
   const [unavailable, setUnavailable] = useState<string | null>(null);
 
   useEffect(() => {
+    // Same stale-state guard as useWaterMatch: a new tag with nothing to
+    // analyse must not keep showing the previous tag's tide phase.
+    setAnalysis(null);
+    setStation(null);
+    setStationDistanceKm(null);
+    setUnavailable(null);
     if (lat === null || lon === null || passes.length === 0) return;
 
     const dated = passes.filter((p) => !isNaN(p.date.getTime()));

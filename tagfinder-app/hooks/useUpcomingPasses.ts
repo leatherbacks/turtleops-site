@@ -32,11 +32,12 @@ export function useUpcomingPasses({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    setPasses([]);
+    setError(null);
     if (lat === null || lon === null) return;
 
     let cancelled = false;
     setLoading(true);
-    setError(null);
 
     (async () => {
       try {
