@@ -1119,6 +1119,8 @@ export type FileType =
   | 'lotek_portal_log'
   // Lotek downloader container (.bin): Argos fixes plus the three logs
   | 'lotek_argos_container'
+  // A .zip the user dropped, expanded into the files above
+  | 'archive'
   // Argos / CLS — manufacturer-agnostic
   | 'argos_ds'
   | 'argos_messages'

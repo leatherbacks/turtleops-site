@@ -9,6 +9,7 @@ import type {
 import { parseCSV } from '@/parsers/csv';
 import { detectFile, detectTextFile, detectSpreadsheet, pttFromFilename } from '@/parsers/detect';
 import { readXlsx, isZipMagic } from '@/parsers/xlsx';
+import { expandArchives } from '@/parsers/archive';
 import {
   parseLotekPortalWorkbook,
   type LotekPortalLogResult,
@@ -160,7 +161,21 @@ export function useAnalysis(): UseAnalysisReturn {
       let portalPtt: number | null = null;
       const containers: LotekArgosContainerResult[] = [];
 
-      for (const file of files) {
+      // A .zip is what the portal hands out and what a phone cannot open, so
+      // it is expanded here into the files it holds; the Lotek workbook, also
+      // a zip, is left whole for the spreadsheet path below.
+      const { files: expandedFiles, archives } = await expandArchives(files);
+      for (const a of archives) {
+        detected.push({
+          file: a.file,
+          manufacturer: 'unknown',
+          source: 'unknown',
+          fileType: 'archive',
+          warning: a.count === 0 ? 'Zip opened but held no files the analysis can use.' : undefined,
+        });
+      }
+
+      for (const file of expandedFiles) {
         // Classify from content, never from the extension. Wildlife Computers
         // and Lotek both ship .csv, CLS ships .txt, and users rename files.
         const magic = new Uint8Array(await file.slice(0, 16).arrayBuffer());
