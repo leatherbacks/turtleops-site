@@ -911,6 +911,8 @@ export interface AntennaExposure {
  * the sea half, 6 of 425 over the land half, a 3 m steel seawall one metre to
  * the west. The quadrant test missed it because it compares absolute rates and
  * a tag lying on sand never hears more than a fifth of its passes anywhere.
+ * (47125 at Surfside, often paired with it in comments, lay on open beach with
+ * no wall; its low western deficit is the control case, not a second wall.)
  */
 export interface SkyObstruction {
   /** Compass bearing from the tag to the middle of the blocked half, degrees. */

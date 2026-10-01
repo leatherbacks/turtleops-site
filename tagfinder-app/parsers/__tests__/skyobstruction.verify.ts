@@ -1,7 +1,8 @@
 /**
- * The half-sky obstruction test: two seawall tags it must catch, a tag on
- * open sand it must leave alone, and the real 47127 and 47125 exports run
- * through the same pass matching the site uses.
+ * The half-sky obstruction test: a seawall tag it must catch, a low one-sided
+ * cut it must still find, a tag on open sand it must leave alone, and the real
+ * 47127 (seawall) and 47125 (open beach) exports run through the same pass
+ * matching the site uses.
  *
  *   npx tsx parsers/__tests__/skyobstruction.verify.ts
  */
@@ -47,7 +48,7 @@ console.log('\n== SYNTHETIC ==');
   chk('...reaching high', (r.obstruction?.blockedUpToDeg ?? 0) >= 50, true);
   chk('...named as wall-height', /well above the tag/.test(r.reasoning), true);
 
-  // Surfside: the low western sky is cut, and the west leans lower overall.
+  // Surfside-like: the low western sky is cut, and the west leans lower overall.
   const lowLip = sky((el, az) => (az >= 180 ? (el < 15 ? 0.02 : 0.22) : el < 15 ? 0.17 : 0.3));
   const l = analyzeAntennaExposure(lowLip);
   chk('low lip west: still found', l.obstruction !== null, true);
@@ -104,12 +105,19 @@ if (tle && f47127) {
   console.log('\n  (47127 fixtures absent — real-data check skipped)');
 }
 
-const f47125 = fixture('ID 47125_messages.csv');
+// The full CLS export of 1 Oct 2026 showed the tag left the wall on 10 Aug:
+// no fixes from 8 Aug 15:51 until 11 Aug 14:21, when it was 2.3 km away at the
+// finder's house in Bay Harbor Islands. The wall window is 8 Aug to 10 Aug.
+const f47125 = fixture('47125-cls-messages-2026-10-01.csv');
 if (tle && f47125) {
-  console.log('\n== PSAT+ 47125, SURFSIDE FL — LOW WESTERN SKY CUT ==');
-  const r = realCase('47125', f47125, tle, 25.89097, -80.11793, '2026-08-08T16:00:00Z', '2026-08-11T15:00:00Z');
+  console.log('\n== PSAT+ 47125, SURFSIDE FL — OPEN BEACH, LOW WESTERN SKY CUT ==');
+  const r = realCase('47125', f47125, tle, 25.89097, -80.11793, '2026-08-08T16:00:00Z', '2026-08-10T15:00:00Z');
   chk('obstruction found', r.obstruction !== null, true);
   chk('blocked side is W', r.obstruction?.toward, 'W');
+  chk('only the low sky', r.obstruction?.blockedUpToDeg, 15);
+  console.log('\n== ...AND AT THE FINDER\'S HOUSE, 11-13 AUG ==');
+  const h = realCase('47125 indoors', f47125, tle, 25.8995, -80.1365, '2026-08-11T13:00:00Z', '2026-08-13T13:30:00Z');
+  chk('indoors reads as a blocked horizon, not a wall', h.pattern, 'horizon_obstructed');
 } else {
   console.log('\n  (47125 fixture absent — real-data check skipped)');
 }

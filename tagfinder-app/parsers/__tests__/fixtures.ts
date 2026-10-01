@@ -29,6 +29,9 @@ const ROOTS = [
   process.env.HOME
     ? resolve(process.env.HOME, 'Documents/Apps/tagfinder/data/lotek/47127')
     : undefined,
+  process.env.HOME
+    ? resolve(process.env.HOME, 'Documents/Apps/tagfinder/data/lotek/47125')
+    : undefined,
 ].filter((r): r is string => typeof r === 'string' && r.length > 0);
 
 /** Absolute path to a fixture, or null when it is not present on this machine. */

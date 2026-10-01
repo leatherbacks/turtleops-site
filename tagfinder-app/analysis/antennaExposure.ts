@@ -59,19 +59,22 @@ function elevationProfile(passes: AnnotatedPass[]) {
  * The quadrant test below compares absolute reception rates and needs a
  * 40-point spread. A tag lying on sand with its whip horizontal hears a fifth
  * of its passes at best, so no spread that large can ever appear, and two
- * Lotek tags recovered against seawalls were both reported symmetric:
+ * beached Lotek tags were both reported symmetric:
  *
- *   PSAT+ 47125, Surfside FL, Aug 2026:      sea half 53/177, land half 35/177
- *                                             but below 15° it was 10/59 vs 1/56
  *   PSAT+ 47127, Ocean Ridge FL, Jul 2026:   sea half 80/425, land half 6/425
  *                                             3 m steel sheet-pile wall 1 m west
+ *   PSAT+ 47125, Surfside FL, Aug 2026:      sea half 53/177, land half 35/177
+ *                                             but below 15° it was 10/59 vs 1/56;
+ *                                             open beach, no wall — a berm or the
+ *                                             tag's own lie cut the low west
  *
  * So the comparison is relative — a ratio of rates with a two-proportion
  * z-score — and the split bearing is searched rather than fixed to the
  * compass, because a wall runs whichever way the shore runs. The elevation
  * band up to which the blocked side still falls short says how tall the thing
- * looks from the tag: the low lip at Surfside only cut the bottom 15°, the
- * wall and houses at Ocean Ridge cut everything short of overhead.
+ * looks from the tag: whatever lay west of the Surfside tag only cut the
+ * bottom 15°, the wall and houses at Ocean Ridge cut everything short of
+ * overhead.
  */
 /** Predicted passes each half needs before the whole-sky comparison means anything. */
 const MIN_HALF_PASSES = 20;
