@@ -69,8 +69,13 @@ export function compareTemperatures(
 
   // Prefer post-release Series readings (high-rate, calibrated sensor).
   // Fall back to Status reports if Series isn't available.
+  //
+  // Inclusive of the release instant. For a Lotek tag the release date is
+  // derived from the first health message, so a strict "after" dropped that
+  // very reading: 47127's dawn 27.6 °C vanished and the panel said "no night
+  // reading exists" while Tag State, which keeps it, quoted it.
   const postReleaseSeries = seriesReadings.filter(
-    (s) => s.date.getTime() > releaseTime && s.temperature !== null
+    (s) => s.date.getTime() >= releaseTime && s.temperature !== null
   );
 
   const tagTemps: number[] = postReleaseSeries
@@ -80,7 +85,7 @@ export function compareTemperatures(
   if (tagTemps.length === 0) {
     // Fall back to Status temperatures (post-release only)
     const statusTemps = statuses
-      .filter((s) => s.date.getTime() > releaseTime)
+      .filter((s) => s.date.getTime() >= releaseTime)
       .map((s) => s.temperature)
       .filter((t): t is number => t !== null && !isNaN(t));
     tagTemps.push(...statusTemps);
@@ -116,7 +121,7 @@ export function compareTemperatures(
   const datedTemps = (postReleaseSeries.length
     ? postReleaseSeries.map((s) => ({ date: s.date, t: s.temperature as number }))
     : statuses
-        .filter((s) => s.date.getTime() > releaseTime && s.temperature !== null)
+        .filter((s) => s.date.getTime() >= releaseTime && s.temperature !== null)
         .map((s) => ({ date: s.date, t: s.temperature as number }))
   )
     .filter((s) => !isNaN(s.t))
