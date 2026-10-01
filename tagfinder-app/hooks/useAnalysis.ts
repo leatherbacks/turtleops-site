@@ -96,6 +96,7 @@ import { computePosition } from '@/analysis/position';
 import { computeSearchRadius } from '@/analysis/searchRadius';
 import { predictDrift } from '@/analysis/driftPredict';
 import { analyzeTagState } from '@/analysis/tagState';
+import { detectGrounding } from '@/analysis/grounding';
 import { analyzeDataQuality } from '@/analysis/dataQuality';
 import { detectTagCategory } from '@/analysis/tagCategory';
 import { buildDiveProfile } from '@/analysis/diveProfile';
@@ -614,12 +615,37 @@ export function useAnalysis(): UseAnalysisReturn {
       markOutliers(workingFixes, effectiveLabel === 'insufficient' ? 'stuck' : effectiveLabel);
 
       // 6. Final drift classification (after outlier removal)
-      const driftState = classifyDrift(workingFixes);
+      let driftState = classifyDrift(workingFixes);
 
-      // 7. Compute position
+      // 6b. Out of the water? The drift classifier's clock stops at the last
+      // fix, so a tag that beached and stopped resolving still reads
+      // "actively drifting" off the last day of its track, and the drift
+      // projection then sends a boat after a tag lying on sand. The grounding
+      // check reads the passes that kept arriving after the fixes stopped.
+      const grounding =
+        passes.length > 0 ? detectGrounding(workingFixes, passes, summary?.releaseDate ?? null) : null;
+      const grounded = grounding?.verdict === 'grounded';
+      if (grounded) {
+        const since = grounding!.groundedSince?.toISOString().slice(0, 16).replace('T', ' ') ?? 'the last fix';
+        const spread = grounding!.recent?.spreadKm ?? 0;
+        driftState = {
+          ...driftState,
+          recent: 'stuck',
+          medium: 'stuck',
+          recentSpreadKm: spread,
+          mediumSpreadKm: spread,
+          pattern: `Drifted, then grounded about ${since} UTC — fixes stopped while passes continued`,
+        };
+      }
+
+      // 7. Compute position. A grounded tag is where its last fixes put it,
+      //    not at the mean of a track that ended there.
       const finalLabel =
         driftState.recent !== 'insufficient' ? driftState.recent : driftState.allTime;
-      const pos = computePosition(workingFixes, finalLabel === 'insufficient' ? 'stuck' : finalLabel);
+      const pos = computePosition(
+        workingFixes,
+        grounded ? 'drifting' : finalLabel === 'insufficient' ? 'stuck' : finalLabel
+      );
 
       // 8. Drift prediction (only for drifting tags). Computed before the
       //    search radius because the radius depends on how far the tag could
@@ -680,7 +706,7 @@ export function useAnalysis(): UseAnalysisReturn {
       // Note: tagState here is preliminary — will be re-computed with environment data in the page
       const tagState =
         parsedStatuses.length > 0 || summary || seriesReadings.length > 0
-          ? analyzeTagState(parsedStatuses, summary, null, seriesReadings)
+          ? analyzeTagState(parsedStatuses, summary, null, seriesReadings, null, workingFixes, null, grounding)
           : null;
       const dataQuality = passes.length > 0 ? analyzeDataQuality(passes) : null;
       const diveProfile = seriesReadings.length > 0 ? buildDiveProfile(seriesReadings) : null;
@@ -735,6 +761,7 @@ export function useAnalysis(): UseAnalysisReturn {
         popoff,
         popoffSkipReason,
         tagState,
+        grounding,
         dataQuality,
         diveProfile,
         sst: sstReadings.length > 0 ? sstReadings : null,

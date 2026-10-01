@@ -1038,8 +1038,29 @@ export interface AnalysisResult {
   // Tag state (from Status.csv — optional)
   tagState: TagStateInfo | null;
 
+  /** Out-of-the-water check from the Argos geometry alone — see analysis/grounding.ts. */
+  grounding: Grounding | null;
+
   // Data quality (from Argos.csv — optional)
   dataQuality: DataQuality | null;
+}
+
+/** Argos yield in a window, for the grounding comparison. */
+export interface GroundingWindow {
+  passes: number;
+  qualityFixesPerPass: number;
+  passesPerDay: number;
+  /** Max pairwise distance of the window's fixes (quality fixes for the reference). */
+  spreadKm: number;
+}
+
+export interface Grounding {
+  verdict: 'grounded' | 'not_grounded' | 'insufficient';
+  /** Last quality fix before the yield collapsed — about when it came ashore. */
+  groundedSince: Date | null;
+  reference: GroundingWindow | null;
+  recent: GroundingWindow | null;
+  reasoning: string;
 }
 
 // ─── Popoff Result ───
