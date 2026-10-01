@@ -235,7 +235,14 @@ Possible tag scenarios to consider:
    - Elevation well above sea level (> 3m)
    - Position clusters very tightly (sub-100m), consistent with a building/yard
    - Transmission history is short (ended shortly after the tag reached this location)
-   - Temperature readings anomalously high (> 35°C) suggest indoor/car/window — not natural sun-on-sand
+   - Temperature readings anomalously high (> 35°C) at NIGHT, or in cool air, suggest indoor/car/window.
+     In daytime sun they do not: dry sand in full sun reaches 40-50°C and a dark tag lying on it
+     reads what the sand reads. A hot daytime reading alone cannot separate a beach from a house;
+     a night of readings can (a beach tag falls to air temperature after dark, a room stays warm),
+     and so can the position cluster (a windowsill repeats to under 100 m, a beach tag wanders).
+     When only daytime readings exist, say the two are not yet distinguishable and recommend the
+     cheap check first: walk the wrack line and dune toe within the position circle at low tide
+     with the receiver, before calling property owners.
    - Location name suggests residential area, urban, not coastal natural feature
 6. **Tracker tag stopped moving** — a LIVE TRACKER tag (instrument='UT' or similar
    non-PSAT) that has been removed from the animal, shed naturally, or recovered and is
