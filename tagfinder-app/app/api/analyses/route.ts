@@ -92,9 +92,10 @@ export async function POST(request: NextRequest) {
   }
 
   // The email alert moved here from the brief route: one notice per analysis,
-  // whether or not a brief follows. Optional, and no longer silent when it is
-  // not configured — see notifyAnalysis.
-  notifyAnalysis({
+  // whether or not a brief follows. Awaited, because a serverless function is
+  // frozen once it responds and an un-awaited send may never go; the send has
+  // its own 5 s timeout, so this adds at most that to the response.
+  await notifyAnalysis({
     userEmail: user.email,
     ptt: row.ptt,
     briefExcerpt: null,
@@ -102,7 +103,7 @@ export async function POST(request: NextRequest) {
     bestLon: row.best_lon,
     inputTokens: null,
     outputTokens: null,
-  }).catch(() => {});
+  }).catch(() => undefined);
 
   return NextResponse.json({ id: data.id }, { headers: { 'Cache-Control': 'no-store' } });
 }

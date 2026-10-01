@@ -169,10 +169,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Mark the analysis record (/api/analyses) as having produced a brief.
-    // Not awaited — never block or fail the brief response on bookkeeping.
+    // Awaited: a serverless function is frozen the moment its response goes
+    // out, and a write started without await was being dropped on the floor —
+    // every row read brief_generated=false, including runs that produced the
+    // briefs we had in hand. It cannot fail the brief; errors are logged.
     const analysisId = typeof body.analysisId === 'string' ? body.analysisId : null;
     if (analysisId && /^[0-9a-f-]{36}$/i.test(analysisId)) {
-      createSupabaseAdminClient()
+      const { error } = await createSupabaseAdminClient()
         .from('tag_analyses')
         .update({
           brief_generated: true,
@@ -180,10 +183,8 @@ export async function POST(request: NextRequest) {
           brief_output_tokens: usage.output_tokens,
         })
         .eq('id', analysisId)
-        .eq('user_email', user.email.toLowerCase())
-        .then(({ error }) => {
-          if (error) console.error('tag_analyses update failed:', error.message);
-        });
+        .eq('user_email', user.email.toLowerCase());
+      if (error) console.error('tag_analyses update failed:', error.message);
     }
 
     const briefText = contradiction
