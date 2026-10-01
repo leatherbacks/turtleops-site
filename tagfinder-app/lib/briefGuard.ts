@@ -56,6 +56,8 @@ export function verdictsBlock(analysis: unknown, environment: unknown): string {
   if (str(tides.station)) lines.push(`- Tide station: ${tides.station}, ${num(tides.stationDistanceKm)?.toFixed(1) ?? '?'} km away`);
   lines.push(`- Drift: last 24 h ${str(drift.recent) ?? 'unknown'}, 72 h ${str(drift.medium) ?? 'unknown'}, all time ${str(drift.allTime) ?? 'unknown'}`);
   if (str(release.label)) lines.push(`- Release: ${release.label}`);
+  const grounding = rec(a.grounding);
+  if (str(grounding.verdict) === 'grounded') lines.push(`- Out of the water: ${grounding.reasoning}`);
 
   const rule = ASHORE_PHASES.has(phase)
     ? 'The tag is OUT OF THE WATER. The headline must say so. Do not describe it as afloat, at sea, over water, or drifting, and do not recommend a boat. The dive profile is the animal\'s pre-release record and says nothing about water at the tag\'s current position.'

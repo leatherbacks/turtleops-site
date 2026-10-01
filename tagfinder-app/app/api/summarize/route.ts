@@ -791,6 +791,9 @@ ${JSON.stringify(a.crushDepthEvent, null, 2)}
 ## Tag state (depth, submersion, physical condition)
 ${JSON.stringify(a.tagState, null, 2)}
 
+## Out-of-the-water check (Argos geometry: fix yield collapsing while passes continue = grounded)
+${JSON.stringify(a.grounding, null, 2)}
+
 ## Tidal intrusion analysis
 ${JSON.stringify(a.tidalIntrusion, null, 2)}
 

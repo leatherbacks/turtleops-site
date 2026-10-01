@@ -8,6 +8,7 @@ import type {
   SeriesReading,
   SatCoverage,
   ArgosFix,
+  Grounding,
 } from '@/lib/types';
 import { LAND_THRESHOLD_M } from '@/lib/constants';
 import { haversineKm } from '@/lib/haversine';
@@ -106,7 +107,8 @@ export function analyzeTagState(
   series?: SeriesReading[] | null,
   satCoverage?: SatCoverage | null,
   fixes?: ArgosFix[] | null,
-  reception?: ReceptionQuality | null
+  reception?: ReceptionQuality | null,
+  grounding?: Grounding | null
 ): TagStateInfo {
   const now = Date.now();
 
@@ -313,7 +315,7 @@ export function analyzeTagState(
       phase: 'stranded_on_land',
       reasoning: `Position is on land (elevation ${elevation.meters.toFixed(1)}m)${
         lastDepth !== null && lastDepth > 0 ? ` — depth reading (${lastDepth.toFixed(1)}m) may indicate partial burial` : ''
-      }`,
+      }${grounding?.verdict === 'grounded' ? `. ${grounding.reasoning}` : ''}`,
       lastDepth,
       lastTemperature,
       avgTemperature,
@@ -372,8 +374,15 @@ export function analyzeTagState(
     }
   }
 
-  // 4. Sanity check with intertidal / water classification
-  if (elevation && elevation.classification === 'intertidal' && phase === 'surface') {
+  // 4. Out of the water on the Argos geometry alone. Elevation data put the
+  // Surfside tag in the water (a beach is below the land threshold at the
+  // resolution available) and in August the thermometer could not tell water
+  // from wet sand, so depth-based "surface" was all that was left. The fix
+  // yield collapsing while passes continue overrides it.
+  if (grounding?.verdict === 'grounded' && phase !== 'submerged') {
+    phase = 'stranded_on_land';
+    reasoning = grounding.reasoning + (lastDepth !== null ? ` Depth reads ${lastDepth.toFixed(1)} m.` : '');
+  } else if (elevation && elevation.classification === 'intertidal' && phase === 'surface') {
     reasoning += '. Position is in intertidal zone — may wash up at high tide';
   }
 

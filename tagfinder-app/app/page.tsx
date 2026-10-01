@@ -146,7 +146,8 @@ export default function TagFinderPage() {
       series,
       satCoverage,
       result.allFixes,
-      receptionQuality
+      receptionQuality,
+      result.grounding
     );
   }, [result, statuses, series, envData, satCoverage, receptionQuality]);
 
