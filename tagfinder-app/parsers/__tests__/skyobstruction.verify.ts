@@ -1,7 +1,8 @@
 /**
- * The half-sky obstruction test: two seawall tags it must catch, a tag on
- * open sand it must leave alone, and the real 47127 and 47125 exports run
- * through the same pass matching the site uses.
+ * The half-sky obstruction test: a seawall tag it must catch, a low one-sided
+ * cut it must still find, a tag on open sand it must leave alone, and the real
+ * 47127 (seawall) and 47125 (open beach) exports run through the same pass
+ * matching the site uses.
  *
  *   npx tsx parsers/__tests__/skyobstruction.verify.ts
  */
@@ -47,7 +48,7 @@ console.log('\n== SYNTHETIC ==');
   chk('...reaching high', (r.obstruction?.blockedUpToDeg ?? 0) >= 50, true);
   chk('...named as wall-height', /well above the tag/.test(r.reasoning), true);
 
-  // Surfside: the low western sky is cut, and the west leans lower overall.
+  // Surfside-like: the low western sky is cut, and the west leans lower overall.
   const lowLip = sky((el, az) => (az >= 180 ? (el < 15 ? 0.02 : 0.22) : el < 15 ? 0.17 : 0.3));
   const l = analyzeAntennaExposure(lowLip);
   chk('low lip west: still found', l.obstruction !== null, true);
@@ -109,7 +110,7 @@ if (tle && f47127) {
 // finder's house in Bay Harbor Islands. The wall window is 8 Aug to 10 Aug.
 const f47125 = fixture('47125-cls-messages-2026-10-01.csv');
 if (tle && f47125) {
-  console.log('\n== PSAT+ 47125, SURFSIDE FL — LOW WESTERN SKY CUT ==');
+  console.log('\n== PSAT+ 47125, SURFSIDE FL — OPEN BEACH, LOW WESTERN SKY CUT ==');
   const r = realCase('47125', f47125, tle, 25.89097, -80.11793, '2026-08-08T16:00:00Z', '2026-08-10T15:00:00Z');
   chk('obstruction found', r.obstruction !== null, true);
   chk('blocked side is W', r.obstruction?.toward, 'W');
