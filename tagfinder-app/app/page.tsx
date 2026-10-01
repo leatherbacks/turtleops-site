@@ -3,6 +3,7 @@
 import dynamic from 'next/dynamic';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAnalysis } from '@/hooks/useAnalysis';
+import { reloadIfStale } from '@/lib/buildCheck';
 import { useEnvironment } from '@/hooks/useEnvironment';
 import { useTidePhase } from '@/hooks/useTidePhase';
 import { useWaterMatch } from '@/hooks/useWaterMatch';
@@ -573,10 +574,13 @@ export default function TagFinderPage() {
 
 
   const handleFiles = async (newFiles: File[]) => {
+    // A tab opened before a deployment must not analyse with the old code.
+    if (await reloadIfStale()) return;
     await analyze(newFiles);
   };
 
-  const handleReset = () => {
+  const handleReset = async () => {
+    if (await reloadIfStale()) return;
     reset();
     setSatCoverage(null);
     setSatCoverageUnavailable(null);
