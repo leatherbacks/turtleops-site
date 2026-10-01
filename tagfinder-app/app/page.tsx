@@ -64,6 +64,9 @@ export default function TagFinderPage() {
 
   const [satCoverage, setSatCoverage] = useState<SatCoverage | null>(null);
   const [satCoverageUnavailable, setSatCoverageUnavailable] = useState<string | null>(null);
+  /** The result the sky computation has finished for, success or failure, so
+   *  the brief waits for the wall verdict instead of being written without it. */
+  const [skySettledFor, setSkySettledFor] = useState<object | null>(null);
   const [antennaExposure, setAntennaExposure] = useState<AntennaExposure | null>(null);
   const [landfall, setLandfall] = useState<LandfallPrediction | null>(null);
   const [driftForcing, setDriftForcing] = useState<DriftForcing | null>(null);
@@ -158,7 +161,11 @@ export default function TagFinderPage() {
     // Deliberately does NOT require result.summary. Nothing below reads it, and
     // Lotek exports have no equivalent file — gating on it would silently
     // disable satellite coverage and antenna exposure for every Lotek dataset.
-    if (!result || passes.length === 0) return;
+    if (!result) return;
+    if (passes.length === 0) {
+      setSkySettledFor(result);
+      return;
+    }
 
     // Start at the first Argos fix, NOT deployDate. For a PSAT the tag is on a
     // diving animal for the whole deployment and cannot reach a satellite, so
@@ -167,7 +174,10 @@ export default function TagFinderPage() {
     // Coverage and exposure are diagnostics about the tag's exposed period.
     const earliest = result.allFixes[0]?.date;
     const latest = result.allFixes[result.allFixes.length - 1]?.date;
-    if (!earliest || !latest) return;
+    if (!earliest || !latest) {
+      setSkySettledFor(result);
+      return;
+    }
 
     let cancelled = false;
     (async () => {
@@ -206,6 +216,8 @@ export default function TagFinderPage() {
         }
       } catch {
         // ignore
+      } finally {
+        if (!cancelled) setSkySettledFor(result);
       }
     })();
 
@@ -430,6 +442,7 @@ export default function TagFinderPage() {
         landfall: displayResult.landfall,
         driftForcing: displayResult.driftForcing,
         tagState: displayResult.tagState,
+        grounding: displayResult.grounding,
         tidalIntrusion: displayResult.tidalIntrusion,
         satCoverage: stripTrackPoints(displayResult.satCoverage),
         mirrorCheck: displayResult.mirrorCheck,
@@ -500,14 +513,16 @@ export default function TagFinderPage() {
     }
   };
 
-  function stripTrackPoints(sc: SatCoverage | null): SatCoverage | null {
+  function stripTrackPoints(sc: SatCoverage | null): (Omit<SatCoverage, 'passes'> & { passCount: number }) | null {
     if (!sc) return sc;
-    return {
-      ...sc,
-      // Per-pass sky trajectories are useful for the UI but huge in JSON.
-      // The AI brief doesn't read them — strip before serializing.
-      passes: sc.passes.map((p) => ({ ...p, trackPoints: [] })),
-    };
+    // The brief reads the totals, the per-satellite table and the direction
+    // counts, never the per-pass rows. Those rows, even without their sky
+    // trajectories, ran to 700 KB on a 42-day window (47127: 3,605 passes)
+    // and tripped the route's 300 KB limit — "Payload too large for a tag
+    // analysis" — once the brief started waiting for the environment and so
+    // for the sky computation to finish.
+    const { passes, ...rest } = sc;
+    return { ...rest, passCount: passes.length };
   }
 
   /**
@@ -557,8 +572,9 @@ export default function TagFinderPage() {
     }
   };
 
+  const skyReady = result !== null && skySettledFor === result;
   useEffect(() => {
-    if (!displayResult || !envReady || brief || briefLoading) return;
+    if (!displayResult || !envReady || !skyReady || brief || briefLoading) return;
     // Also wait for upcoming passes unless that query errored or returned no data
     if (upcoming.loading) return;
     // Claim the slot before the first await, or a re-render during the record
@@ -569,7 +585,7 @@ export default function TagFinderPage() {
       await fetchBrief(id);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [displayResult, envReady, upcoming.loading]);
+  }, [displayResult, envReady, skyReady, upcoming.loading]);
 
 
 
