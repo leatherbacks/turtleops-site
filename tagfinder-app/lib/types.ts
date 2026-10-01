@@ -900,6 +900,34 @@ export interface AntennaExposure {
   /** Best-fit physical orientation of the antenna whip (tilt + heading).
    *  Null when there aren't enough received passes to fit reliably. */
   orientation: AntennaOrientation | null;
+  /** A one-sided block of the sky — a wall, building or bank beside the tag.
+   *  Null when reception is the same on both halves of the sky. */
+  obstruction: SkyObstruction | null;
+}
+
+/**
+ * The sky split in two halves about the bearing where reception differs most.
+ * Found on PSAT+ 47127 (Ocean Ridge FL, Jul 2026): 80 of 425 passes heard over
+ * the sea half, 6 of 425 over the land half, a 3 m steel seawall one metre to
+ * the west. The quadrant test missed it because it compares absolute rates and
+ * a tag lying on sand never hears more than a fifth of its passes anywhere.
+ */
+export interface SkyObstruction {
+  /** Compass bearing from the tag to the middle of the blocked half, degrees. */
+  towardDeg: number;
+  /** The same as a compass point, e.g. "W". */
+  toward: string;
+  /** The open half's compass point, e.g. "E". */
+  openSide: string;
+  blockedHeard: number;
+  blockedPredicted: number;
+  openHeard: number;
+  openPredicted: number;
+  /** Highest elevation band in which the blocked side still falls short —
+   *  roughly how far up the sky the obstruction reaches as seen from the tag. */
+  blockedUpToDeg: number;
+  /** Two-proportion z-score of the open-vs-blocked difference. */
+  zScore: number;
 }
 
 // ─── Satellite Coverage Analysis ───

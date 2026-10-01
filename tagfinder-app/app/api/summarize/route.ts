@@ -254,14 +254,16 @@ Possible tag scenarios to consider:
    long the tag has been at this location. The analysis is already scoped to the
    stationary period, so position/state/burial cards reflect the CURRENT location, not
    the historic animal track.
-7. **Indoors on a windowsill / near a window** — a specific sub-case of "recovered by a person."
-   Key signature: position is on land AND antennaExposure.pattern is 'directional' (reception
-   biased to one compass quadrant, with passes from the opposite direction consistently missed).
-   When this combination appears, the tag is almost certainly indoors near a window, and
-   **the compass direction of received passes is the direction the window faces**. If light
-   analysis shows 'shaded' or 'indoor' and temp comparison shows 'in_air_insulated' or
-   'anomalous_hot', that reinforces the windowsill interpretation. Recommend contacting the
-   resident — call out the window direction explicitly so they can identify which window.
+7. **Against a wall, building or bank** — antennaExposure.pattern is 'directional' with an
+   antennaExposure.obstruction block: one half of the sky is heard far less than the other.
+   The usual cause on a beach is a seawall, a house, a dune face or a jetty immediately on the
+   blocked side (PSAT+ 47127 lay in the wrack one metre from a 3 m steel seawall and heard 6
+   of 425 passes over the land half against 80 over the sea half). Name the blocked side and
+   tell the searcher to walk the open face of whatever stands there, at the wrack line.
+   obstruction.blockedUpToDeg says how tall it looks from the tag: below 40° is a low lip
+   or berm, above it is wall height or more. Only call it indoors near a window when the
+   temperature panel reads insulated or anomalously hot AND the light analysis reads
+   'indoor' as well; a directional pattern on its own is an outdoor obstruction.
 8. **Still on animal** (for tracker-type tags where trackerShed.verdict is not 'separated') —
    depth varying with diving, temperature matching water, position changing day to day.
    No recovery needed; framing should be "this is where your animal currently is."
