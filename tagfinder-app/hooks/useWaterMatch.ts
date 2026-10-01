@@ -52,6 +52,15 @@ export function useWaterMatch(
   const last = dated.length ? Math.max(...dated.map((r) => r.date.getTime())) : 0;
 
   useEffect(() => {
+    // Clear the previous tag's result first. The guard below used to return
+    // with the old analysis still in state, so a second upload with fewer than
+    // three post-release temperatures showed — and sent to the brief — the
+    // first tag's water match: 47127 at Ocean Ridge reported 47125's thirteen
+    // readings against the Virginia Key gauge.
+    setAnalysis(null);
+    setStation(null);
+    setStationDistanceKm(null);
+    setUnavailable(null);
     if (lat === null || lon === null || dated.length < 3) return;
 
     let begin = new Date(first);

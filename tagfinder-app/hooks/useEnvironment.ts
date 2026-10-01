@@ -41,18 +41,20 @@ async function fetchWithRetry(url: string): Promise<Response> {
   return fetch(url);
 }
 
-export function useEnvironment(
-  lat: number | null,
-  lon: number | null
-): UseEnvironmentReturn {
-  const [data, setData] = useState<EnvironmentData>({
+const EMPTY_ENVIRONMENT: EnvironmentData = {
     elevation: null,
     weather: null,
     tides: null,
     location: null,
     bathymetry: null,
     forecast: null,
-  });
+  };
+
+export function useEnvironment(
+  lat: number | null,
+  lon: number | null
+): UseEnvironmentReturn {
+  const [data, setData] = useState<EnvironmentData>(EMPTY_ENVIRONMENT);
 
   const [loading, setLoading] = useState({
     elevation: false,
@@ -62,19 +64,29 @@ export function useEnvironment(
     bathymetry: false,
     forecast: false,
   });
-  const [settled, setSettled] = useState(false);
+  // Settled is keyed to the position it was computed for. A plain boolean
+  // stayed true from the previous tag until this effect re-ran, and in that
+  // one render the brief effect saw "settled" and sent the new tag's brief
+  // with the old tag's environment — a 47127 brief went out with no elevation
+  // and tag state unknown while the panel beside it said "on land".
+  const positionKey = lat === null || lon === null ? null : `${lat},${lon}`;
+  const [settledFor, setSettledFor] = useState<string | null>(null);
+  const settled = positionKey !== null && settledFor === positionKey;
 
   useEffect(() => {
+    // A new position starts from nothing; otherwise the previous tag's
+    // elevation, tides and weather sit in the panels until each fetch returns.
+    setData(EMPTY_ENVIRONMENT);
     if (lat === null || lon === null) return;
+    const key = `${lat},${lon}`;
 
-    setSettled(false);
     setLoading({ elevation: true, weather: true, tides: true, location: true, bathymetry: true, forecast: true });
 
     // Settles only when every chain below has finished, success or failure.
     let remaining = 6;
     const done = () => {
       remaining--;
-      if (remaining === 0) setSettled(true);
+      if (remaining === 0) setSettledFor(key);
     };
 
     // Elevation
