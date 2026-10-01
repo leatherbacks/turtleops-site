@@ -65,6 +65,10 @@ export function requireFixture(name: string | RegExp): string {
 // Matched as patterns rather than literal names: the exports are named after
 // the PTT, which differs per deployment and is not ours to publish.
 export const MESSAGES_CSV = /_messages\.csv$/i;
+/** 2026 CLS/Kinéis downloader exports: "<timestamp>_<uuid>messages.csv" and "...positions.csv". */
+export const CLS_MESSAGES_2026 = /^\d{14}_[0-9a-f-]{36}messages\.csv$/i;
+export const CLS_POSITIONS_2026 = /^\d{14}_[0-9a-f-]{36}positions\.csv$/i;
+export const CLS_DEVICES_2026 = /^\d{14}_[0-9a-f-]{36}devices\.csv$/i;
 export const RAW_DS_TXT = /^RAW_ID_.*\.txt$/i;
 export const LOTEK_DAY_LOG = /Day Log\.csv$/i;
 export const LOTEK_DIVE_LOG = /Dive Log\.csv$/i;

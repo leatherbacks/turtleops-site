@@ -20,21 +20,32 @@ import { parseTimestamp } from '@/lib/timestamp';
  *     two look the same in a fix count and mean opposite things in the field.
  *
  * Positions repeat across every message that contributed to them, so fixes are
- * deduplicated on `Doppler Position ID`. Passes are reconstructed by grouping
- * consecutive messages from the same satellite, which the row layout does not
- * mark explicitly.
+ * deduplicated on `Doppler Position ID`, or on the Doppler date and
+ * coordinates when the export has no ID column (the 2026 downloader). Passes
+ * are reconstructed by grouping consecutive messages from the same satellite,
+ * which the row layout does not mark explicitly; without a satellite column
+ * every message falls into one group and the time gap alone splits passes.
+ *
+ * Messages are deduplicated on reception time and payload, because a user who
+ * pulls several overlapping date windows and drops them all on the page should
+ * not have the overlap counted twice.
  */
 
 /** Longest plausible gap within one LEO satellite pass. */
 const PASS_GAP_MS = 15 * 60 * 1000;
 
-/** Columns that must all be present for this to be a CLS message export. */
+/**
+ * Columns that must all be present for this to be a CLS message export.
+ *
+ * Two generations of this export exist. The 2026 Kinéis downloader drops the
+ * `Doppler Position ID`, `Signal Level`, `Satellite` and frequency columns the
+ * ArgosWeb export carried, so only the columns common to both are required;
+ * everything else is optional and read when present.
+ */
 export const ARGOS_MESSAGES_REQUIRED = [
   'Message date (UTC)',
-  'Doppler Position ID',
-  'Doppler Error radius',
+  'Raw data',
   'Doppler Class',
-  'Signal Level',
 ];
 
 export interface ArgosMessagesResult {
@@ -120,12 +131,26 @@ export function parseArgosMessages(allRows: Record<string, string>[]): ArgosMess
     { quality: string; lat: number; lon: number; date: Date }
   >();
 
+  const seenMessages = new Set<string>();
   for (const row of rows) {
     const date = toDate(col(row, 'Message date (UTC)'));
     if (isNaN(date.getTime())) continue;
 
+    const messageKey = `${date.getTime()}|${col(row, 'Raw data')}`;
+    if (seenMessages.has(messageKey)) continue;
+    seenMessages.add(messageKey);
+
     const ptt = num(col(row, 'Device ID'));
     if (ptt !== null) ptts.add(ptt);
+
+    // The 2026 export has no position id; a Doppler fix is then identified by
+    // its own timestamp and coordinates, which repeat on every message that
+    // contributed to it exactly as the id used to.
+    const positionId =
+      col(row, 'Doppler Position ID') ||
+      (col(row, 'Doppler Date (UTC)')
+        ? `${col(row, 'Doppler Date (UTC)')}|${col(row, 'Doppler Latitude')}|${col(row, 'Doppler Longitude')}`
+        : '');
 
     messages.push({
       date,
@@ -134,10 +159,9 @@ export function parseArgosMessages(allRows: Record<string, string>[]): ArgosMess
       // The Doppler-corrected carrier is what RDF gear should be tuned to; the
       // raw `Frequency` column still contains the pass's Doppler swing.
       frequency: num(col(row, 'Doppler device Frequency')) ?? num(col(row, 'Frequency')),
-      positionId: col(row, 'Doppler Position ID'),
+      positionId,
     });
 
-    const positionId = col(row, 'Doppler Position ID');
     if (!positionId || positions.has(positionId)) continue;
 
     const lat = num(col(row, 'Doppler Latitude'));

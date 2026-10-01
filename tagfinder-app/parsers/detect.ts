@@ -1,6 +1,7 @@
 import type { Manufacturer, FileSource, FileType, DetectedFile } from '@/lib/types';
 import { looksLikeArgosDS } from '@/parsers/argos/ds';
 import { ARGOS_MESSAGES_REQUIRED } from '@/parsers/argos/messages';
+import { ARGOS_POSITIONS_REQUIRED } from '@/parsers/argos/positions';
 
 interface HeaderPattern {
   fileType: FileType;
@@ -60,6 +61,12 @@ const CLS_PATTERNS: HeaderPattern[] = [
     manufacturer: 'unknown',
     required: ARGOS_MESSAGES_REQUIRED,
   },
+  {
+    fileType: 'argos_positions',
+    source: 'argos_cls',
+    manufacturer: 'unknown',
+    required: ARGOS_POSITIONS_REQUIRED,
+  },
 ];
 
 /**
@@ -102,6 +109,8 @@ export function detectFile(file: File, headers: string[]): DetectedFile {
 
   if (name.includes('message'))
     return { file, manufacturer: 'unknown', source: 'argos_cls', fileType: 'argos_messages' };
+  if (name.includes('positions'))
+    return { file, manufacturer: 'unknown', source: 'argos_cls', fileType: 'argos_positions' };
 
   if (name.includes('day log') || name.includes('day_log'))
     return { file, manufacturer: 'lotek', source: 'lotek', fileType: 'lotek_daylog' };

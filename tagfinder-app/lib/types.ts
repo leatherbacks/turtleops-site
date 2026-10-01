@@ -1118,6 +1118,7 @@ export type FileType =
   // Argos / CLS — manufacturer-agnostic
   | 'argos_ds'
   | 'argos_messages'
+  | 'argos_positions'
   | 'unknown';
 
 export interface DetectedFile {
