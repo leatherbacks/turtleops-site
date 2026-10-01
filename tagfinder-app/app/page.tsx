@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAnalysis } from '@/hooks/useAnalysis';
 import { useEnvironment } from '@/hooks/useEnvironment';
 import { useTidePhase } from '@/hooks/useTidePhase';
@@ -74,8 +74,6 @@ export default function TagFinderPage() {
   const [shareViews, setShareViews] = useState<number | null>(null);
   const [sharing, setSharing] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
-  /** Row id from /api/analyses, handed to the brief route to mark it. */
-  const [analysisId, setAnalysisId] = useState<string | null>(null);
   const [shareCopied, setShareCopied] = useState(false);
 
   // Fetch environment once we have a position
@@ -393,7 +391,10 @@ export default function TagFinderPage() {
   // environment, then printed above fully populated panels.
   const envReady = envSettled;
 
-  const fetchBrief = async () => {
+  /** The last analysis row id, so a manual retry of the brief still marks its row. */
+  const lastRecordIdRef = useRef<string | null>(null);
+
+  const fetchBrief = async (recordId: string | null = lastRecordIdRef.current) => {
     if (!displayResult) return;
     setBriefLoading(true);
     setBriefError(null);
@@ -476,7 +477,7 @@ export default function TagFinderPage() {
       const res = await fetch('/api/summarize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ analysis: slim, environment: envData, analysisId }),
+        body: JSON.stringify({ analysis: slim, environment: envData, analysisId: recordId }),
       });
       const data = await res.json().catch(() => ({} as { error?: string }));
       if (!res.ok) {
@@ -504,20 +505,17 @@ export default function TagFinderPage() {
     };
   }
 
-  useEffect(() => {
-    if (!displayResult || !envReady || brief || briefLoading) return;
-    // Also wait for upcoming passes unless that query errored or returned no data
-    if (upcoming.loading) return;
-    fetchBrief();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [displayResult, envReady, upcoming.loading]);
-
-  // Record each analysis the moment its result exists, independently of the
-  // brief: the brief can fail (no API key, rate limit) and the record should
-  // not. Fire-and-forget — nothing the user sees depends on it.
-  useEffect(() => {
-    if (!result) return;
-    const r = result;
+  /**
+   * Record the analysis, returning the row id for the brief route to mark.
+   *
+   * Posted once the environment has settled, from the same result the brief
+   * is written from — not the instant a result exists. The first version did
+   * the latter and logged every tag as "submerged": that is the tag state
+   * before the elevation lookup returns, which the page later replaces. It
+   * also handed the brief a stale copy of the id, so no row was ever marked
+   * as having produced a brief.
+   */
+  const recordAnalysis = async (r: NonNullable<typeof displayResult>): Promise<string | null> => {
     const lastFix = r.validFixes.length ? r.validFixes[r.validFixes.length - 1] : null;
     const record = {
       ptt: r.ptt,
@@ -539,18 +537,36 @@ export default function TagFinderPage() {
       tagState: r.tagState?.phase ?? null,
       searchRadiusBasis: r.searchRadiusBasis,
     };
-    fetch('/api/analyses', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ analysis: record, fileTypes: detectedFiles.map((f) => f.fileType) }),
-    })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data && typeof data.id === 'string') setAnalysisId(data.id);
-      })
-      .catch(() => {});
+    try {
+      const res = await fetch('/api/analyses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ analysis: record, fileTypes: detectedFiles.map((f) => f.fileType) }),
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      lastRecordIdRef.current = typeof data.id === 'string' ? data.id : null;
+      return lastRecordIdRef.current;
+    } catch {
+      return null;
+    }
+  };
+
+  useEffect(() => {
+    if (!displayResult || !envReady || brief || briefLoading) return;
+    // Also wait for upcoming passes unless that query errored or returned no data
+    if (upcoming.loading) return;
+    // Claim the slot before the first await, or a re-render during the record
+    // POST fires this effect again and writes two rows and two briefs.
+    setBriefLoading(true);
+    (async () => {
+      const id = await recordAnalysis(displayResult);
+      await fetchBrief(id);
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [result]);
+  }, [displayResult, envReady, upcoming.loading]);
+
+
 
   const handleFiles = async (newFiles: File[]) => {
     await analyze(newFiles);
@@ -567,7 +583,6 @@ export default function TagFinderPage() {
     setShareId(null);
     setShareViews(null);
     setShareError(null);
-    setAnalysisId(null);
   };
 
   // Poll the report's view count every 30 seconds while a share is active
