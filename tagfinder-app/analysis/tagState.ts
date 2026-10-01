@@ -9,9 +9,11 @@ import type {
   SatCoverage,
   ArgosFix,
   Grounding,
+  AntennaExposure,
 } from '@/lib/types';
 import { LAND_THRESHOLD_M } from '@/lib/constants';
 import { haversineKm } from '@/lib/haversine';
+import { classifyHeat, type HeatVerdict } from './sunHeat';
 
 /** Max depth (m) for "partially submerged" classification */
 const PARTIAL_SUBMERSION_MAX_DEPTH_M = 2;
@@ -36,27 +38,44 @@ const RECENT_SERIES_LIMIT = 20;
  * 4. Sparse depth data: simple 0/non-0 check
  * 5. No data: unknown
  */
-/** Signals suggesting the tag was picked up by a person and taken home */
+/**
+ * Signals suggesting the tag was picked up by a person and taken home.
+ *
+ * Two of these used to be "elevation above 3 m" and "any reading above
+ * 35 °C", and together they called PSAT+ 47127 — in the wrack against a
+ * seawall at Ocean Ridge, 41.6 °C at noon in July, 4.9 m on a dune-backed
+ * beach — "picked up and taken indoors". MiniPAT 40996 by a wrack pile at
+ * Waves got the same from 38.8 °C mid-morning. A Florida beach in summer
+ * satisfies both. Heat now has to be heat the sun cannot explain (see
+ * sunHeat.ts), and "inland" has to be well above anything a dune reaches.
+ */
 interface RecoverySignals {
-  /** Elevation > 3m — well inland, not intertidal */
+  /** Elevation above INLAND_ELEVATION_M — above any dune, so genuinely inland. */
   wellInland: boolean;
   /** Max pairwise distance of recent fixes < 100m — consistent with a yard/building */
   tightlyClustered: boolean;
-  /** Max temperature > 35°C — consistent with indoor/car/window, not natural beach */
-  hotTemp: boolean;
+  /** Hot at night or in low sun, or hotter than sun on sand ever gets. */
+  unexplainedHeat: boolean;
+  /** Flat in the low twenties across day and night. */
+  airConditioned: boolean;
   /** Transmissions ended abruptly (many fixes in short burst, then silence) */
   shortBurst: boolean;
+  heat: HeatVerdict;
 }
+
+/** Dunes on the US Atlantic coast reach 5–6 m; a DEM cell on a seawall reads similar. */
+const INLAND_ELEVATION_M = 8;
 
 function detectRecoverySignals(
   fixes: ArgosFix[] | undefined,
   env: EnvironmentData | null | undefined,
-  tempRange: { min: number; max: number } | null,
+  temps: { date: Date; temp: number }[],
   mostRecent: Date | null
 ): RecoverySignals {
-  const wellInland = !!(env?.elevation && env.elevation.meters > 3);
+  const wellInland = !!(env?.elevation && env.elevation.meters > INLAND_ELEVATION_M);
 
   let tightlyClustered = false;
+  let lat: number | null = null, lon: number | null = null;
   if (fixes && fixes.length >= 3) {
     const valid = fixes.filter((f) => !f.isOutlier);
     if (valid.length >= 3) {
@@ -73,10 +92,15 @@ function detectRecoverySignals(
         }
       }
       tightlyClustered = maxDist < 0.1; // < 100m
+      const recent = valid.slice(-10);
+      lat = recent.reduce((s, f) => s + f.latitude, 0) / recent.length;
+      lon = recent.reduce((s, f) => s + f.longitude, 0) / recent.length;
     }
   }
 
-  const hotTemp = !!(tempRange && tempRange.max > 35);
+  const heat = classifyHeat(temps, lat, lon);
+  const unexplainedHeat = heat.unexplainedHot > 0;
+  const airConditioned = heat.airConditioned;
 
   // Short burst: many fixes crammed into < 3 days, then silence > 14 days
   let shortBurst = false;
@@ -97,7 +121,7 @@ function detectRecoverySignals(
     }
   }
 
-  return { wellInland, tightlyClustered, hotTemp, shortBurst };
+  return { wellInland, tightlyClustered, unexplainedHeat, airConditioned, shortBurst, heat };
 }
 
 export function analyzeTagState(
@@ -108,7 +132,8 @@ export function analyzeTagState(
   satCoverage?: SatCoverage | null,
   fixes?: ArgosFix[] | null,
   reception?: ReceptionQuality | null,
-  grounding?: Grounding | null
+  grounding?: Grounding | null,
+  exposure?: AntennaExposure | null
 ): TagStateInfo {
   const now = Date.now();
 
@@ -213,23 +238,27 @@ export function analyzeTagState(
     const signals = detectRecoverySignals(
       fixes || undefined,
       env,
-      tempRange,
+      recentTemps,
       mostRecent?.date ?? null
     );
     const signalCount =
       (signals.wellInland ? 1 : 0) +
       (signals.tightlyClustered ? 1 : 0) +
-      (signals.hotTemp ? 1 : 0) +
+      (signals.unexplainedHeat ? 1 : 0) +
+      (signals.airConditioned ? 1 : 0) +
       (signals.shortBurst ? 1 : 0);
+    const sunNote = signals.heat.note ? ` ${signals.heat.note}` : '';
 
     if (signalCount >= 2) {
       const reasons: string[] = [];
       if (signals.wellInland)
-        reasons.push(`position is well inland (elev ${elevation.meters.toFixed(1)}m)`);
+        reasons.push(`position is well inland (elev ${elevation.meters.toFixed(1)} m, above any dune)`);
       if (signals.tightlyClustered)
         reasons.push('fixes cluster tightly (<100m, consistent with a building/yard)');
-      if (signals.hotTemp && tempRange)
-        reasons.push(`temperatures reached ${tempRange.max.toFixed(1)}°C (indoor/car/window)`);
+      if (signals.unexplainedHeat)
+        reasons.push(`${signals.heat.unexplainedHot} reading${signals.heat.unexplainedHot > 1 ? 's' : ''} above 35°C at night or in low sun, which sun on sand cannot produce`);
+      if (signals.airConditioned)
+        reasons.push('temperature holds flat in the low twenties through day and night (air conditioning)');
       if (signals.shortBurst)
         reasons.push('transmissions ended abruptly after a short burst');
 
@@ -270,6 +299,25 @@ export function analyzeTagState(
       satCoverage.totalPredicted >= 20 &&
       satCoverage.receptionRate < 0.1;
     const obstructedAntenna = reception?.verdict === 'obstructed';
+
+    // Screened on ONE side is not covered. 47127's reception was "obstructed"
+    // by messages-per-pass, but the sky view showed the sea half heard and
+    // the land half not — a 3 m seawall beside it, not sand over it.
+    if (exposure?.obstruction && (poorReception || obstructedAntenna)) {
+      return {
+        phase: 'stranded_on_land',
+        reasoning: `Position is on land (elevation ${elevation.meters.toFixed(1)} m). ${exposure.reasoning}${sunNote}`,
+        lastDepth,
+        lastTemperature,
+        avgTemperature,
+        tempRange,
+        depthVariability,
+        lastReportDate: mostRecent?.date ?? depthPoints[0]?.date ?? null,
+        reportCount: depthPoints.length,
+        recentDepths,
+        recentTemps,
+      };
+    }
 
     if (poorReception || obstructedAntenna) {
       const depthNote = hasNonZeroDepth
@@ -315,7 +363,7 @@ export function analyzeTagState(
       phase: 'stranded_on_land',
       reasoning: `Position is on land (elevation ${elevation.meters.toFixed(1)}m)${
         lastDepth !== null && lastDepth > 0 ? ` — depth reading (${lastDepth.toFixed(1)}m) may indicate partial burial` : ''
-      }${grounding?.verdict === 'grounded' ? `. ${grounding.reasoning}` : ''}`,
+      }${grounding?.verdict === 'grounded' ? `. ${grounding.reasoning}` : ''}${sunNote}`,
       lastDepth,
       lastTemperature,
       avgTemperature,

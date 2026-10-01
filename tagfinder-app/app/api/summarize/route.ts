@@ -233,7 +233,7 @@ Possible tag scenarios to consider:
 4. **Tidally flooded** — in marsh / low-lying coastal area where tide cycles wet and dry the tag.
 5. **Possibly recovered by a person** — tag has been picked up and taken home. Key signals:
    - Position is on land AND significantly inland (not intertidal / beach)
-   - Elevation well above sea level (> 3m)
+   - Elevation well above anything a dune reaches (> 8 m; a dune-backed beach reads 4–6 m)
    - Position clusters very tightly (sub-100m), consistent with a building/yard
    - Transmission history is short (ended shortly after the tag reached this location)
    - Temperature readings anomalously high (> 35°C) at NIGHT, or in cool air, suggest indoor/car/window.

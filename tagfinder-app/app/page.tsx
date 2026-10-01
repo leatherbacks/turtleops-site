@@ -147,9 +147,10 @@ export default function TagFinderPage() {
       satCoverage,
       result.allFixes,
       receptionQuality,
-      result.grounding
+      result.grounding,
+      antennaExposure
     );
-  }, [result, statuses, series, envData, satCoverage, receptionQuality]);
+  }, [result, statuses, series, envData, satCoverage, receptionQuality, antennaExposure]);
 
   // Fetch TLEs and compute satellite coverage once we have a result
   useEffect(() => {
@@ -319,6 +320,8 @@ export default function TagFinderPage() {
     return compareTemperatures(series, statuses, result.summary, {
       airTempC: envData.weather?.temperature ?? null,
       sstTempC: latestSST,
+      lat: result.bestLat,
+      lon: result.bestLon,
     });
   }, [result, series, statuses, envData]);
 
