@@ -33,11 +33,13 @@ const AIR_SWING_MIN_C = 4;
 const MIN_READINGS_FOR_SWING = 5;
 
 /**
- * Above this count a trimmed swing is computed alongside the raw one — not to
- * replace it, but to detect when the verdict is resting on a single reading at
- * each end and flag the result as weaker. See the note where it is computed.
+ * Readings a 24 h window needs before a trimmed swing can be computed
+ * alongside the raw one — not to replace it, but to detect when the verdict
+ * rests on a single reading at each end and flag the result as weaker. A
+ * window with fewer readings than this rests on single readings by
+ * construction. See the note where it is computed.
  */
-const MIN_READINGS_FOR_TRIMMED_SWING = 10;
+const MIN_WINDOW_READINGS_FOR_TRIMMED_SWING = 4;
 
 export function compareTemperatures(
   seriesReadings: SeriesReading[],
@@ -149,9 +151,9 @@ export function compareTemperatures(
   // defer.
   const sortedTemps = [...swingDayTemps].sort((a, b) => a - b);
   const trimmedSwing =
-    sortedTemps.length >= MIN_READINGS_FOR_TRIMMED_SWING
+    sortedTemps.length >= MIN_WINDOW_READINGS_FOR_TRIMMED_SWING
       ? sortedTemps[sortedTemps.length - 2] - sortedTemps[1]
-      : tagSwing;
+      : 0;
   const swingRestsOnExtremes =
     tagSwing > 0 && trimmedSwing < tagSwing * 0.5;
 
