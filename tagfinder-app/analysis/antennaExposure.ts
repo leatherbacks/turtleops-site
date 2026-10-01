@@ -2,6 +2,7 @@ import type {
   AnnotatedPass,
   AntennaExposure,
   AntennaOrientation,
+  SkyObstruction,
 } from '@/lib/types';
 
 /**
@@ -51,6 +52,134 @@ function elevationProfile(passes: AnnotatedPass[]) {
   }).filter((b) => b.predicted >= MIN_BAND_PASSES);
 }
 
+/**
+ * One-sided obstruction: split the sky into two halves and ask whether one
+ * half is heard far less than the other.
+ *
+ * The quadrant test below compares absolute reception rates and needs a
+ * 40-point spread. A tag lying on sand with its whip horizontal hears a fifth
+ * of its passes at best, so no spread that large can ever appear, and two
+ * Lotek tags recovered against seawalls were both reported symmetric:
+ *
+ *   PSAT+ 47125, Surfside FL, Aug 2026:      sea half 53/177, land half 35/177
+ *                                             but below 15° it was 10/59 vs 1/56
+ *   PSAT+ 47127, Ocean Ridge FL, Jul 2026:   sea half 80/425, land half 6/425
+ *                                             3 m steel sheet-pile wall 1 m west
+ *
+ * So the comparison is relative — a ratio of rates with a two-proportion
+ * z-score — and the split bearing is searched rather than fixed to the
+ * compass, because a wall runs whichever way the shore runs. The elevation
+ * band up to which the blocked side still falls short says how tall the thing
+ * looks from the tag: the low lip at Surfside only cut the bottom 15°, the
+ * wall and houses at Ocean Ridge cut everything short of overhead.
+ */
+/** Predicted passes each half needs before the whole-sky comparison means anything. */
+const MIN_HALF_PASSES = 20;
+/** ...and each side of the lowest band needs for the low-sky comparison. */
+const MIN_LOW_PASSES = 10;
+/** Open-side rate must exceed the blocked-side rate by this factor. */
+const OBSTRUCTION_RATE_RATIO = 3;
+/** Whole-sky difference must be this many standard errors from chance. */
+const OBSTRUCTION_MIN_Z = 3;
+/** A low-sky-only block is accepted at this z... */
+const LOW_SKY_MIN_Z = 2.5;
+/** ...provided the whole sky leans the same way at least this much. The
+ *  Surfside lip reached z = 2.8 in the bottom band and 2.2 over the whole sky. */
+const LOW_SKY_CORROBORATION_Z = 1.5;
+/** Search step for the split bearing, degrees. */
+const SPLIT_STEP_DEG = 10;
+
+function angularDistance(a: number, b: number): number {
+  const d = Math.abs(((a - b) % 360) + 360) % 360;
+  return d > 180 ? 360 - d : d;
+}
+
+function compassPoint(deg: number): string {
+  const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+  return dirs[Math.round((((deg % 360) + 360) % 360) / 45) % 8];
+}
+
+/** Two-proportion z-score for rate(open) − rate(blocked). */
+function twoProportionZ(h1: number, n1: number, h2: number, n2: number): number {
+  const p = (h1 + h2) / (n1 + n2);
+  const se = Math.sqrt(p * (1 - p) * (1 / n1 + 1 / n2));
+  return se > 0 ? (h1 / n1 - h2 / n2) / se : 0;
+}
+
+const heard = (ps: AnnotatedPass[]) => ps.filter((p) => p.received).length;
+/** Open rate against blocked rate, the blocked side floored at half a pass. */
+const rateRatio = (oh: number, on: number, bh: number, bn: number) =>
+  (oh / on) / (Math.max(bh, 0.5) / bn);
+
+export function findSkyObstruction(passes: AnnotatedPass[]): SkyObstruction | null {
+  if (passes.length < 2 * MIN_HALF_PASSES) return null;
+  const lowCeiling = ELEVATION_BANDS[0][1];
+
+  let best: SkyObstruction | null = null;
+  for (let toward = 0; toward < 360; toward += SPLIT_STEP_DEG) {
+    const blocked = passes.filter((p) => angularDistance(p.peakAzimuth, toward) < 90);
+    const open = passes.filter((p) => angularDistance(p.peakAzimuth, toward) >= 90);
+    if (blocked.length < MIN_HALF_PASSES || open.length < MIN_HALF_PASSES) continue;
+    const bh = heard(blocked), oh = heard(open);
+    const zWhole = twoProportionZ(oh, open.length, bh, blocked.length);
+
+    // Whole-sky block: a wall, building or bank reaching well up.
+    let upTo: number | null = null;
+    let z = 0;
+    if (zWhole >= OBSTRUCTION_MIN_Z && rateRatio(oh, open.length, bh, blocked.length) >= OBSTRUCTION_RATE_RATIO) {
+      z = zWhole;
+      // Highest band in which the blocked side is still heard at less than
+      // half the open side's rate.
+      upTo = lowCeiling;
+      for (const [lo, hi] of ELEVATION_BANDS) {
+        const b = blocked.filter((p) => p.maxElevation >= lo && p.maxElevation < hi);
+        const o = open.filter((p) => p.maxElevation >= lo && p.maxElevation < hi);
+        if (b.length < MIN_BAND_PASSES || o.length < MIN_BAND_PASSES) continue;
+        const br = heard(b) / b.length, or = heard(o) / o.length;
+        if (or > 0 && br < or / 2) upTo = hi;
+      }
+    } else if (zWhole >= LOW_SKY_CORROBORATION_Z) {
+      // Low-sky block only: a lip, berm or kerb that cuts the bottom band.
+      const bl = blocked.filter((p) => p.maxElevation < lowCeiling);
+      const ol = open.filter((p) => p.maxElevation < lowCeiling);
+      if (bl.length >= MIN_LOW_PASSES && ol.length >= MIN_LOW_PASSES) {
+        const zLow = twoProportionZ(heard(ol), ol.length, heard(bl), bl.length);
+        if (zLow >= LOW_SKY_MIN_Z && rateRatio(heard(ol), ol.length, heard(bl), bl.length) >= OBSTRUCTION_RATE_RATIO) {
+          z = zLow;
+          upTo = lowCeiling;
+        }
+      }
+    }
+    if (upTo === null || (best && z <= best.zScore)) continue;
+
+    // Several split bearings separate the same two sets; report the middle of
+    // the blocked half rather than the first bearing that happened to win.
+    const centre = circularMean(blocked.map((p) => p.peakAzimuth));
+    best = {
+      towardDeg: Math.round(centre),
+      toward: compassPoint(centre),
+      openSide: compassPoint(centre + 180),
+      blockedHeard: bh,
+      blockedPredicted: blocked.length,
+      openHeard: oh,
+      openPredicted: open.length,
+      blockedUpToDeg: upTo,
+      zScore: z,
+    };
+  }
+  return best;
+}
+
+function describeObstruction(o: SkyObstruction): string {
+  const openPct = ((100 * o.openHeard) / o.openPredicted).toFixed(0);
+  const blockedPct = ((100 * o.blockedHeard) / o.blockedPredicted).toFixed(0);
+  const tall = o.blockedUpToDeg >= 40;
+  const height = tall
+    ? `blocked almost to the zenith, so it stands well above the tag — a seawall, building, bank or hull`
+    : `blocked only in the bottom ${o.blockedUpToDeg}° of sky, so it is low — a wall lip, berm, kerb, dune toe or the object the tag rests against`;
+  return `Reception is one-sided: ${openPct}% of passes over the ${o.openSide} half of the sky are heard (${o.openHeard} of ${o.openPredicted}) against ${blockedPct}% over the ${o.toward} half (${o.blockedHeard} of ${o.blockedPredicted}). Something solid stands immediately ${o.toward} of the tag, ${height}. Search along its ${o.openSide} face first, and expect a receiver to go quiet when the obstruction is between you and the tag.`;
+}
+
 export function analyzeAntennaExposure(passes: AnnotatedPass[]): AntennaExposure {
   const received = passes.filter((p) => p.received);
   const missed = passes.filter((p) => !p.received);
@@ -68,6 +197,7 @@ export function analyzeAntennaExposure(passes: AnnotatedPass[]): AntennaExposure
       reasoning: 'Not enough passes to diagnose antenna exposure with confidence.',
       confidence: 0,
       orientation: null,
+      obstruction: null,
     };
   }
 
@@ -107,11 +237,20 @@ export function analyzeAntennaExposure(passes: AnnotatedPass[]): AntennaExposure
 
   const narrowCone = minReceived >= 60 && elevDiff > 20;
   const horizonBlocked = (minReceived >= 30 && elevDiff > 15) || horizonByRate;
+  const obstruction = findSkyObstruction(passes);
 
   if (narrowCone) {
     pattern = 'narrow_cone';
     confidence = cleanCutoff ? 0.9 : 0.7;
     reasoning = `Tag only receives signals from satellites very high in the sky (peak elevation >=${minReceived.toFixed(0)}°). This indicates a narrow cone of sky visibility — consistent with the antenna being deep in a hole, inside a container, or at the bottom of a pipe with only a small opening above.`;
+  } else if (obstruction) {
+    // Checked before the all-round horizon test: a wall also depresses the
+    // low-elevation rate, and the one-sided finding is the more specific one.
+    pattern = 'directional';
+    confidence = Math.min(0.9, 0.6 + obstruction.zScore / 30);
+    reasoning = describeObstruction(obstruction);
+    if (horizonByRate)
+      reasoning += ` The horizon is depressed all round as well — ${(lowBand.rate * 100).toFixed(0)}% of passes below ${lowBand.hi}° heard against ${(highBand.rate * 100).toFixed(0)}% above ${highBand.lo}° — so the tag also sits low, in sand or wrack.`;
   } else if (horizonBlocked) {
     pattern = 'horizon_obstructed';
     confidence = cleanCutoff ? 0.85 : 0.65;
@@ -159,6 +298,7 @@ export function analyzeAntennaExposure(passes: AnnotatedPass[]): AntennaExposure
     reasoning,
     confidence,
     orientation,
+    obstruction,
   };
 }
 

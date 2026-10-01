@@ -107,6 +107,28 @@ export default function SkyChart({ passes, exposure }: SkyChartProps) {
             strokeWidth={1.5}
           />
 
+          {/* Blocked half of the sky — a wall, building or bank on that side.
+              A fill would vanish under the missed arcs, so it is a divider
+              across the disc and a label at the blocked rim. */}
+          {exposure?.obstruction && (() => {
+            const t = ((exposure.obstruction.towardDeg - 90) * Math.PI) / 180;
+            const x1 = CENTER + RADIUS * Math.cos(t - Math.PI / 2);
+            const y1 = CENTER + RADIUS * Math.sin(t - Math.PI / 2);
+            const x2 = CENTER + RADIUS * Math.cos(t + Math.PI / 2);
+            const y2 = CENTER + RADIUS * Math.sin(t + Math.PI / 2);
+            const lx = CENTER + (RADIUS - 22) * Math.cos(t);
+            const ly = CENTER + (RADIUS - 22) * Math.sin(t);
+            return (
+              <>
+                <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="rgba(255,255,255,0.85)" strokeWidth={1.5} strokeDasharray="5,4" />
+                <rect x={lx - 26} y={ly - 8} width={52} height={16} rx={4} fill="rgba(0,0,0,0.75)" />
+                <text x={lx} y={ly + 0.5} textAnchor="middle" dominantBaseline="middle" fontSize={9} fontWeight={600} fill="#fff">
+                  {exposure.obstruction.toward} blocked
+                </text>
+              </>
+            );
+          })()}
+
           {/* Sky cone of visibility — only the area INSIDE this circle is seen */}
           {coneRadius !== null && (
             <>

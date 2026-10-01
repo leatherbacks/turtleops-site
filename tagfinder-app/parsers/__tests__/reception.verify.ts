@@ -252,11 +252,15 @@ console.log('\n== A BLOCKED HORIZON IS NOT AN INDOOR WINDOW ==');
   const mk = (el: number, az: number, received: boolean) =>
     ({ maxElevation: el, peakAzimuth: az, received }) as never;
 
+  // Azimuth strides near the golden angle, so the passes marked heard (every
+  // ninth, third...) land all round the compass. With a stride of 37° every
+  // ninth pass fell in the western half, and the synthetic wrack was, by
+  // accident, one-sided — which the half-sky test then correctly reported.
   const wrack: never[] = [];
-  for (let i = 0; i < 60; i++) wrack.push(mk(5 + (i % 10), (i * 37) % 360, i % 9 === 0));
-  for (let i = 0; i < 50; i++) wrack.push(mk(18 + (i % 11), (i * 53) % 360, i % 3 === 0));
-  for (let i = 0; i < 40; i++) wrack.push(mk(32 + (i % 17), (i * 71) % 360, i % 2 === 0));
-  for (let i = 0; i < 30; i++) wrack.push(mk(55 + (i % 30), (i * 97) % 360, i % 4 !== 0));
+  for (let i = 0; i < 60; i++) wrack.push(mk(5 + (i % 10), (i * 137) % 360, i % 9 === 0));
+  for (let i = 0; i < 50; i++) wrack.push(mk(18 + (i % 11), (i * 149) % 360, i % 3 === 0));
+  for (let i = 0; i < 40; i++) wrack.push(mk(32 + (i % 17), (i * 163) % 360, i % 2 === 0));
+  for (let i = 0; i < 30; i++) wrack.push(mk(55 + (i % 30), (i * 181) % 360, i % 4 !== 0));
   const r = analyzeAntennaExposure(wrack);
   chk('an all-round blocked horizon is recognised', r.pattern, 'horizon_obstructed');
   chk('...even though low passes were sometimes heard',
@@ -273,8 +277,10 @@ console.log('\n== A BLOCKED HORIZON IS NOT AN INDOOR WINDOW ==');
   for (let i = 0; i < 20; i++) wall.push(mk(20 + (i % 50), 260 + (i % 30), i % 2 === 0));
   const w = analyzeAntennaExposure(wall);
   chk('a one-sided obstruction is still directional', w.pattern, 'directional');
-  chk('...and quotes the quadrant rates the verdict came from',
-    /% of passes from the [NESW] are heard against/.test(w.reasoning), true);
+  chk('...found by the half-sky test, naming the blocked side',
+    w.obstruction !== null && /Something solid stands immediately S/.test(w.reasoning), true);
+  chk('...and quotes the counts the verdict came from',
+    /% of passes over the N half of the sky are heard \(\d+ of \d+\)/.test(w.reasoning), true);
 
   // Neither may speculate about indoor storage for a tag in the sea.
   chk('no indoor/window guessing anywhere',
