@@ -1,5 +1,6 @@
 import type { LotekHealthRecord } from '@/lib/types';
 import { parseTimestamp } from '@/lib/timestamp';
+import { crc8 } from './activityMessage';
 
 /**
  * Lotek PSAT+ activity-health message, decoded from the raw Argos payload.
@@ -30,13 +31,22 @@ import { parseTimestamp } from '@/lib/timestamp';
  *   9-10  u16 depth, metres                11/11 exact
  *   11-12 u16 message counter              monotonic with time
  *   13-14 u16 corrosion time, seconds      31/31 exact
- *   15    unidentified
+ *   15    CRC-8 of bytes 0-14 (poly 0x07, init 0xFF) — the same check the
+ *         activity message carries at the same byte. Found in Oct 2026 once
+ *         that message's layout was settled; on two deployments every record
+ *         that passes it also passes the latched-field screen, and the
+ *         readings it rejects include a 35.5 °C "night" value that had been
+ *         calling a floating tag beached
  *   16-17 u16 / 100 -> corrosion start V   31/31 exact
  *   18-19 u16 / 100 -> corrosion end V     31/31 exact
  *   20-21 u16 / 50 - 20 -> degrees C       11/11 exact
  *   22-23 u16 light, raw counts            11/11 exact
  *   24-29 latched lat/lon quartet          constant, quantised to 0.1 deg
- *   30    probable CRC                     unidentified
+ *   30    block 2 check byte               unidentified, as for the
+ *                                          activity message; the voltages,
+ *                                          temperature and light sit in this
+ *                                          block and are screened on physics
+ *                                          and latched-field consistency only
  *
  * NOT present anywhere in this message: a live battery voltage. Every
  * unidentified byte was range-checked for a value near the 3.6 V nominal at any
@@ -226,6 +236,13 @@ export function parseLotekHealthMessages(
     const receivedAt = parseTimestamp(row['Message date (UTC)']);
     const rec = decodeHealthMessage(bytes, receivedAt);
     if (!rec) continue;
+
+    // The first block carries its own CRC; a payload that fails it is corrupt
+    // somewhere and is not worth a physics screen. Counted with the corrupt.
+    if (crc8(bytes.subarray(0, 15)) !== bytes[15]) {
+      corrupt++;
+      continue;
+    }
 
     // A record with no usable time is worse than no record: it sorts to the
     // epoch and drags the reported start of the series with it, so a caller

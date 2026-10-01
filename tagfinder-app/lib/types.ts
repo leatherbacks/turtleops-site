@@ -251,10 +251,14 @@ export interface LotekArchiveRecord {
 }
 
 export interface LotekActivityRecord {
-  /** Elapsed tag clock in seconds, modulo the 194.181-day wrap. */
+  /** Seconds since 2000-01-01 UTC on the tag's clock — absolute, no wrap. */
   tagSeconds: number;
+  date: Date;
   temperatureC: number;
-  formatByte: number;
+  /** Raw depth units, the same as the Lotek CSV Pressure column. */
+  depth: number;
+  /** True when the record sat in the CRC-checked first block of its message. */
+  verified: boolean;
   /** When this copy arrived — for provenance, not for dating the sample. */
   receivedAt: Date;
 }
@@ -1118,6 +1122,7 @@ export type FileType =
   // Argos / CLS — manufacturer-agnostic
   | 'argos_ds'
   | 'argos_messages'
+  | 'argos_positions'
   | 'unknown';
 
 export interface DetectedFile {

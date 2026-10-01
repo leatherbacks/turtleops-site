@@ -20,10 +20,12 @@ import {
 } from '@/parsers/lotek/argosContainer';
 import { parseArgosDS, type ArgosDSResult } from '@/parsers/argos/ds';
 import { parseArgosMessages, type ArgosMessagesResult } from '@/parsers/argos/messages';
+import { parseArgosPositions, type ArgosPositionsResult } from '@/parsers/argos/positions';
 import {
   parseLotekHealthMessages,
   type LotekHealthResult,
 } from '@/parsers/lotek/healthMessage';
+import { parseLotekActivityMessages } from '@/parsers/lotek/activityMessage';
 import { parseLotekDayLog } from '@/parsers/lotek/dayLog';
 import {
   detectOffloadKind,
@@ -255,7 +257,10 @@ export function useAnalysis(): UseAnalysisReturn {
           const det = detectFile(file, headers);
           detected.push(det);
           if (det.fileType !== 'unknown') {
-            parsedData[det.fileType] = rows;
+            // Several files of one type combine rather than replace each
+            // other: CLS exports come per date window, and a user who pulls
+            // two windows should get both. Parsers deduplicate the overlap.
+            parsedData[det.fileType] = (parsedData[det.fileType] ?? []).concat(rows);
           }
         } catch {
           detected.push({
@@ -272,7 +277,20 @@ export function useAnalysis(): UseAnalysisReturn {
       //     because it arrives as an ordinary CSV and so only becomes
       //     identifiable after header detection.
       let argosMessages: ArgosMessagesResult | null = null;
+      let argosPositions: ArgosPositionsResult | null = null;
       let lotekHealth: LotekHealthResult | null = null;
+      let activityReadings: SeriesReading[] = [];
+      if (parsedData.argos_positions) {
+        argosPositions = parseArgosPositions(parsedData.argos_positions);
+        const d = detected.find((f) => f.fileType === 'argos_positions');
+        if (d && argosPositions.fixes.length === 0) {
+          d.warning = 'Argos positions export recognised but contained no usable positions.';
+        } else if (d && argosPositions.otherDevices > 0) {
+          d.warning =
+            `Export covers ${argosPositions.otherDevices + 1} devices; using PTT ${argosPositions.ptt} ` +
+            `(the most rows) and ignoring ${argosPositions.droppedRows} rows from the others.`;
+        }
+      }
       if (parsedData.argos_messages) {
         argosMessages = parseArgosMessages(parsedData.argos_messages);
         // Lotek activity-health records ride inside the same payloads. Decoding
@@ -281,10 +299,30 @@ export function useAnalysis(): UseAnalysisReturn {
         // which can be days before the tag releases.
         const health = parseLotekHealthMessages(parsedData.argos_messages);
         if (health.records.length > 0) lotekHealth = health;
+        // The dive log itself rides in the same export, nine payloads in ten.
+        // Decoded here so a CLS export alone yields the depth and temperature
+        // series, before and after release, at five-minute resolution.
+        // Only CRC-verified records reach the analyses: the unverified block
+        // is 95% exact, and the 5% is enough to put a 44 °C reading in the
+        // post-release window and call the tag beached.
+        const activity = parseLotekActivityMessages(parsedData.argos_messages);
+        if (activity.records.length > 0) {
+          activityReadings = activity.records.filter((r) => r.verified).map((r) => ({
+            date: r.date,
+            depth: r.depth,
+            depthRange: null,
+            temperature: r.temperatureC,
+            temperatureRange: null,
+          }));
+        }
         const d = detected.find((f) => f.fileType === 'argos_messages');
         if (d && argosMessages.fixes.length === 0) {
           d.warning =
             'Argos message export recognised but contained no resolved positions.';
+        } else if (d && argosMessages.otherDevices > 0) {
+          d.warning =
+            `Export covers ${argosMessages.otherDevices + 1} devices; using PTT ${argosMessages.ptt} ` +
+            `(the most rows) and ignoring ${argosMessages.droppedRows} rows from the others.`;
         }
       }
 
@@ -316,7 +354,13 @@ export function useAnalysis(): UseAnalysisReturn {
       // other lacked.
       const portal = portalLogs[0] ?? null;
       const container = containers[0] ?? null;
-      const relayedDive = mergeByTime(container?.dive.readings ?? [], portal?.diveLog?.readings ?? []);
+      // Manufacturer-decoded samples first, then the app's own decode of the
+      // CLS payloads, which fills whatever Lotek's files do not cover — on a
+      // tag still at sea that is everything since the last Lotek download.
+      const relayedDive = mergeByTime(
+        mergeByTime(container?.dive.readings ?? [], portal?.diveLog?.readings ?? []),
+        activityReadings
+      );
       const diveReadings = lotekDive?.readings.length ? lotekDive.readings : relayedDive;
       const relayedDay =
         (container?.day.dayRecords.length ?? 0) >= (portal?.dayLog?.dayRecords.length ?? 0)
@@ -374,7 +418,7 @@ export function useAnalysis(): UseAnalysisReturn {
 
       // 3. Positions can come from a Wildlife Computers Locations export or
       //    from the CLS DS dump, which carries no manufacturer of its own.
-      if (!parsedData.locations && !argosDS && !argosMessages && !container?.fixes.length) {
+      if (!parsedData.locations && !argosDS && !argosMessages && !argosPositions?.fixes.length && !container?.fixes.length) {
         // An offload-only upload is not an error — the tag is in hand and the
         // archive is the result. Position analyses simply have nothing to say.
         if (archiveSeries && archiveSeries.length > 0) {
@@ -427,7 +471,11 @@ export function useAnalysis(): UseAnalysisReturn {
       //    and falls back to per-class averages, so it ranks last.
       const fixes = parsedData.locations
         ? parseLocations(parsedData.locations)
-        : argosMessages?.fixes ?? argosDS?.fixes ?? container?.fixes ?? [];
+        : argosPositions?.fixes.length
+          ? argosPositions.fixes
+          : argosMessages?.fixes.length
+            ? argosMessages.fixes
+            : argosDS?.fixes ?? container?.fixes ?? [];
       let summary: DeploySummary | null = parsedData.summary
         ? parseSummary(parsedData.summary)
         : null;
@@ -441,7 +489,7 @@ export function useAnalysis(): UseAnalysisReturn {
       if (!summary && lotekHealth && lotekHealth.records.length > 0) {
         summary = {
           deployId: '',
-          ptt: argosMessages?.ptt ?? container?.ptt ?? portalPtt ?? 0,
+          ptt: argosMessages?.ptt ?? argosPositions?.ptt ?? container?.ptt ?? portalPtt ?? 0,
           instrument: '',
           software: '',
           percentDecoded: 0,
