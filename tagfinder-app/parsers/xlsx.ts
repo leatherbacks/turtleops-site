@@ -38,8 +38,11 @@ interface ZipEntry {
   name: string;
   method: number;
   compressedSize: number;
+  uncompressedSize: number;
   localHeaderOffset: number;
 }
+
+const SIG_DESCRIPTOR = 0x08074b50;
 
 /**
  * Read the central directory. The local headers are not trusted for sizes —
@@ -68,13 +71,37 @@ function readCentralDirectory(bytes: Uint8Array): ZipEntry[] {
     if (view.getUint32(p, true) !== SIG_CENTRAL) throw new Error('Corrupt ZIP central directory.');
     const method = view.getUint16(p + 10, true);
     const compressedSize = view.getUint32(p + 20, true);
+    const uncompressedSize = view.getUint32(p + 24, true);
     const nameLen = view.getUint16(p + 28, true);
     const extraLen = view.getUint16(p + 30, true);
     const commentLen = view.getUint16(p + 32, true);
     const localHeaderOffset = view.getUint32(p + 42, true);
     const name = decoder.decode(bytes.subarray(p + 46, p + 46 + nameLen));
-    entries.push({ name, method, compressedSize, localHeaderOffset });
+    entries.push({ name, method, compressedSize, uncompressedSize, localHeaderOffset });
     p += 46 + nameLen + extraLen + commentLen;
+  }
+
+  // The Wildlife Computers portal writes its largest entry with a compressed
+  // size of 0 in the central directory as well as the local header, with the
+  // real size only in the trailing data descriptor. For such an entry the
+  // compressed data runs from its data start to the next entry's local header
+  // (or the central directory), minus that descriptor.
+  const byOffset = [...entries].sort((a, b) => a.localHeaderOffset - b.localHeaderOffset);
+  for (let i = 0; i < byOffset.length; i++) {
+    const e = byOffset[i];
+    if (e.compressedSize > 0 || e.uncompressedSize === 0) continue;
+    const h = e.localHeaderOffset;
+    const dataStart = h + 30 + view.getUint16(h + 26, true) + view.getUint16(h + 28, true);
+    const next = i + 1 < byOffset.length ? byOffset[i + 1].localHeaderOffset : dirOffset;
+    let end = next;
+    if (end - 16 >= dataStart && view.getUint32(end - 16, true) === SIG_DESCRIPTOR) {
+      const declared = view.getUint32(end - 8, true);
+      end = declared > 0 && dataStart + declared <= end - 16 ? dataStart + declared : end - 16;
+    } else if (end - 12 >= dataStart) {
+      const declared = view.getUint32(end - 8, true);
+      end = declared > 0 && dataStart + declared <= end - 12 ? dataStart + declared : end - 12;
+    }
+    e.compressedSize = Math.max(0, end - dataStart);
   }
   return entries;
 }
@@ -95,6 +122,10 @@ async function extract(bytes: Uint8Array, entry: ZipEntry): Promise<Uint8Array> 
   const start = h + 30 + nameLen + extraLen;
   const data = bytes.subarray(start, start + entry.compressedSize);
   if (entry.method === METHOD_STORED) return data;
+  // A deflated entry with no bytes behind it is a broken entry, not an empty
+  // file; the portal zip for 41008 has one (41008-All.csv, 85 kB per the
+  // directory, zero bytes stored). The inflater throws on it, so do not ask.
+  if (data.length === 0) throw new Error(`ZIP entry ${entry.name} has no data.`);
   if (entry.method === METHOD_DEFLATE) return inflateRaw(data);
   throw new Error(`Unsupported ZIP compression method ${entry.method} for ${entry.name}.`);
 }
@@ -196,6 +227,22 @@ function parseSheet(xml: string, shared: string[]): string[][] {
     row[colIdx] = text;
   }
   return rows;
+}
+
+/** Every file entry in a ZIP, inflated. Directories and empty entries are skipped. */
+export async function readZipEntries(bytes: Uint8Array): Promise<{ name: string; data: Uint8Array }[]> {
+  const out: { name: string; data: Uint8Array }[] = [];
+  for (const entry of readCentralDirectory(bytes)) {
+    if (entry.name.endsWith('/')) continue;
+    // One unreadable entry must not cost the other thirteen; the caller lists
+    // what it got and the intake says what is missing.
+    try {
+      out.push({ name: entry.name, data: await extract(bytes, entry) });
+    } catch (err) {
+      console.warn(`[zip] skipping ${entry.name}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+  return out;
 }
 
 /** Resolve a workbook relationship target to a ZIP entry name. */

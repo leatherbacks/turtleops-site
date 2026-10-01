@@ -73,7 +73,8 @@ export default function DropZone({ onFiles, disabled }: DropZoneProps) {
         Drop tag files here
       </p>
       <p className="text-sm text-muted">
-        or click to browse. Supports Wildlife Computers and Lotek exports.
+        or click to browse. Supports Wildlife Computers and Lotek exports, or the whole
+        portal download as a .zip.
       </p>
       <p className="text-xs text-muted mt-3">
         To find the tag you need its Argos positions: Lotek&apos;s downloader .bin (it carries
