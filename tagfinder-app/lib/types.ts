@@ -1104,6 +1104,8 @@ export interface EnvironmentData {
     county: string;
     state: string;
     source: 'census' | 'nominatim';
+    /** The named feature at the position itself — see lib/placeKind.ts. */
+    place?: import('./placeKind').Place | null;
   } | null;
   bathymetry: {
     seabedDepthM: number | null; // null = on land per GEBCO

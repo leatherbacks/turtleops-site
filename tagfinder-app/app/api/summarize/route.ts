@@ -232,6 +232,10 @@ Possible tag scenarios to consider:
 3. **Buried** — on land with non-zero depth reading (sand/sediment pressure) and poor satellite reception.
 4. **Tidally flooded** — in marsh / low-lying coastal area where tide cycles wet and dry the tag.
 5. **Possibly recovered by a person** — tag has been picked up and taken home. Key signals:
+   - environment.location.place names what the circle is centred on. A campground, hotel/rental,
+     house, marina or parking area means the tag is most likely in somebody's possession THERE:
+     40996 sat on a camper table at Ocean Waves Campground for a day while every reading looked
+     like the beach beside it. Lead with asking at the office/desk/door and a posted note.
    - Position is on land AND significantly inland (not intertidal / beach)
    - Elevation well above anything a dune reaches (> 8 m; a dune-backed beach reads 4–6 m)
    - Position clusters very tightly (sub-100m), consistent with a building/yard

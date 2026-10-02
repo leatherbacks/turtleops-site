@@ -193,7 +193,15 @@ function LocationSection({ data, loading }: { data: EnvironmentData; loading: bo
       {loading ? (
         <Loader2 className="w-4 h-4 animate-spin text-muted" />
       ) : data.location ? (
-        <div className="text-sm">{data.location.name}</div>
+        <div className="text-sm">
+          {data.location.name}
+          {data.location.place?.name && (
+            <div className="text-xs text-muted mt-0.5">
+              At the position: {data.location.place.name}
+              {data.location.place.kind !== 'other' ? ` (${data.location.place.kind})` : ''}
+            </div>
+          )}
+        </div>
       ) : (
         <div className="text-sm text-muted">Not available</div>
       )}

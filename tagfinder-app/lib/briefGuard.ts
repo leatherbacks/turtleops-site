@@ -53,6 +53,9 @@ export function verdictsBlock(analysis: unknown, environment: unknown): string {
   const elev = num(elevation.meters);
   lines.push(elev === null ? '- Elevation: not available' : `- Elevation: ${elev.toFixed(1)} m (${str(elevation.classification) ?? 'unclassified'})`);
   lines.push(`- Place: ${str(location.name) ?? str(location.displayName) ?? 'no place name resolved'}`);
+  const place = rec(location.place);
+  if (str(place.name) || (str(place.kind) && place.kind !== 'other'))
+    lines.push(`- At the position itself: ${str(place.name) ?? ''}${str(place.kind) ? ` (${place.kind})` : ''} — if this is a campground, rental, house, marina or parking area, the tag is probably in someone's possession there; lead with asking, not searching.`);
   if (str(tides.station)) lines.push(`- Tide station: ${tides.station}, ${num(tides.stationDistanceKm)?.toFixed(1) ?? '?'} km away`);
   lines.push(`- Drift: last 24 h ${str(drift.recent) ?? 'unknown'}, 72 h ${str(drift.medium) ?? 'unknown'}, all time ${str(drift.allTime) ?? 'unknown'}`);
   if (str(release.label)) lines.push(`- Release: ${release.label}`);
