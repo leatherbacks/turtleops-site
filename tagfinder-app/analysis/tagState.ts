@@ -15,6 +15,7 @@ import type {
 import { LAND_THRESHOLD_M } from '@/lib/constants';
 import { haversineKm } from '@/lib/haversine';
 import { classifyHeat, type HeatVerdict } from './sunHeat';
+import { INHABITED_KINDS, placeAdvice } from '@/lib/placeKind';
 
 /** Max depth (m) for "partially submerged" classification */
 const PARTIAL_SUBMERSION_MAX_DEPTH_M = 2;
@@ -261,13 +262,21 @@ export function analyzeTagState(
       recentTemps,
       mostRecent?.date ?? null
     );
+    // The thing the circle is centred on. A campground, a rental, a house or
+    // a marina is where a picked-up tag ends up, and it is the one signal
+    // 40996 had on the morning it sat on a camper table at Ocean Waves
+    // Campground with every other reading looking like the beach beside it.
+    const place = env?.location?.place ?? null;
+    const inhabited = !!(place && INHABITED_KINDS.has(place.kind));
+    const advice = place ? placeAdvice(place) : null;
     const signalCount =
       (signals.wellInland ? 1 : 0) +
       (signals.tightlyClustered ? 1 : 0) +
       (signals.unexplainedHeat ? 1 : 0) +
       (signals.airConditioned ? 1 : 0) +
-      (signals.shortBurst ? 1 : 0);
-    const sunNote = signals.heat.note ? ` ${signals.heat.note}` : '';
+      (signals.shortBurst ? 1 : 0) +
+      (inhabited ? 1 : 0);
+    const sunNote = (signals.heat.note ? ` ${signals.heat.note}` : '') + (advice ? ` ${advice}` : '');
 
     if (signalCount >= 2) {
       const reasons: string[] = [];
@@ -281,6 +290,8 @@ export function analyzeTagState(
         reasons.push('temperature holds flat in the low twenties through day and night (air conditioning)');
       if (signals.shortBurst)
         reasons.push('transmissions ended abruptly after a short burst');
+      if (inhabited && place)
+        reasons.push(`the position is ${place.name ? `${place.name}, a ${place.kind}` : `a ${place.kind}`}`);
 
       return {
         phase: 'likely_recovered',
@@ -348,7 +359,7 @@ export function analyzeTagState(
         : `Satellite reception is ${(satCoverage!.receptionRate * 100).toFixed(0)}% of predicted passes.`;
       return {
         phase: 'buried',
-        reasoning: `Position is on land (elevation ${elevation.meters.toFixed(1)} m). ${evidence}${depthNote}`,
+        reasoning: `Position is on land (elevation ${elevation.meters.toFixed(1)} m). ${evidence}${depthNote}${advice ? ` ${advice}` : ''}`,
         lastDepth,
         lastTemperature,
         avgTemperature,

@@ -213,6 +213,7 @@ export function useEnvironment(
               county: res.county,
               state: res.state,
               source: res.source,
+              place: res.place ?? null,
             },
           }));
         }
