@@ -794,6 +794,9 @@ ${JSON.stringify(a.tagState, null, 2)}
 ## Out-of-the-water check (Argos geometry: fix yield collapsing while passes continue = grounded)
 ${JSON.stringify(a.grounding, null, 2)}
 
+## Carried check (a quality fix far from the previous ones at a speed no float can reach = somebody has it; the "to" fix is where it is now)
+${JSON.stringify(a.carried, null, 2)}
+
 ## Tidal intrusion analysis
 ${JSON.stringify(a.tidalIntrusion, null, 2)}
 
