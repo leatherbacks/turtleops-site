@@ -152,7 +152,8 @@ export default function TagFinderPage() {
       result.allFixes,
       receptionQuality,
       result.grounding,
-      antennaExposure
+      antennaExposure,
+      result.carried
     );
   }, [result, statuses, series, envData, satCoverage, receptionQuality, antennaExposure]);
 
@@ -443,6 +444,7 @@ export default function TagFinderPage() {
         driftForcing: displayResult.driftForcing,
         tagState: displayResult.tagState,
         grounding: displayResult.grounding,
+        carried: displayResult.carried,
         tidalIntrusion: displayResult.tidalIntrusion,
         satCoverage: stripTrackPoints(displayResult.satCoverage),
         mirrorCheck: displayResult.mirrorCheck,

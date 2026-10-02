@@ -92,6 +92,7 @@ import { parseDailyData } from '@/parsers/wc/dailyData';
 import { parseHistos } from '@/parsers/wc/histos';
 import { classifyDrift } from '@/analysis/drift';
 import { markOutliers } from '@/analysis/outliers';
+import { detectCarried } from '@/analysis/carried';
 import { computePosition } from '@/analysis/position';
 import { computeSearchRadius } from '@/analysis/searchRadius';
 import { predictDrift } from '@/analysis/driftPredict';
@@ -609,10 +610,22 @@ export function useAnalysis(): UseAnalysisReturn {
       // 4. Preliminary drift classification (before outlier removal)
       const prelimDrift = classifyDrift(workingFixes);
 
+      // 4b. Picked up and moved? Decided on the raw fixes, before the outlier
+      // screen gets a chance to throw the destination away as "50 km from
+      // the cluster" — which is what it did to 40996's class 3 fix in Kill
+      // Devil Hills after the recovery team collected it from a campground.
+      const carried = detectCarried(workingFixes);
+
       // 5. Mark outliers based on drift state
       const effectiveLabel =
         prelimDrift.recent !== 'insufficient' ? prelimDrift.recent : prelimDrift.allTime;
       markOutliers(workingFixes, effectiveLabel === 'insufficient' ? 'stuck' : effectiveLabel);
+      if (carried.verdict === 'carried' && carried.since) {
+        // The carried leg is the truth, not the outlier.
+        const t0 = carried.since.getTime();
+        for (const f of workingFixes)
+          if (f.date.getTime() > t0 && ['3', '2', '1'].includes(f.quality)) f.isOutlier = false;
+      }
 
       // 6. Final drift classification (after outlier removal)
       let driftState = classifyDrift(workingFixes);
@@ -638,14 +651,29 @@ export function useAnalysis(): UseAnalysisReturn {
         };
       }
 
+      if (carried.verdict === 'carried') {
+        driftState = {
+          ...driftState,
+          recent: 'stuck',
+          medium: 'stuck',
+          recentSpreadKm: 0,
+          mediumSpreadKm: 0,
+          pattern: `Carried — moved ${carried.distanceKm!.toFixed(0)} km at ${carried.speedKmH!.toFixed(0)} km/h, in someone's hands`,
+        };
+      }
+
       // 7. Compute position. A grounded tag is where its last fixes put it,
-      //    not at the mean of a track that ended there.
+      //    not at the mean of a track that ended there; a carried tag is at
+      //    its latest quality fix and nowhere else.
       const finalLabel =
         driftState.recent !== 'insufficient' ? driftState.recent : driftState.allTime;
-      const pos = computePosition(
-        workingFixes,
-        grounded ? 'drifting' : finalLabel === 'insufficient' ? 'stuck' : finalLabel
-      );
+      const pos =
+        carried.verdict === 'carried' && carried.to
+          ? { lat: carried.to.latitude, lon: carried.to.longitude, method: 'recent_only' as const }
+          : computePosition(
+              workingFixes,
+              grounded ? 'drifting' : finalLabel === 'insufficient' ? 'stuck' : finalLabel
+            );
 
       // 8. Drift prediction (only for drifting tags). Computed before the
       //    search radius because the radius depends on how far the tag could
@@ -706,7 +734,7 @@ export function useAnalysis(): UseAnalysisReturn {
       // Note: tagState here is preliminary — will be re-computed with environment data in the page
       const tagState =
         parsedStatuses.length > 0 || summary || seriesReadings.length > 0
-          ? analyzeTagState(parsedStatuses, summary, null, seriesReadings, null, workingFixes, null, grounding)
+          ? analyzeTagState(parsedStatuses, summary, null, seriesReadings, null, workingFixes, null, grounding, null, carried)
           : null;
       const dataQuality = passes.length > 0 ? analyzeDataQuality(passes) : null;
       const diveProfile = seriesReadings.length > 0 ? buildDiveProfile(seriesReadings) : null;
@@ -762,6 +790,7 @@ export function useAnalysis(): UseAnalysisReturn {
         popoffSkipReason,
         tagState,
         grounding,
+        carried,
         dataQuality,
         diveProfile,
         sst: sstReadings.length > 0 ? sstReadings : null,

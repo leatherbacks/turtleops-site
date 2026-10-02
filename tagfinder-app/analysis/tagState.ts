@@ -10,6 +10,7 @@ import type {
   ArgosFix,
   Grounding,
   AntennaExposure,
+  Carried,
 } from '@/lib/types';
 import { LAND_THRESHOLD_M } from '@/lib/constants';
 import { haversineKm } from '@/lib/haversine';
@@ -133,7 +134,8 @@ export function analyzeTagState(
   fixes?: ArgosFix[] | null,
   reception?: ReceptionQuality | null,
   grounding?: Grounding | null,
-  exposure?: AntennaExposure | null
+  exposure?: AntennaExposure | null,
+  carried?: Carried | null
 ): TagStateInfo {
   const now = Date.now();
 
@@ -230,6 +232,24 @@ export function analyzeTagState(
     tempValues.length > 0
       ? { min: Math.min(...tempValues), max: Math.max(...tempValues) }
       : null;
+
+  // 1b. Moved faster than water moves: somebody has it. This outranks the
+  // land and depth logic below, which describe the place the tag left.
+  if (carried?.verdict === 'carried') {
+    return {
+      phase: 'likely_recovered',
+      reasoning: carried.reasoning,
+      lastDepth,
+      lastTemperature,
+      avgTemperature,
+      tempRange,
+      depthVariability,
+      lastReportDate: mostRecent?.date ?? depthPoints[0]?.date ?? null,
+      reportCount: depthPoints.length,
+      recentDepths,
+      recentTemps,
+    };
+  }
 
   // 2. Elevation-based override: if tag is on land
   const elevation = env?.elevation;

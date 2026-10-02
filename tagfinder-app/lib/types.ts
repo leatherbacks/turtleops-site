@@ -1040,6 +1040,8 @@ export interface AnalysisResult {
 
   /** Out-of-the-water check from the Argos geometry alone — see analysis/grounding.ts. */
   grounding: Grounding | null;
+  /** Picked up and moved by a person — see analysis/carried.ts. */
+  carried: Carried | null;
 
   // Data quality (from Argos.csv — optional)
   dataQuality: DataQuality | null;
@@ -1060,6 +1062,18 @@ export interface Grounding {
   groundedSince: Date | null;
   reference: GroundingWindow | null;
   recent: GroundingWindow | null;
+  reasoning: string;
+}
+
+/** A tag moved faster than water can move it: somebody has it. */
+export interface Carried {
+  verdict: 'carried' | 'none';
+  from: { latitude: number; longitude: number; date: Date } | null;
+  to: { latitude: number; longitude: number; date: Date; quality: string; errorM: number } | null;
+  distanceKm: number | null;
+  speedKmH: number | null;
+  /** The last fix before the move. */
+  since: Date | null;
   reasoning: string;
 }
 
