@@ -1016,6 +1016,13 @@ export interface AnalysisResult {
   satCoverage: SatCoverage | null;
   mirrorCheck: MirrorCheck | null;
   antennaExposure: AntennaExposure | null;
+  /** When the tag stopped moving — see analysis/restingPeriod.ts. Null when the record has no distinct resting period. */
+  restingSince: Date | null;
+  /** Coverage and exposure over the resting period alone; satCoverage/antennaExposure then describe the float. */
+  restingCoverage: SatCoverage | null;
+  restingExposure: AntennaExposure | null;
+  /** Where the sky window ends: now for a live file, the last message for an archive. */
+  skyWindowEnd: Date | null;
   releaseInterpretation: ReleaseInterpretation | null;
   /** If dive profile shows pre-release descent to near crush depth (~1700m), this is a mortality+sink signal */
   crushDepthEvent: { detected: boolean; maxDepthM: number; reasoning: string } | null;
