@@ -58,6 +58,24 @@ export function verdictsBlock(analysis: unknown, environment: unknown): string {
     lines.push(`- At the position itself: ${str(place.name) ?? ''}${str(place.kind) ? ` (${place.kind})` : ''} — if this is a campground, rental, house, marina or parking area, the tag is probably in someone's possession there; lead with asking, not searching.`);
   if (str(tides.station)) lines.push(`- Tide station: ${tides.station}, ${num(tides.stationDistanceKm)?.toFixed(1) ?? '?'} km away`);
   lines.push(`- Drift: last 24 h ${str(drift.recent) ?? 'unknown'}, 72 h ${str(drift.medium) ?? 'unknown'}, all time ${str(drift.allTime) ?? 'unknown'}`);
+  // Sensor readings have a date. A week-old "in water" is true of that week,
+  // and the brief must not carry it forward to the fix it is writing about.
+  const age = rec(a.sensorDataAge);
+  const ageHours = num(age.hoursBeforeLastFix);
+  if (ageHours !== null && age.stale === true) {
+    const asOf = str(age.asOf) ?? '';
+    lines.push(
+      `- SENSOR READINGS ARE STALE: the newest post-release temperature is from ${asOf.slice(0, 16).replace('T', ' ')} UTC, ` +
+      `${(ageHours / 24).toFixed(1)} days before the newest fix. The temperature environment, burial signature and ` +
+      `tag-versus-water verdicts describe the tag THEN. Do not use them to say where the tag is NOW, and do not ` +
+      `recommend a vessel on their strength.`
+    );
+  }
+  const payload = rec(a.payloadHealth);
+  if (str(payload.verdict) === 'unreadable')
+    lines.push(`- Sensor payloads: UNREADABLE since ${str(payload.unreadableSince) ?? '?'} — ${str(payload.reasoning) ?? ''}`);
+  else if (str(payload.verdict) === 'degraded')
+    lines.push(`- Sensor payloads: DEGRADED — ${str(payload.reasoning) ?? ''}`);
   if (str(release.label)) lines.push(`- Release: ${release.label}`);
   const grounding = rec(a.grounding);
   if (str(grounding.verdict) === 'grounded') lines.push(`- Out of the water: ${grounding.reasoning}`);
@@ -68,7 +86,9 @@ export function verdictsBlock(analysis: unknown, environment: unknown): string {
     ? 'The tag is OUT OF THE WATER. The headline must say so. Do not describe it as afloat, at sea, over water, or drifting, and do not recommend a boat. The dive profile is the animal\'s pre-release record and says nothing about water at the tag\'s current position.'
     : AFLOAT_PHASES.has(phase)
       ? 'The tag is IN THE WATER. The headline must say so. Do not describe it as stranded, ashore, beached, buried or indoors.'
-      : 'The tag state is undetermined; say so rather than choosing a scenario the data does not support.';
+      : 'The tag state is undetermined; say so rather than choosing a scenario the data does not support. ' +
+        'Decide the search from the fixes and the weather: a position at the shoreline, stationary, with the fix ' +
+        'yield collapsed while passes continue, under onshore wind, is a beach search at the next low water — not a boat.';
 
   return `## Verdicts from the deterministic analysis — the brief MUST agree with these
 These are computed from the data and are shown to the reader as panels beside this brief.

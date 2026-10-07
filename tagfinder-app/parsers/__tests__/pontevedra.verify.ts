@@ -32,6 +32,9 @@ import { classifyDrift } from '@/analysis/drift';
 import { detectCarried } from '@/analysis/carried';
 import { markOutliers } from '@/analysis/outliers';
 import { haversineKm } from '@/lib/haversine';
+import { analyzePayloadHealth } from '@/analysis/payloadHealth';
+import { sensorDataAge, qualifyForAge } from '@/lib/sensorAge';
+import { computeSearchRadius } from '@/analysis/searchRadius';
 import type { ArgosFix, ArgosPass } from '@/lib/types';
 import { fixture } from './fixtures';
 
@@ -114,6 +117,43 @@ console.log('\n== 4. reception: location yield never exceeds the passes heard ==
   chk('fix count fallback is capped at 100%', analyzeReceptionQuality(bare, 14).locationYield, 1);
 }
 
+console.log('\n== 5. drift classifier: windows anchored on the newest position-quality fix ==');
+{
+  const track = [0, 2, 4, 6, 8, 10, 12, 24, 30, 36].map((h) => fix(h, '2', 30.60 - h * 0.004, -81.20));
+  const after = [...track, fix(75, '1', 30.188, -81.360, 507)];
+  const d = classifyDrift(after);
+  chk('one fresh fix: last 24 h reads insufficient, not the old track', d.recent, 'insufficient');
+  chk('...all-time still drifting', d.allTime, 'drifting');
+  const sr = computeSearchRadius(after, { driftLabel: 'drifting', speedKmH: null, now: new Date(T0 + 76 * H) });
+  chk('radius basis does not call a drifting tag "not drifting"', /not drifting/.test(sr.basis), false);
+}
+
+console.log('\n== 6. sensor age: a week-old temperature is dated, not current ==');
+{
+  const fixes = [fix(0, '2', 30.6, -81.2), fix(200, '1', 30.188, -81.360, 507)];
+  const series = [{ date: new Date(T0 + 10 * H), depth: null, depthRange: null, temperature: 27.1, temperatureRange: null }];
+  const age = sensorDataAge(series as never, [], new Date(T0 - H), fixes);
+  chk('age measured against the newest fix', age && Math.round(age.hoursBeforeLastFix), 190);
+  chk('...and flagged stale', age?.stale, true);
+  const q = qualifyForAge({ environment: 'in_water', reasoning: 'matches SST' } as never, age);
+  chk('verdict keeps its answer and gains the date', [(q as any).environment, (q as any).staleHours], ['in_water', 190]);
+  const fresh = sensorDataAge(series as never, [], new Date(T0 - H), [fix(0, '2', 30.6, -81.2), fix(11, '2', 30.6, -81.2)]);
+  chk('an hour behind the newest fix is not stale', fresh?.stale, false);
+}
+
+console.log('\n== 7. payload health from the checksums ==');
+{
+  const daily: Record<string, { passed: number; failed: number; clockRejected: number }> = {};
+  for (let d = 1; d <= 5; d++) daily[`2026-10-0${d}`] = { passed: 60, failed: 50, clockRejected: 0 };
+  daily['2026-10-06'] = { passed: 1, failed: 300, clockRejected: 1 };
+  daily['2026-10-07'] = { passed: 0, failed: 120, clockRejected: 0 };
+  const h = analyzePayloadHealth(daily)!;
+  chk('unreadable since the day the rate collapsed', [h.verdict, h.unreadableSince, h.lastReadableDay], ['unreadable', '2026-10-06', '2026-10-05']);
+  const ok = analyzePayloadHealth({ '2026-10-01': { passed: 60, failed: 50, clockRejected: 0 } })!;
+  chk('a healthy tag reads readable', ok.verdict, 'readable');
+  chk('a thin day cannot flip the verdict', analyzePayloadHealth({ ...daily, '2026-10-08': { passed: 3, failed: 2, clockRejected: 0 } })!.verdict, 'unreadable');
+}
+
 const real = fixture(/47128-cls-messages-2026-10-07\.csv$/);
 if (real) {
   console.log(`\n== REAL: ${real} ==`);
@@ -139,6 +179,10 @@ if (real) {
   const located = fixes.filter((f) => !f.isOutlier);
   const rq = analyzeReceptionQuality(am.passes, located.length, located.map((f) => f.quality));
   chk('location yield is a fraction', rq.locationYield !== null && rq.locationYield <= 1, true);
+  chk('drift: last 24 h is insufficient, not "drifting 12 km" from 5-6 Oct', drift.recent, 'insufficient');
+  const ph = analyzePayloadHealth(act.daily)!;
+  chk('payloads unreadable since 3 or 4 Oct', [ph.verdict, ph.unreadableSince], ['unreadable', '2026-10-04']);
+  chk('...after a readable record through 3 Oct', ph.lastReadableDay, '2026-10-03');
 } else {
   console.log('\n(real 47128 export not present; synthetic checks only)');
 }

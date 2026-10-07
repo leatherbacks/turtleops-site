@@ -737,6 +737,10 @@ export type TempEnvironment =
 export interface TempComparison {
   environment: TempEnvironment;
   reasoning: string;
+  /** Newest post-release sensor reading this rests on — see lib/sensorAge.ts. */
+  asOf?: Date;
+  /** Hours between that reading and the newest fix, when over the staleness bar. */
+  staleHours?: number;
   tagTempRange: { min: number; max: number } | null;
   airTempC: number | null;
   sstTempC: number | null;
@@ -764,6 +768,10 @@ export type BurialVerdict =
 export interface BurialDetection {
   verdict: BurialVerdict;
   reasoning: string;
+  /** Newest post-release sensor reading this rests on — see lib/sensorAge.ts. */
+  asOf?: Date;
+  /** Hours between that reading and the newest fix, when over the staleness bar. */
+  staleHours?: number;
   /** Median diel (24-hour) temperature amplitude in °C */
   medianDielAmplitudeC: number | null;
   /** Median temp across post-release readings, for context */
@@ -831,6 +839,24 @@ export interface TransmissionHealthWindow {
   meanPowerDbm: number | null;
   /** Mean frequency offset from 401.650 MHz nominal, in Hz — how far the tag has drifted */
   meanFrequencyOffsetHz: number | null;
+}
+
+/** Health of the tag's sensor payloads, from their own checksums — see analysis/payloadHealth.ts. */
+export interface PayloadHealth {
+  verdict: 'readable' | 'degraded' | 'unreadable';
+  reasoning: string;
+  messages: number;
+  passed: number;
+  failed: number;
+  /** Checksum passes rejected for an impossible clock — chance passes. */
+  clockRejected: number;
+  overallPassRate: number;
+  recentPassRate: number;
+  /** Last reception day (UTC, YYYY-MM-DD) on which a quarter or more of payloads passed. */
+  lastReadableDay: string | null;
+  /** First day since which under 5% pass, if that has held to the end of the record. */
+  unreadableSince: string | null;
+  daily: { day: string; messages: number; passRate: number }[];
 }
 
 export interface TransmissionHealth {
@@ -1004,6 +1030,8 @@ export interface AnalysisResult {
   /** True if the health status byte ever changed — see LotekHealthRecord.wetFlag. */
   lotekHealthStatusChanged: boolean;
   burialDetection: BurialDetection | null;
+  /** Sensor-payload checksum health, Lotek CLS exports only. */
+  payloadHealth: PayloadHealth | null;
   trackerShed: TrackerShedDetection | null;
 
   // Fixes

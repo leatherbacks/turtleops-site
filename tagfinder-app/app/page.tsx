@@ -18,6 +18,7 @@ import { analyzeBathymetry } from '@/analysis/bathymetry';
 import { detectBurial } from '@/analysis/burialDetection';
 import { landfallProbePath, findLandfall, type ProbeSample } from '@/analysis/landfall';
 import { assessDriftForcing } from '@/analysis/driftForcing';
+import { sensorDataAge, qualifyForAge } from '@/lib/sensorAge';
 import type {
   SatCoverage,
   AntennaExposure,
@@ -36,6 +37,7 @@ import SatCoveragePanel from '@/components/tagfinder/SatCoveragePanel';
 import SearchBriefPanel from '@/components/tagfinder/SearchBriefPanel';
 import MirrorCheckPanel from '@/components/tagfinder/MirrorCheckPanel';
 import TransmissionHealthPanel from '@/components/tagfinder/TransmissionHealthPanel';
+import PayloadHealthPanel from '@/components/tagfinder/PayloadHealthPanel';
 import TidePhasePanel from '@/components/tagfinder/TidePhasePanel';
 import WaterMatchPanel from '@/components/tagfinder/WaterMatchPanel';
 import ReceptionQualityPanel from '@/components/tagfinder/ReceptionQualityPanel';
@@ -375,6 +377,15 @@ export default function TagFinderPage() {
     );
   }, [result, series, statuses, envData.weather, dailySummaries, histograms]);
 
+  // How old the newest sensor reading is against the newest fix. The
+  // temperature verdicts below keep their answer and gain the date it is true
+  // of; the brief is told the same so it does not read a week-old "in water"
+  // as the present.
+  const sensorAge = useMemo(
+    () => (result ? sensorDataAge(series, statuses, result.summary?.releaseDate, result.allFixes) : null),
+    [result, series, statuses]
+  );
+
   // Merge fused tag state + satellite coverage into result for display
   const displayResult = useMemo(() => {
     if (!result) return null;
@@ -384,11 +395,11 @@ export default function TagFinderPage() {
     if (antennaExposure) merged.antennaExposure = antennaExposure;
     if (landfall) merged.landfall = landfall;
     if (driftForcing) merged.driftForcing = driftForcing;
-    if (tempComparison) merged.tempComparison = tempComparison;
+    if (tempComparison) merged.tempComparison = qualifyForAge(tempComparison, sensorAge);
     if (bathymetry) merged.bathymetry = bathymetry;
-    if (burialDetection) merged.burialDetection = burialDetection;
+    if (burialDetection) merged.burialDetection = qualifyForAge(burialDetection, sensorAge);
     return merged;
-  }, [result, fusedTagState, satCoverage, antennaExposure, landfall, driftForcing, tempComparison, bathymetry, burialDetection]);
+  }, [result, fusedTagState, satCoverage, antennaExposure, landfall, driftForcing, tempComparison, bathymetry, burialDetection, sensorAge]);
 
   // Fetch AI brief once environment + sat coverage are loaded.
   //
@@ -456,6 +467,8 @@ export default function TagFinderPage() {
         tempComparison: displayResult.tempComparison,
         burialDetection: displayResult.burialDetection,
         transmissionHealth: displayResult.transmissionHealth,
+        payloadHealth: displayResult.payloadHealth,
+        sensorDataAge: sensorAge,
         tidePhase: tidePhase.analysis,
         waterMatch: waterMatch.analysis
           ? { ...waterMatch.analysis, matched: waterMatch.analysis.matched.slice(-40) }
@@ -1042,6 +1055,10 @@ export default function TagFinderPage() {
                 {displayResult.transmissionHealth && (
                   <TransmissionHealthPanel health={displayResult.transmissionHealth} />
                 )}
+                {/* The sensor stream's own checksums — the only corruption measure a CLS export offers */}
+                {displayResult.payloadHealth && (
+                  <PayloadHealthPanel health={displayResult.payloadHealth} />
+                )}
 
                 {/* How much sky the antenna can see, from received passes alone */}
                 {receptionQuality && receptionQuality.verdict !== 'insufficient' && (
@@ -1054,6 +1071,7 @@ export default function TagFinderPage() {
                     analysis={waterMatch.analysis}
                     station={waterMatch.station}
                     stationDistanceKm={waterMatch.stationDistanceKm}
+                    sensorAge={sensorAge}
                   />
                 )}
 

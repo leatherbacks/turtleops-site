@@ -1,12 +1,15 @@
 'use client';
 
 import type { WaterMatchAnalysis } from '@/analysis/waterMatch';
+import { describeSensorAge, type SensorDataAge } from '@/lib/sensorAge';
 import { Thermometer } from 'lucide-react';
 
 interface WaterMatchPanelProps {
   analysis: WaterMatchAnalysis;
   station: string | null;
   stationDistanceKm: number | null;
+  /** Age of the newest reading against the newest fix; shown when stale. */
+  sensorAge?: SensorDataAge | null;
 }
 
 function stamp(d: Date): string {
@@ -26,6 +29,7 @@ export default function WaterMatchPanel({
   analysis,
   station,
   stationDistanceKm,
+  sensorAge = null,
 }: WaterMatchPanelProps) {
   const { verdict, segments, transition, diurnal, coldestDeltaC, matched } = analysis;
 
@@ -65,6 +69,9 @@ export default function WaterMatchPanel({
           {VERDICT_LABEL[verdict]}
         </span>
       </div>
+      {sensorAge?.stale ? (
+        <p className="text-xs text-warning mb-2">{describeSensorAge(sensorAge)}</p>
+      ) : null}
 
       {transition && (
         <p className="text-2xl font-mono font-bold tracking-tight mb-1">

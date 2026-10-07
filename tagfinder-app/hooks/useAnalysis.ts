@@ -94,6 +94,7 @@ import { classifyDrift } from '@/analysis/drift';
 import { markOutliers } from '@/analysis/outliers';
 import { detectCarried } from '@/analysis/carried';
 import { computePosition } from '@/analysis/position';
+import { analyzePayloadHealth } from '@/analysis/payloadHealth';
 import { computeSearchRadius } from '@/analysis/searchRadius';
 import { predictDrift } from '@/analysis/driftPredict';
 import { analyzeTagState } from '@/analysis/tagState';
@@ -297,6 +298,7 @@ export function useAnalysis(): UseAnalysisReturn {
       let argosPositions: ArgosPositionsResult | null = null;
       let lotekHealth: LotekHealthResult | null = null;
       let activityReadings: SeriesReading[] = [];
+      let activityPayload: ReturnType<typeof parseLotekActivityMessages> | null = null;
       if (parsedData.argos_positions) {
         argosPositions = parseArgosPositions(parsedData.argos_positions);
         const d = detected.find((f) => f.fileType === 'argos_positions');
@@ -323,6 +325,7 @@ export function useAnalysis(): UseAnalysisReturn {
         // is 95% exact, and the 5% is enough to put a 44 °C reading in the
         // post-release window and call the tag beached.
         const activity = parseLotekActivityMessages(parsedData.argos_messages);
+        activityPayload = activity;
         if (activity.records.length > 0) {
           activityReadings = activity.records.filter((r) => r.verified).map((r) => ({
             date: r.date,
@@ -768,6 +771,7 @@ export function useAnalysis(): UseAnalysisReturn {
       const outlierFixes = reportedFixes.filter((f) => f.isOutlier);
 
       // Post-release sensor data decoded from the raw payloads.
+      const payloadHealth = activityPayload ? analyzePayloadHealth(activityPayload.daily) : null;
 
       setResult({
         summary,
@@ -797,6 +801,7 @@ export function useAnalysis(): UseAnalysisReturn {
         dailyDives: dailyDives.length > 0 ? dailyDives : null,
         corruptCount: corruptMsgs.length,
         tidalIntrusion,
+        payloadHealth,
         satCoverage: null, // computed async in the page after TLE fetch
         mirrorCheck,
         antennaExposure: null, // computed async in the page after TLE fetch
