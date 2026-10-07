@@ -5,9 +5,11 @@ import { Satellite } from 'lucide-react';
 
 interface SatCoveragePanelProps {
   coverage: SatCoverage;
+  /** Which period of the record these numbers describe. */
+  windowLabel?: string;
 }
 
-export default function SatCoveragePanel({ coverage }: SatCoveragePanelProps) {
+export default function SatCoveragePanel({ coverage, windowLabel }: SatCoveragePanelProps) {
   const healthColors: Record<SatCoverage['health'], string> = {
     healthy: 'text-success bg-success/10 border-success/20',
     marginal: 'text-warning bg-warning/10 border-warning/20',
@@ -35,6 +37,7 @@ export default function SatCoveragePanel({ coverage }: SatCoveragePanelProps) {
         </span>
       </div>
 
+      {windowLabel && <p className="text-xs text-muted font-mono mb-2">{windowLabel}</p>}
       <p className="text-sm text-muted mb-3">{coverage.diagnosis}</p>
 
       <div className="grid grid-cols-3 gap-3 text-sm mb-4">

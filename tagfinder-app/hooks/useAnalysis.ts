@@ -803,6 +803,10 @@ export function useAnalysis(): UseAnalysisReturn {
         tidalIntrusion,
         payloadHealth,
         satCoverage: null, // computed async in the page after TLE fetch
+        restingSince: null,
+        restingCoverage: null,
+        restingExposure: null,
+        skyWindowEnd: null,
         mirrorCheck,
         antennaExposure: null, // computed async in the page after TLE fetch
         releaseInterpretation,

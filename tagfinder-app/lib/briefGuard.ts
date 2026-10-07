@@ -71,6 +71,23 @@ export function verdictsBlock(analysis: unknown, environment: unknown): string {
       `recommend a vessel on their strength.`
     );
   }
+  // The sky since the tag stopped is the sky that matters; the whole-record
+  // coverage describes the float and must not be quoted as the resting place.
+  const sky = rec(a.skyWindows);
+  const resting = rec(sky.resting);
+  const restingN = num(resting.totalPredicted);
+  if (restingN !== null && restingN >= 6) {
+    const heard = num(resting.totalReceived) ?? 0;
+    const since = str(sky.restingSince) ?? '';
+    const exp = rec(sky.restingExposure);
+    lines.push(
+      `- Sky since the tag stopped (${since.slice(0, 16).replace('T', ' ')} UTC): ${heard} of ${restingN} serving passes heard ` +
+      `(${Math.round((100 * heard) / restingN)}%)${str(exp.reasoning) ? ` — ${exp.reasoning}` : ''}. ` +
+      `satCoverage and antennaExposure describe the FLOAT before that moment; describe the tag's present sky from this line only.`
+    );
+  } else if (restingN !== null && restingN > 0) {
+    lines.push(`- Since the tag stopped: only ${restingN} passes predicted so far, ${num(resting.totalReceived) ?? 0} heard — too few to read the sky at the resting place; satCoverage and antennaExposure describe the float.`);
+  }
   const payload = rec(a.payloadHealth);
   if (str(payload.verdict) === 'unreadable')
     lines.push(`- Sensor payloads: UNREADABLE since ${str(payload.unreadableSince) ?? '?'} — ${str(payload.reasoning) ?? ''}`);

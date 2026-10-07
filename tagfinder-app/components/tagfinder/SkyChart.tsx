@@ -6,6 +6,8 @@ import { Satellite } from 'lucide-react';
 interface SkyChartProps {
   passes: AnnotatedPass[];
   exposure?: AntennaExposure | null;
+  /** Which period of the record the arcs come from. */
+  windowLabel?: string;
 }
 
 const SIZE = 320;
@@ -16,7 +18,7 @@ const RADIUS = SIZE / 2 - 20;
  * Polar sky chart: N at top, E at right.
  * Elevation 0° (horizon) at the outer edge, 90° (zenith) at center.
  */
-export default function SkyChart({ passes, exposure }: SkyChartProps) {
+export default function SkyChart({ passes, exposure, windowLabel }: SkyChartProps) {
   if (passes.length === 0) return null;
 
   const received = passes.filter((p) => p.received);
@@ -39,6 +41,7 @@ export default function SkyChart({ passes, exposure }: SkyChartProps) {
           {received.length} received / {missed.length} missed
         </span>
       </div>
+      {windowLabel && <p className="text-xs text-muted font-mono mb-2">{windowLabel}</p>}
 
       <p className="text-xs text-muted mb-4">
         Each arc shows a satellite&apos;s path across the sky over the tag&apos;s

@@ -55,7 +55,10 @@ export function analyzePayloadHealth(
   }
 
   const overall = passed / total;
-  const recent = judged.slice(-3);
+  // "Recent" is the unreadable stretch itself once there is one; otherwise the
+  // last three days with enough messages. Mixing the last readable day into
+  // the recent figure printed "16% since 4 Oct" for a stream at 0.4%.
+  const recent = unreadableSince ? judged.filter((r) => r.day >= unreadableSince) : judged.slice(-3);
   const recentRate = recent.length
     ? recent.reduce((s, r) => s + r.rate * r.n, 0) / recent.reduce((s, r) => s + r.n, 0)
     : overall;

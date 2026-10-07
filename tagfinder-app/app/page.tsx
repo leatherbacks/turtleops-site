@@ -13,6 +13,7 @@ import { analyzePassGeometry } from '@/analysis/passGeometry';
 import { analyzeSatCoverage } from '@/analysis/satCoverage';
 import { analyzeReceptionQuality } from '@/analysis/receptionQuality';
 import { analyzeAntennaExposure } from '@/analysis/antennaExposure';
+import { restingSince as restingSinceOf, skyWindowEnd } from '@/analysis/restingPeriod';
 import { compareTemperatures } from '@/analysis/tempComparison';
 import { analyzeBathymetry } from '@/analysis/bathymetry';
 import { detectBurial } from '@/analysis/burialDetection';
@@ -33,7 +34,6 @@ import PositionCard from '@/components/tagfinder/PositionCard';
 import EnvironmentPanel from '@/components/tagfinder/EnvironmentPanel';
 import PopoffEstimatePanel from '@/components/tagfinder/PopoffEstimatePanel';
 import DiveProfilePanel from '@/components/tagfinder/DiveProfilePanel';
-import SatCoveragePanel from '@/components/tagfinder/SatCoveragePanel';
 import SearchBriefPanel from '@/components/tagfinder/SearchBriefPanel';
 import MirrorCheckPanel from '@/components/tagfinder/MirrorCheckPanel';
 import TransmissionHealthPanel from '@/components/tagfinder/TransmissionHealthPanel';
@@ -42,7 +42,7 @@ import TidePhasePanel from '@/components/tagfinder/TidePhasePanel';
 import WaterMatchPanel from '@/components/tagfinder/WaterMatchPanel';
 import ReceptionQualityPanel from '@/components/tagfinder/ReceptionQualityPanel';
 import ArchivePanels from '@/components/tagfinder/ArchivePanels';
-import SkyChart from '@/components/tagfinder/SkyChart';
+import SkySection from '@/components/tagfinder/SkySection';
 import UpcomingPassesPanel from '@/components/tagfinder/UpcomingPassesPanel';
 import EmailGate from '@/components/tagfinder/EmailGate';
 import FeedbackWidget from '@/components/tagfinder/FeedbackWidget';
@@ -70,6 +70,10 @@ export default function TagFinderPage() {
    *  the brief waits for the wall verdict instead of being written without it. */
   const [skySettledFor, setSkySettledFor] = useState<object | null>(null);
   const [antennaExposure, setAntennaExposure] = useState<AntennaExposure | null>(null);
+  const [restingCoverage, setRestingCoverage] = useState<SatCoverage | null>(null);
+  const [restingExposure, setRestingExposure] = useState<AntennaExposure | null>(null);
+  const [restingSince, setRestingSince] = useState<Date | null>(null);
+  const [skyEnd, setSkyEnd] = useState<Date | null>(null);
   const [landfall, setLandfall] = useState<LandfallPrediction | null>(null);
   const [driftForcing, setDriftForcing] = useState<DriftForcing | null>(null);
   const [brief, setBrief] = useState<string | null>(null);
@@ -145,19 +149,23 @@ export default function TagFinderPage() {
   const fusedTagState = useMemo(() => {
     if (!result) return null;
     if (statuses.length === 0 && series.length === 0 && !result.summary) return null;
+    // The tag's present situation is the resting window's sky, when that
+    // window has enough passes to carry the buried/stranded tests.
+    const presentCoverage = restingCoverage && restingCoverage.totalPredicted >= 20 ? restingCoverage : satCoverage;
+    const presentExposure = restingCoverage && restingCoverage.totalPredicted >= 20 ? restingExposure : antennaExposure;
     return analyzeTagState(
       statuses,
       result.summary,
       envData,
       series,
-      satCoverage,
+      presentCoverage,
       result.allFixes,
       receptionQuality,
       result.grounding,
-      antennaExposure,
+      presentExposure,
       result.carried
     );
-  }, [result, statuses, series, envData, satCoverage, receptionQuality, antennaExposure]);
+  }, [result, statuses, series, envData, satCoverage, receptionQuality, antennaExposure, restingCoverage, restingExposure]);
 
   // Fetch TLEs and compute satellite coverage once we have a result
   useEffect(() => {
@@ -176,7 +184,12 @@ export default function TagFinderPage() {
     // interpretCoverage / antennaExposure report obstruction that isn't there.
     // Coverage and exposure are diagnostics about the tag's exposed period.
     const earliest = result.allFixes[0]?.date;
-    const latest = result.allFixes[result.allFixes.length - 1]?.date;
+    // The window runs to now for a live file so that silent overpasses count
+    // as missed; it used to end at the last fix, which hid exactly the passes
+    // that showed a quiet tag was not seeing the sky. The record is split at
+    // the moment the tag stopped: before is the float, after is the place.
+    const latest = skyWindowEnd(passes);
+    const stoppedAt = restingSinceOf(result.allFixes);
     if (!earliest || !latest) {
       setSkySettledFor(result);
       return;
@@ -209,10 +222,26 @@ export default function TagFinderPage() {
           earliest,
           latest
         );
-        const coverage = analyzeSatCoverage(predicted, passes);
+        const full = analyzeSatCoverage(predicted, passes);
+        // The float window learns which satellites serve this tag; the
+        // resting window is too short to tell a silent satellite from a
+        // blocked one, so it inherits the roster.
+        const serving = new Set(full.passes.map((p) => p.satelliteName));
+        const afloatPredicted = stoppedAt
+          ? predicted.filter((p) => p.riseTime.getTime() < stoppedAt.getTime())
+          : predicted;
+        const restingPredicted = stoppedAt
+          ? predicted.filter((p) => p.riseTime.getTime() >= stoppedAt.getTime() && serving.has(p.satelliteName))
+          : [];
+        const coverage = stoppedAt && afloatPredicted.length > 0 ? analyzeSatCoverage(afloatPredicted, passes) : full;
+        const resting = restingPredicted.length > 0 ? analyzeSatCoverage(restingPredicted, passes) : null;
         if (!cancelled) {
           setSatCoverage(coverage);
           setAntennaExposure(analyzeAntennaExposure(coverage.passes));
+          setRestingSince(stoppedAt);
+          setSkyEnd(latest);
+          setRestingCoverage(resting);
+          setRestingExposure(resting ? analyzeAntennaExposure(resting.passes) : null);
           // Same TLEs, so this costs nothing extra: recover why each fix is as
           // good or bad as it is, and where its mirror solution actually lies.
           setPassGeometry(analyzePassGeometry(passes, data.entries));
@@ -393,13 +422,17 @@ export default function TagFinderPage() {
     if (fusedTagState) merged.tagState = fusedTagState;
     if (satCoverage) merged.satCoverage = satCoverage;
     if (antennaExposure) merged.antennaExposure = antennaExposure;
+    merged.restingSince = restingSince;
+    merged.restingCoverage = restingCoverage;
+    merged.restingExposure = restingExposure;
+    merged.skyWindowEnd = skyEnd;
     if (landfall) merged.landfall = landfall;
     if (driftForcing) merged.driftForcing = driftForcing;
     if (tempComparison) merged.tempComparison = qualifyForAge(tempComparison, sensorAge);
     if (bathymetry) merged.bathymetry = bathymetry;
     if (burialDetection) merged.burialDetection = qualifyForAge(burialDetection, sensorAge);
     return merged;
-  }, [result, fusedTagState, satCoverage, antennaExposure, landfall, driftForcing, tempComparison, bathymetry, burialDetection, sensorAge]);
+  }, [result, fusedTagState, satCoverage, antennaExposure, landfall, driftForcing, tempComparison, bathymetry, burialDetection, sensorAge, restingSince, restingCoverage, restingExposure, skyEnd]);
 
   // Fetch AI brief once environment + sat coverage are loaded.
   //
@@ -458,6 +491,12 @@ export default function TagFinderPage() {
         carried: displayResult.carried,
         tidalIntrusion: displayResult.tidalIntrusion,
         satCoverage: stripTrackPoints(displayResult.satCoverage),
+        skyWindows: {
+          restingSince: displayResult.restingSince,
+          end: displayResult.skyWindowEnd,
+          resting: stripTrackPoints(displayResult.restingCoverage),
+          restingExposure: displayResult.restingExposure,
+        },
         mirrorCheck: displayResult.mirrorCheck,
         antennaExposure: displayResult.antennaExposure,
         popoff: displayResult.popoff,
@@ -616,6 +655,10 @@ export default function TagFinderPage() {
     setSatCoverage(null);
     setSatCoverageUnavailable(null);
     setAntennaExposure(null);
+    setRestingCoverage(null);
+    setRestingExposure(null);
+    setRestingSince(null);
+    setSkyEnd(null);
     setBrief(null);
     setBriefError(null);
     setShareUrl(null);
@@ -1010,7 +1053,15 @@ export default function TagFinderPage() {
 
                 {/* Satellite coverage (if we have Argos passes) */}
                 {displayResult.satCoverage && (
-                  <SatCoveragePanel coverage={displayResult.satCoverage} />
+                  <SkySection
+                    afloat={displayResult.satCoverage}
+                    afloatExposure={displayResult.antennaExposure}
+                    resting={displayResult.restingCoverage}
+                    restingExposure={displayResult.restingExposure}
+                    restingSince={displayResult.restingSince}
+                    windowEnd={displayResult.skyWindowEnd}
+                    firstFix={displayResult.allFixes[0]?.date ?? null}
+                  />
                 )}
                 {!displayResult.satCoverage && satCoverageUnavailable && (
                   <div className="bg-surface rounded-xl border border-border p-5 text-sm text-muted">
@@ -1021,14 +1072,6 @@ export default function TagFinderPage() {
                   </div>
                 )}
 
-                {/* Sky chart — per-pass azimuth/elevation visualization */}
-                {displayResult.satCoverage &&
-                  displayResult.satCoverage.passes.length > 0 && (
-                    <SkyChart
-                      passes={displayResult.satCoverage.passes}
-                      exposure={displayResult.antennaExposure}
-                    />
-                  )}
 
                 {/* Upcoming passes — when will the next transmission likely happen */}
                 {result && (
