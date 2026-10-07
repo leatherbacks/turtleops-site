@@ -115,8 +115,20 @@ export function analyzeReceptionQuality(
   const messagesPerPass = Number((base.totalMessages / withCounts.length).toFixed(1));
   const resolving = withCounts.filter((p) => p.msgCount >= MESSAGES_FOR_QUALITY_FIX).length;
   const resolvingFraction = resolving / withCounts.length;
+  // Yield is passes that produced a position over passes heard, so it reads
+  // from the passes themselves when they carry one. The caller's fix count was
+  // a stand-in for formats whose passes have no position, and it is a count of
+  // fixes, not of passes: a CLS message export reconstructs passes by grouping
+  // messages per satellite with a 15-minute gap, and where that grouping joins
+  // two solutions into one pass the fix count overruns the pass count. On
+  // PSAT+ 47128 that printed "111% of heard passes produced a position".
+  const positioned = withCounts.filter((p) => p.latitude !== null).length;
   const locationYield =
-    locationCount !== undefined ? locationCount / withCounts.length : null;
+    positioned > 0
+      ? positioned / withCounts.length
+      : locationCount !== undefined
+        ? Math.min(1, locationCount / withCounts.length)
+        : null;
   const qualityFixFraction =
     locationQualities && locationQualities.length > 0
       ? locationQualities.filter((q) => QUALITY_CLASSES.includes(q)).length /

@@ -5,6 +5,20 @@ import { getPositionFixes } from './quality';
 const DRIFT_POSITION_WINDOW_HOURS = 2;
 /** Never estimate a drifting tag's position from fewer than this many fixes. */
 const DRIFT_MIN_FIXES = 3;
+/**
+ * How far back the fix-count fallback may reach for a drifting tag.
+ *
+ * The fallback exists for sparse transmitters, where two hours may hold one
+ * fix. It used to take the last three position-quality fixes whatever their
+ * age, and on PSAT+ 47128 that averaged one fix on the Ponte Vedra shoreline
+ * with two from 39 hours and 41 km earlier, before a northeaster moved the
+ * tag. The headline landed in open water 28 km from the tag, between places
+ * it had been and was. Averaging is only defensible across a span the tag
+ * could not have crossed by more than its fix error; at the 0.5 km/h this
+ * drift model treats as slow, six hours is already 3 km. Past that, one
+ * fresh fix beats a mean of stale ones.
+ */
+const DRIFT_FALLBACK_MAX_HOURS = 6;
 
 /**
  * Compute best-estimate position using inverse-error-squared weighting.
@@ -43,11 +57,18 @@ export function computePosition(
     const cutoff = last.date.getTime() - DRIFT_POSITION_WINDOW_HOURS * 60 * 60 * 1000;
     const window = positionFixes.filter((f) => f.date.getTime() >= cutoff);
     // Sparse transmitters may deliver only one or two fixes in two hours; fall
-    // back to a fix count rather than collapsing onto a single Argos position.
-    subset =
-      window.length >= DRIFT_MIN_FIXES
-        ? window
-        : positionFixes.slice(-Math.min(DRIFT_MIN_FIXES, positionFixes.length));
+    // back to a fix count rather than collapsing onto a single Argos position —
+    // but never reach back past DRIFT_FALLBACK_MAX_HOURS to find them. If the
+    // recent fixes are all there is, they are the answer, down to one.
+    if (window.length >= DRIFT_MIN_FIXES) {
+      subset = window;
+    } else {
+      const floor = last.date.getTime() - DRIFT_FALLBACK_MAX_HOURS * 60 * 60 * 1000;
+      subset = positionFixes
+        .slice(-Math.min(DRIFT_MIN_FIXES, positionFixes.length))
+        .filter((f) => f.date.getTime() >= floor);
+      if (subset.length === 0) subset = [last];
+    }
     method = 'recent_only';
   } else {
     subset = positionFixes;
