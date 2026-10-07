@@ -1,7 +1,7 @@
 import type { ArgosFix, DriftPrediction } from '@/lib/types';
 import { haversineKm, project } from '@/lib/haversine';
 import { PREDICTION_HOURS } from '@/lib/constants';
-import { getHighQualityFixes } from './quality';
+import { getHighQualityFixes, getPositionFixes } from './quality';
 
 /**
  * Hours of track used to fit the drift vector.
@@ -44,6 +44,76 @@ export function predictDrift(fixes: ArgosFix[]): DriftPrediction | null {
   if (window.length < MIN_FIXES_FOR_FIT) {
     window = hqFixes.slice(-Math.min(MIN_FIXES_FOR_FIT, hqFixes.length));
   }
+  const fit = fitWindow(window);
+  if (!fit) return null;
+
+  // Is the fit still true? It describes the window it was fitted over, and
+  // the class 2/3 fixes it uses can end well before the newest fix of any
+  // class. On PSAT+ 47128 the window closed at 00:38 on 6 Oct, a northeaster
+  // then moved the tag 41 km in 33 silent hours, and the next fix — class 1,
+  // on the Ponte Vedra shoreline — lay 40 km outside the cone the fit
+  // predicted for that moment. The projection kept sailing from the old
+  // position at the old speed. A fit the newest fix contradicts is stale:
+  // refit from the fresh fixes alone, and if there are not enough of them to
+  // fit, say nothing rather than something false.
+  const positional = getPositionFixes(fixes).sort((a, b) => a.date.getTime() - b.date.getTime());
+  const newest = positional[positional.length - 1];
+  if (newest && newest.date.getTime() > lastFix.date.getTime()) {
+    const h = (newest.date.getTime() - lastFix.date.getTime()) / 3_600_000;
+    const expected = project(lastFix.latitude, lastFix.longitude, fit.headingDeg, fit.speedKmH * h);
+    const missKm = haversineKm(expected.lat, expected.lon, newest.latitude, newest.longitude);
+    const allowedKm =
+      lastFix.effectiveError / 1000 + fit.speedStd * h + finiteError(newest.effectiveError) / 1000;
+    if (missKm > allowedKm) {
+      const freshCutoff = newest.date.getTime() - DRIFT_WINDOW_HOURS * 3_600_000;
+      const fresh = positional.filter((f) => f.date.getTime() >= freshCutoff);
+      // No widening here: reaching back for older fixes is what made the
+      // first fit stale.
+      if (fresh.length < 2) return null;
+      const refit = fitWindow(fresh);
+      return refit ? toPrediction(refit, fresh, newest) : null;
+    }
+  }
+
+  return toPrediction(fit, window, lastFix);
+}
+
+interface Fit {
+  speedKmH: number;
+  headingDeg: number;
+  speedStd: number;
+}
+
+/** Class Z carries an infinite empirical error; treat it as unknown, not as a licence. */
+function finiteError(metres: number): number {
+  return Number.isFinite(metres) ? metres : 0;
+}
+
+function toPrediction(fit: Fit, window: ArgosFix[], lastFix: ArgosFix): DriftPrediction {
+  const predictions = PREDICTION_HOURS.map((h) => {
+    const { lat, lon } = project(
+      lastFix.latitude,
+      lastFix.longitude,
+      fit.headingDeg,
+      fit.speedKmH * h
+    );
+    const uncertaintyRadiusKm = lastFix.effectiveError / 1000 + fit.speedStd * h;
+    return { hoursAhead: h, lat, lon, uncertaintyRadiusKm };
+  });
+  return {
+    speedKmH: fit.speedKmH,
+    headingDeg: fit.headingDeg,
+    fitFrom: window[0].date,
+    fitTo: lastFix.date,
+    predictions,
+  };
+}
+
+/**
+ * Least-squares velocity over one window of fixes, or null when the fitted
+ * movement is smaller than the fixes' own error.
+ */
+function fitWindow(window: ArgosFix[]): Fit | null {
   if (window.length < 2) return null;
 
   const t0 = window[0].date.getTime();
@@ -82,24 +152,7 @@ export function predictDrift(fixes: ArgosFix[]): DriftPrediction | null {
   const meanResidualKm = residualsKm.reduce((s, r) => s + r, 0) / residualsKm.length;
   const speedStd = Math.max(meanResidualKm / spanHours, avgSpeed * 0.25);
 
-  const predictions = PREDICTION_HOURS.map((h) => {
-    const { lat, lon } = project(
-      lastFix.latitude,
-      lastFix.longitude,
-      avgHeading,
-      avgSpeed * h
-    );
-    const uncertaintyRadiusKm = lastFix.effectiveError / 1000 + speedStd * h;
-    return { hoursAhead: h, lat, lon, uncertaintyRadiusKm };
-  });
-
-  return {
-    speedKmH: avgSpeed,
-    headingDeg: avgHeading,
-    fitFrom: window[0].date,
-    fitTo: lastFix.date,
-    predictions,
-  };
+  return { speedKmH: avgSpeed, headingDeg: avgHeading, speedStd };
 }
 
 /** Ordinary least-squares slope of y on x. */

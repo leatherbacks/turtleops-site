@@ -5,7 +5,7 @@ import {
   DRIFT_THRESHOLD_M,
   MIN_WINDOW_HOURS,
 } from '@/lib/constants';
-import { getDriftClassificationFixes } from './quality';
+import { getDriftClassificationFixes, getPositionFixes } from './quality';
 
 /**
  * Classify drift state using rolling windows over Q2/Q3 fixes.
@@ -15,7 +15,23 @@ import { getDriftClassificationFixes } from './quality';
 const RECENT_WINDOW_HOURS = 24;
 
 export function classifyDrift(fixes: ArgosFix[]): DriftState {
-  const hqFixes = getDriftClassificationFixes(fixes);
+  let hqFixes = getDriftClassificationFixes(fixes);
+
+  // The windows are anchored on the newest fix the position can rest on, not
+  // on the newest class 2/3 fix. When class 2/3 fixes span more than a day the
+  // classification set is those alone, and on PSAT+ 47128 the last of them was
+  // 6 Oct 00:38; a class 1 fix 39 h later on the Ponte Vedra shoreline was not
+  // in the set, so "last 24 h: drifting, 12.2 km" described 5 to 6 Oct while
+  // the tag sat on a beach. The newest position-quality fix joins the set and
+  // sets the clock; a window with nothing else in it reads "insufficient",
+  // which is the truth.
+  const positional = getPositionFixes(fixes).filter((f) => !isNaN(f.date.getTime()));
+  const newest = positional.length
+    ? positional.reduce((a, b) => (a.date > b.date ? a : b))
+    : null;
+  if (newest && !hqFixes.includes(newest)) {
+    hqFixes = [...hqFixes, newest].sort((a, b) => a.date.getTime() - b.date.getTime());
+  }
 
   if (hqFixes.length < 2) {
     return {

@@ -91,7 +91,10 @@ export function computeSearchRadius(
         `${formatHours(hoursSinceLastFix)} ago. This circle describes where the tag was ` +
         `then, not where it is now — no usable position has been received since, so treat ` +
         `it as a starting point rather than a bound.`
-      : `Argos fix precision only — tag is not drifting.`;
+      : options.driftLabel === 'drifting'
+        ? `Argos fix precision only — the tag has been drifting, but the recent fixes give ` +
+          `no usable vector to widen the circle with.`
+        : `Argos fix precision only — tag is not drifting.`;
 
   return {
     primaryM,

@@ -666,8 +666,21 @@ Guidelines:
   with RG-58 direction-finding antenna** (CLS America, Lanham MD — receives Argos pings at
   401.650 MHz, ~1/min). Per Fisher et al. 2017, mount the antenna ~4.5 m above the waterline,
   expect detection range ~3.6 km, and an average search time of ~44 min once a tag is detected
-  (range 20–98 min). The post-popoff transmission window is typically ~2 weeks — recover within
-  that window. Calm seas improve results; winds above ~15 knots make goniometer work difficult.
+  (range 20–98 min). Do NOT assume a transmission window: judge remaining life from this tag's
+  own record — days transmitting so far and the power trend in transmissionHealth. A PSAT+ with
+  a clear antenna has transmitted strongly past three weeks. Calm seas improve results; winds
+  above ~15 knots make goniometer work difficult.
+- **A vessel is the fallback, not the default.** Recommend one only when the tag is within a
+  few kilometres of a launch, the fixes are fresh and class 1–3, and seas are workable. A tag at
+  a shoreline coordinate under onshore wind is a beach search even when the tag state is UNKNOWN:
+  lead with the wrack line at the next low water, the weed piles (a tag that floated for weeks at
+  2–4 messages per pass was riding in sargassum or wrack and strands inside it), gloves and a
+  receiver. Say plainly that class 2/3 fixes will not come from a tag under weed, so stationary
+  one-message fixes from the same spot are the confirmation.
+- **An elevation at or just below sea level within an Argos error radius of the coast is the
+  shoreline, not open water.** Elevation models carry no tide and no beach face. Decide beach
+  versus water from the fixes' behaviour (stationary with the fix yield collapsing while passes
+  continue = ashore or in wrack) and from the wind, never from the sign of the DEM value.
 - End with 1-3 specific, actionable recommendations.
 
 Be confident but honest about uncertainty. Use plain English. Avoid jargon unless necessary.

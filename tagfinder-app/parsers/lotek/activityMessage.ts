@@ -57,6 +57,20 @@ const MIN_PLAUSIBLE_TEMP_C = -5;
 const MAX_PLAUSIBLE_TEMP_C = 45;
 /** Raw depth units; the 12-bit field tops out at 4095 anyway. */
 const MAX_PLAUSIBLE_DEPTH = 4000;
+/**
+ * A CRC-8 passes one random payload in 256. That is nothing while payloads
+ * are intact, and it is a steady trickle once a tag starts sending noise:
+ * PSAT+ 47128 emitted 2,517 failing dive messages between 3 and 7 Oct 2026
+ * and three of them passed by chance, carrying clocks of July 2025 and
+ * October 2028. The 2028 one became the tag's only "post-release" depth
+ * reading and set the tag state to "submerged, 140 m" while the tag lay on
+ * a beach. A record cannot be newer than the pass that delivered it, and no
+ * PSAT+ archive is older than a year plus margin; a verified clock outside
+ * that window is a chance pass and the whole message goes.
+ */
+const MAX_ARCHIVE_AGE_DAYS = 400;
+/** Slack for tag clock drift ahead of the receiver's clock. */
+const CLOCK_AHEAD_SLACK_MS = 60 * 60 * 1000;
 
 export const ACTIVITY_CRC_POLY = 0x07;
 export const ACTIVITY_CRC_INIT = 0xff;
@@ -123,8 +137,20 @@ export interface LotekActivityResult {
   records: LotekActivityRecord[];
   /** Payloads whose first block failed its CRC; dropped whole, timestamp and all. */
   crcFailed: number;
+  /**
+   * Payloads that passed the CRC with a clock later than their own reception
+   * or more than MAX_ARCHIVE_AGE_DAYS before it — chance passes, dropped whole.
+   */
+  clockRejected: number;
   /** Records dropped because their values were not physical. */
   implausible: number;
+  /**
+   * Per reception day (UTC, YYYY-MM-DD): how the dive payloads fared. This is
+   * the only view of the sensor stream's health a CLS export offers, and on
+   * PSAT+ 47128 it is where the stream went from 57% readable to 0.4% at
+   * 17:00 UTC on 3 Oct while the Doppler fixes carried on as normal.
+   */
+  daily: Record<string, { passed: number; failed: number; clockRejected: number }>;
 }
 
 /**
@@ -143,7 +169,14 @@ export interface LotekActivityResult {
 export function parseLotekActivityMessages(rows: Record<string, string>[]): LotekActivityResult {
   const seen = new Map<number, LotekActivityRecord>();
   let crcFailed = 0;
+  let clockRejected = 0;
   let implausible = 0;
+  const daily: Record<string, { passed: number; failed: number; clockRejected: number }> = {};
+  const tally = (receivedAt: Date, key: 'passed' | 'failed' | 'clockRejected') => {
+    if (isNaN(receivedAt.getTime())) return;
+    const day = receivedAt.toISOString().slice(0, 10);
+    (daily[day] ??= { passed: 0, failed: 0, clockRejected: 0 })[key]++;
+  };
   for (const row of rows) {
     const raw = (row['Raw data'] ?? row['Raw Data'] ?? '').trim();
     if (!raw) continue;
@@ -151,11 +184,25 @@ export function parseLotekActivityMessages(rows: Record<string, string>[]): Lote
     if (!bytes) continue;
     const decoded = decodeActivityMessage(bytes);
     if (!decoded) continue;
+    const receivedAt = parseTimestamp(row['Message date (UTC)']);
     if (!decoded.block1Verified) {
       crcFailed++;
+      tally(receivedAt, 'failed');
       continue;
     }
-    const receivedAt = parseTimestamp(row['Message date (UTC)']);
+    if (!isNaN(receivedAt.getTime())) {
+      const baseMs = EPOCH_2000_MS + decoded.baseTagSeconds * 1000;
+      const rxMs = receivedAt.getTime();
+      if (
+        baseMs > rxMs + CLOCK_AHEAD_SLACK_MS ||
+        baseMs < rxMs - MAX_ARCHIVE_AGE_DAYS * 24 * 60 * 60 * 1000
+      ) {
+        clockRejected++;
+        tally(receivedAt, 'clockRejected');
+        continue;
+      }
+    }
+    tally(receivedAt, 'passed');
     decoded.records.forEach((r, k) => {
       if (r === null) {
         implausible++;
@@ -178,6 +225,8 @@ export function parseLotekActivityMessages(rows: Record<string, string>[]): Lote
   return {
     records: Array.from(seen.values()).sort((a, b) => a.tagSeconds - b.tagSeconds),
     crcFailed,
+    clockRejected,
     implausible,
+    daily,
   };
 }

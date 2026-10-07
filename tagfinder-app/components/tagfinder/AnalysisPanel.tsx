@@ -699,6 +699,11 @@ function TempComparisonCard({ temp }: { temp: TempComparison }) {
           {info.label.toUpperCase()}
         </span>
       </div>
+      {temp.staleHours ? (
+        <p className="text-xs text-warning mb-2">
+          Newest reading {temp.asOf?.toISOString().slice(0, 16).replace('T', ' ')} UTC, {(temp.staleHours / 24).toFixed(1)} days before the newest fix. This describes the tag then, not now.
+        </p>
+      ) : null}
       <p className="text-sm text-muted mb-3">{temp.reasoning}</p>
       <div className="grid grid-cols-2 gap-3 text-sm">
         {temp.tagTempRange && (
@@ -785,6 +790,11 @@ function BurialDetectionCard({ burial }: { burial: BurialDetection }) {
           {info.label.toUpperCase()}
         </span>
       </div>
+      {burial.staleHours ? (
+        <p className="text-xs text-warning mb-2">
+          Newest reading {burial.asOf?.toISOString().slice(0, 16).replace('T', ' ')} UTC, {(burial.staleHours / 24).toFixed(1)} days before the newest fix. This describes the tag then, not now.
+        </p>
+      ) : null}
       <p className="text-sm text-muted mb-3">{burial.reasoning}</p>
       <div className="grid grid-cols-3 gap-3 text-sm">
         {burial.medianDielAmplitudeC !== null && (
