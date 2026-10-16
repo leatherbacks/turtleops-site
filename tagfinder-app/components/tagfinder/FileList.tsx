@@ -20,6 +20,7 @@ const FILE_TYPE_LABELS: Record<string, string> = {
   lightloc: 'Light Levels',
   dailydata: 'Daily Summary',
   histos: 'Depth/Temp Histograms',
+  raw_argos: 'Argos Messages',
   // Lotek
   lotek_daylog: 'Day Log',
   lotek_divelog: 'Dive Log',

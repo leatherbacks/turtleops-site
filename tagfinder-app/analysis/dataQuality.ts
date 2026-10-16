@@ -1,3 +1,4 @@
+import { WC_FREQUENCY_FILL_HZ } from './transmissionHealth';
 import type { ArgosPass, DataQuality } from '@/lib/types';
 
 /**
@@ -38,9 +39,13 @@ export function analyzeDataQuality(passes: ArgosPass[]): DataQuality {
 
   // Median transmit frequency — cancels Doppler shift across passes from
   // different satellites. Argos samples are in Hz; convert to MHz.
+  // Exactly 401.650000 MHz is not a measurement: Wildlife Computers fills it
+  // in for passes that carried no frequency. On MiniPAT 285927, 9 of 16 passes
+  // held it, the median landed on it, and the receiver plan said to tune to
+  // the nominal instead of the tag's 401.6777.
   const freqsHz = passes
     .map((p) => p.frequencyHz)
-    .filter((f): f is number => f !== null && f > 0);
+    .filter((f): f is number => f !== null && f > 0 && f !== WC_FREQUENCY_FILL_HZ);
   let nominalFrequencyMHz: number | null = null;
   if (freqsHz.length > 0) {
     const sortedFreqs = [...freqsHz].sort((a, b) => a - b);
@@ -64,3 +69,4 @@ export function analyzeDataQuality(passes: ArgosPass[]): DataQuality {
     nominalFrequencyMHz,
   };
 }
+

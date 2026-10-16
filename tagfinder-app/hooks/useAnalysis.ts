@@ -113,6 +113,7 @@ import { analyzeLightLevel } from '@/analysis/lightLevel';
 import { detectTrackerShed } from '@/analysis/trackerShed';
 import { analyzeTransmissionHealth } from '@/analysis/transmissionHealth';
 import { estimateRepetitionRate } from '@/analysis/repetitionRate';
+import { parseWCRawArgosTimes } from '@/parsers/wc/rawArgos';
 import {
   estimatePopoffLocation,
   meetsNaultCriteria,
@@ -864,7 +865,8 @@ export function useAnalysis(): UseAnalysisReturn {
         // number a field team needs to tell "wrong place" from "not yet", and
         // one that rarely appears in any manufacturer export.
         repetitionRate: estimateRepetitionRate(
-          argosMessages?.messageTimes ?? argosDS?.messageTimes ?? container?.messageTimes ?? []
+          argosMessages?.messageTimes ?? argosDS?.messageTimes ?? container?.messageTimes ??
+            (parsedData.raw_argos ? parseWCRawArgosTimes(parsedData.raw_argos) : [])
         ),
         lotekHealth: lotekHealth?.records ?? null,
         lotekHealthStatusChanged: lotekHealth?.statusChanged ?? false,

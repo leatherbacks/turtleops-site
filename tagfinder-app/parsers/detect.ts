@@ -24,6 +24,9 @@ const WC_BASE: { fileType: FileType; required: string[] }[] = [
   { fileType: 'corrupt', required: ['Reason', 'Possible Type'] },
   { fileType: 'lightloc', required: ['LL0', 'Depth0', 'SolarLongitude', 'SolarLatitude'] },
   { fileType: 'argos', required: ['MsgCount', 'Satellite', 'Duplicates'] },
+  // One row per Argos message: the only WC file with message times, and so the
+  // only source of the transmission interval for a WC tag.
+  { fileType: 'raw_argos', required: ['PTT', 'Satellite', 'MsgDate', 'MsgTime'] },
   { fileType: 'status', required: ['DepthSensor', 'Instr', 'SW', 'RTC'] },
   { fileType: 'locations', required: ['Quality', 'Latitude', 'Longitude', 'Error radius'] },
 ];
