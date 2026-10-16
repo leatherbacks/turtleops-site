@@ -156,6 +156,18 @@ export function useEnvironment(
               tidalRange: res.tidalRange,
               station: res.station,
               stationDistanceKm: res.stationDistanceKm,
+              regime: res.regime ?? null,
+              alternate: res.alternate
+                ? {
+                    station: res.alternate.station,
+                    stationDistanceKm: res.alternate.stationDistanceKm,
+                    tidalRange: res.alternate.tidalRange,
+                    nextLow: res.alternate.nextLow
+                      ? { time: new Date(res.alternate.nextLow.time), height: res.alternate.nextLow.height }
+                      : null,
+                    regime: res.alternate.regime,
+                  }
+                : null,
             },
           }));
         }

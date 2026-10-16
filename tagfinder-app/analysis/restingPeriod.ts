@@ -91,7 +91,15 @@ function restingSinceByBreak(fixes: ArgosFix[]): Date | null {
   while (i > 0 && sits(dated[i - 1])) i--;
   const cluster = dated.slice(i);
   if (cluster.length < 2 || i === 0) return null;
-  const before = dated[i - 1];
+  // The place it jumped from must be a position, not a class B or Z. Weak
+  // fixes may sit in the cluster (47128's first fixes on the Ponte Vedra
+  // shore were class B), but on MiniPAT 285931 a lone class B 5.6 km off, on
+  // its sixth day ashore, read as the jump and started the resting window
+  // four days late. Measure the break from the last position-quality fix
+  // before the cluster.
+  const quality = new Set(getPositionFixes(dated.slice(0, i)));
+  const before = dated.slice(0, i).reverse().find((f) => quality.has(f));
+  if (!before) return null;
   const breakKm =
     haversineKm(before.latitude, before.longitude, newest.latitude, newest.longitude) - (err(before) + err(newest)) / 1000;
   if (breakKm < RESTING_BREAK_KM) return null;

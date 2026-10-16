@@ -23,6 +23,8 @@ interface EnvironmentPanelProps {
   afloat?: boolean;
   /** Tag state says someone probably has it: shoreline advice is secondary. */
   inHand?: boolean;
+  /** Days between the newest fix and now. */
+  dataAgeDays?: number | null;
   loading: {
     elevation: boolean;
     weather: boolean;
@@ -32,10 +34,10 @@ interface EnvironmentPanelProps {
   };
 }
 
-export default function EnvironmentPanel({ data, loading, afloat = false, inHand = false }: EnvironmentPanelProps) {
+export default function EnvironmentPanel({ data, loading, afloat = false, inHand = false, dataAgeDays = null }: EnvironmentPanelProps) {
   return (
     <div className="space-y-4">
-      {data.forecast?.stormAlert && <StormAlertBanner data={data} afloat={afloat} inHand={inHand} />}
+      {data.forecast?.stormAlert && <StormAlertBanner data={data} afloat={afloat} inHand={inHand} dataAgeDays={dataAgeDays} />}
       <div className="bg-surface rounded-xl border border-border p-5">
         <h3 className="font-semibold mb-4">Environmental Context</h3>
 
@@ -60,8 +62,29 @@ export default function EnvironmentPanel({ data, loading, afloat = false, inHand
   );
 }
 
-function StormAlertBanner({ data, afloat, inHand }: { data: EnvironmentData; afloat: boolean; inHand: boolean }) {
+/**
+ * Past this, the forecast is about today and the fixes are about another day.
+ * MiniPAT 40996's file, run two weeks after its last fix, still said "go in
+ * the next 24–48 hours".
+ */
+const STALE_FOR_FORECAST_DAYS = 3;
+
+function StormAlertBanner({ data, afloat, inHand, dataAgeDays }: { data: EnvironmentData; afloat: boolean; inHand: boolean; dataAgeDays: number | null }) {
   if (!data.forecast?.stormAlert) return null;
+  if (dataAgeDays !== null && dataAgeDays >= STALE_FOR_FORECAST_DAYS) {
+    return (
+      <div className="bg-surface-elevated border border-border rounded-xl p-4 flex items-start gap-3">
+        <AlertTriangle className="w-5 h-5 text-muted flex-shrink-0 mt-0.5" />
+        <div>
+          <div className="font-semibold text-muted text-sm uppercase tracking-wide">Weather — current forecast</div>
+          <div className="text-sm mt-1">
+            {data.forecast.alertReason}. The newest fix in this file is {dataAgeDays.toFixed(0)} days old, so this
+            forecast is for today and the position is not. Pull a fresh export before planning around it.
+          </div>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="bg-error/10 border border-error/40 rounded-xl p-4 flex items-start gap-3">
       <AlertTriangle className="w-5 h-5 text-error flex-shrink-0 mt-0.5" />
@@ -285,6 +308,13 @@ function TidesSection({ data, loading, afloat = false, inHand = false }: { data:
     low: 'text-warning',
     unknown: 'text-muted',
   };
+  // A beach is on the open coast. When the nearest station is inside water and
+  // an open-coast station is offered, the beach window comes from that one.
+  const t = data.tides;
+  const beach =
+    t && t.regime === 'sheltered' && t.alternate?.regime === 'open'
+      ? { low: t.alternate.nextLow, station: t.alternate.station }
+      : t ? { low: t.nextLow, station: null as string | null } : null;
 
   return (
     <div className="md:col-span-2">
@@ -326,11 +356,11 @@ function TidesSection({ data, loading, afloat = false, inHand = false }: { data:
               almost no extra shore, and wind moves the water level more than the tide does. Search whenever suits.
             </div>
           )}
-          {data.tides.nextLow && !afloat && !(data.tides.tidalRange !== null && data.tides.tidalRange < NEGLIGIBLE_TIDE_FT) && (
+          {beach?.low && !afloat && (beach.station !== null || !(data.tides.tidalRange !== null && data.tides.tidalRange < NEGLIGIBLE_TIDE_FT)) && (
             <div className="text-xs text-success mt-1">
-              ★ {inHand ? 'If you search the shoreline: ' : 'Best beach-search window: '}around low tide ({formatTime(
-                data.tides.nextLow.time
-              )}). Widest exposed sand + easiest to scan the wrack line.
+              ★ {inHand ? 'If you search the beach: ' : 'Best beach-search window: '}around low tide ({formatTime(
+                beach.low.time
+              )}{beach.station ? `, ${beach.station}` : ''}). Widest exposed sand + easiest to scan the wrack line.
             </div>
           )}
           {afloat && (
@@ -341,6 +371,15 @@ function TidesSection({ data, loading, afloat = false, inHand = false }: { data:
           <div className="text-xs text-muted opacity-70">
             Station: {data.tides.station} ({data.tides.stationDistanceKm.toFixed(1)} km away)
           </div>
+          {data.tides.alternate && (
+            <div className="text-xs text-muted mt-1 border-t border-border pt-1">
+              Two tides meet here. {data.tides.regime === 'sheltered' ? 'The figures above are the sheltered side' : 'The figures above are the open coast'};{' '}
+              {data.tides.alternate.regime === 'open' ? 'the open coast' : 'the sheltered side'} runs{' '}
+              {data.tides.alternate.tidalRange !== null ? `${data.tides.alternate.tidalRange.toFixed(1)} ft` : 'a different range'}
+              {data.tides.alternate.nextLow ? `, next low ${formatTime(data.tides.alternate.nextLow.time)}` : ''}{' '}
+              ({data.tides.alternate.station}, {data.tides.alternate.stationDistanceKm.toFixed(1)} km). Use the tide for the shore you are searching.
+            </div>
+          )}
         </div>
       ) : (
         <div className="text-sm text-muted">

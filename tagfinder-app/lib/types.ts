@@ -1154,6 +1154,16 @@ export interface EnvironmentData {
     tidalRange: number | null; // feet, difference between next H and next L
     station: string;
     stationDistanceKm: number;
+    /** 'sheltered' under 0.6 ft of range, 'open' from 1.5 ft. */
+    regime?: 'sheltered' | 'open' | 'mixed' | null;
+    /** The nearest station of the other regime within 30 km: the other side of a barrier island. */
+    alternate?: {
+      station: string;
+      stationDistanceKm: number;
+      tidalRange: number | null;
+      nextLow: { time: Date; height: number } | null;
+      regime: 'sheltered' | 'open' | 'mixed';
+    } | null;
   } | null;
   location: {
     name: string; // e.g., "<Headland>, <Parish>, <State>"

@@ -1,3 +1,4 @@
+import { effectiveRelease } from '@/lib/release';
 import type { LightCurve, LightAnalysis, LightPattern, DeploySummary } from '@/lib/types';
 
 /**
@@ -34,7 +35,7 @@ export function analyzeLightLevel(
     };
   }
 
-  const releaseTime = summary?.releaseDate?.getTime() ?? null;
+  const releaseTime = effectiveRelease(summary)?.getTime() ?? null;
 
   if (releaseTime === null) {
     return {

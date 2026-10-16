@@ -34,95 +34,45 @@ export async function GET(request: NextRequest) {
     const stationList = stations?.stations || [];
 
     // Find nearest station
-    let nearest: { id: string; name: string; dist: number } | null = null;
-    for (const s of stationList) {
-      const d = haversineKm(lat, lon, s.lat, s.lng);
-      if (!nearest || d < nearest.dist) {
-        nearest = { id: s.id, name: s.name, dist: d };
-      }
-    }
-
-    // If nearest station is > 100km away, tides aren't relevant
-    const n: { id: string; name: string; dist: number } | null = nearest;
-    if (!n || n.dist > 100) {
+    const ranked = (stationList as { id: string; name: string; lat: number; lng: number }[])
+      .map((s) => ({ id: s.id, name: s.name, dist: haversineKm(lat, lon, s.lat, s.lng) }))
+      .sort((a, b) => a.dist - b.dist);
+    const nearest = ranked[0];
+    if (!nearest || nearest.dist > 100) {
       return NextResponse.json(
-        { available: false, reason: 'no_nearby_station', nearestKm: n?.dist ?? null },
+        { available: false, reason: 'no_nearby_station', nearestKm: nearest?.dist ?? null },
         { status: 200 }
       );
     }
-    nearest = n;
 
-    // Get today's + tomorrow's predictions
-    const today = new Date();
-    const tomorrow = new Date(today.getTime() + 48 * 60 * 60 * 1000);
-    const fmt = (d: Date) =>
-      `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}${String(d.getUTCDate()).padStart(2, '0')}`;
-
-    const predUrl = `https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?begin_date=${fmt(today)}&end_date=${fmt(tomorrow)}&station=${nearest.id}&product=predictions&datum=MLLW&time_zone=gmt&interval=hilo&units=english&format=json`;
-    const predRes = await fetch(predUrl, {
-      signal: AbortSignal.timeout(5000),
-      headers: { 'User-Agent': UA },
-    });
-    if (!predRes.ok) {
+    const primary = await tideAt(nearest);
+    if (!primary) {
       return NextResponse.json({ available: false, reason: 'predictions_unavailable' }, { status: 200 });
     }
 
-    const preds = await predRes.json();
-    const rawEvents: { t: string; v: string; type: 'H' | 'L' }[] = preds?.predictions || [];
-
-    // NOAA writes "2026-04-13 10:26" (space, no T). Parsed strictly rather than
-    // handed to `new Date`, which accepts nonsense and returns 2000-01-01 for
-    // it — see parseTimestamp. Each event is screened on its own so a single
-    // malformed row costs that row, not the whole panel: anything thrown here
-    // is caught below and downgrades the entire response to available:false.
-    const now = Date.now();
-    const events = rawEvents.flatMap((e) => {
-      const timestamp = parseTimestamp(e.t).getTime();
-      const height = parseFloat(e.v);
-      if (!Number.isFinite(timestamp) || !Number.isFinite(height)) return [];
-      return [{ timestamp, iso: new Date(timestamp).toISOString(), height, type: e.type }];
-    });
-
-    const upcoming = events
-      .filter((e) => e.timestamp > now)
-      .sort((a, b) => a.timestamp - b.timestamp);
-
-    const nextHigh = upcoming.find((e) => e.type === 'H');
-    const nextLow = upcoming.find((e) => e.type === 'L');
-
-    // Find the most recent PAST event to determine current state
-    const past = events
-      .filter((e) => e.timestamp <= now)
-      .sort((a, b) => b.timestamp - a.timestamp);
-    const lastEvent = past[0];
-    const nextEvent = upcoming[0];
-
-    let current: 'rising' | 'falling' | 'high' | 'low' | 'unknown' = 'unknown';
-    if (lastEvent && nextEvent) {
-      // Tide is heading toward nextEvent — if next is H we're rising, if next is L we're falling
-      current = nextEvent.type === 'H' ? 'rising' : 'falling';
-    } else if (nextEvent) {
-      // No past data but we have upcoming
-      current = nextEvent.type === 'H' ? 'falling' : 'rising';
+    // A barrier island has two tides: the open coast on one side, a sound or
+    // lagoon of a few inches on the other. Nearest-station picked the Pamlico
+    // Sound (0.3 ft) for an oceanfront campground at Waves, NC, and the Indian
+    // River Lagoon (0.2 ft) for a tag 600 m from the Atlantic at Melbourne
+    // Beach. Which side a tag is on is not something the tide route can know,
+    // so when the stations around it belong to different regimes, both are
+    // returned and labelled, and the reader uses the one for the shore they
+    // search.
+    let alternate: Awaited<ReturnType<typeof tideAt>> = null;
+    if (primary.tidalRange !== null) {
+      const want = regimeOf(primary.tidalRange, primary.station) === 'sheltered' ? 'open' : 'sheltered';
+      for (const st of ranked.slice(1, 6).filter((r) => r.dist <= ALTERNATE_MAX_KM)) {
+        const t = await tideAt(st);
+        if (t && t.tidalRange !== null && regimeOf(t.tidalRange, t.station) === want) { alternate = t; break; }
+      }
     }
-
-    // Tidal range (difference between next high and next low)
-    const tidalRange =
-      nextHigh && nextLow ? Math.abs(nextHigh.height - nextLow.height) : null;
 
     return NextResponse.json(
       {
         available: true,
-        current,
-        nextHigh: nextHigh ? { time: nextHigh.iso, height: nextHigh.height } : null,
-        nextLow: nextLow ? { time: nextLow.iso, height: nextLow.height } : null,
-        lastEvent: lastEvent
-          ? { time: lastEvent.iso, height: lastEvent.height, type: lastEvent.type }
-          : null,
-        tidalRange,
-        station: nearest.name,
-        stationId: nearest.id,
-        stationDistanceKm: nearest.dist,
+        ...primary,
+        regime: primary.tidalRange !== null ? regimeOf(primary.tidalRange, primary.station) : null,
+        alternate: alternate ? { ...alternate, regime: regimeOf(alternate.tidalRange!, alternate.station) } : null,
       },
       { headers: { 'Cache-Control': 'public, max-age=600, s-maxage=600' } }
     );
@@ -140,4 +90,72 @@ function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): nu
     Math.sin(dLat / 2) ** 2 +
     Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+/** Range (ft) below which a station is sheltered water, and at or above which it is open coast. */
+const SHELTERED_MAX_FT = 0.6;
+const OPEN_MIN_FT = 1.5;
+/** How far to look for a station of the other regime. */
+const ALTERNATE_MAX_KM = 30;
+
+/**
+ * NOAA names a station by its water body, and inside water is not always
+ * small water: Palm Valley on the ICWW runs 3.7 ft, more than the Atlantic
+ * beach 6 km east at Ponte Vedra, but on its own timing. A name that places
+ * the station inside counts as sheltered whatever its range.
+ */
+const INSIDE_WATER = /\b(inside|ICWW|Intracoastal|Sound|River|Lagoon|Lake|Creek|Causeway|Bayou|Bay|Harbou?r|Marsh|Canal)\b/i;
+
+/** NOAA names read "Place, Water body"; the water body is what to judge. "Boynton Beach, Lake Worth" is the lagoon. */
+function waterBodyOf(name: string): string {
+  const i = name.lastIndexOf(',');
+  return i >= 0 ? name.slice(i + 1) : name;
+}
+
+function regimeOf(rangeFt: number, name: string): 'sheltered' | 'open' | 'mixed' {
+  const body = waterBodyOf(name);
+  if (/\(ocean\)|\bocean\b|atlantic|gulf of/i.test(body)) return 'open';
+  if (INSIDE_WATER.test(body) || rangeFt < SHELTERED_MAX_FT) return 'sheltered';
+  return rangeFt >= OPEN_MIN_FT ? 'open' : 'mixed';
+}
+
+async function tideAt(st: { id: string; name: string; dist: number }) {
+  const today = new Date();
+  const later = new Date(today.getTime() + 48 * 60 * 60 * 1000);
+  const fmt = (d: Date) =>
+    `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}${String(d.getUTCDate()).padStart(2, '0')}`;
+  const predUrl = `https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?begin_date=${fmt(today)}&end_date=${fmt(later)}&station=${st.id}&product=predictions&datum=MLLW&time_zone=gmt&interval=hilo&units=english&format=json`;
+  const predRes = await fetch(predUrl, { signal: AbortSignal.timeout(5000), headers: { 'User-Agent': UA } }).catch(() => null);
+  if (!predRes || !predRes.ok) return null;
+  const preds = await predRes.json();
+  const rawEvents: { t: string; v: string; type: 'H' | 'L' }[] = preds?.predictions || [];
+
+  const now = Date.now();
+  const events = rawEvents.flatMap((e) => {
+    const timestamp = parseTimestamp(e.t).getTime();
+    const height = parseFloat(e.v);
+    if (!Number.isFinite(timestamp) || !Number.isFinite(height)) return [];
+    return [{ timestamp, iso: new Date(timestamp).toISOString(), height, type: e.type }];
+  });
+  const upcoming = events.filter((e) => e.timestamp > now).sort((a, b) => a.timestamp - b.timestamp);
+  const nextHigh = upcoming.find((e) => e.type === 'H');
+  const nextLow = upcoming.find((e) => e.type === 'L');
+  const past = events.filter((e) => e.timestamp <= now).sort((a, b) => b.timestamp - a.timestamp);
+  const lastEvent = past[0];
+  const nextEvent = upcoming[0];
+
+  let current: 'rising' | 'falling' | 'high' | 'low' | 'unknown' = 'unknown';
+  if (lastEvent && nextEvent) current = nextEvent.type === 'H' ? 'rising' : 'falling';
+  else if (nextEvent) current = nextEvent.type === 'H' ? 'falling' : 'rising';
+
+  return {
+    current,
+    nextHigh: nextHigh ? { time: nextHigh.iso, height: nextHigh.height } : null,
+    nextLow: nextLow ? { time: nextLow.iso, height: nextLow.height } : null,
+    lastEvent: lastEvent ? { time: lastEvent.iso, height: lastEvent.height, type: lastEvent.type } : null,
+    tidalRange: nextHigh && nextLow ? Math.abs(nextHigh.height - nextLow.height) : null,
+    station: st.name,
+    stationId: st.id,
+    stationDistanceKm: st.dist,
+  };
 }
