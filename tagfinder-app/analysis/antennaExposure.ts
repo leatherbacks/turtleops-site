@@ -286,7 +286,7 @@ export function analyzeAntennaExposure(passes: AnnotatedPass[], rate: ExposureRa
     const best = rates.reduce((a, b) => (a.rate > b.rate ? a : b));
     reasoning = `Reception is strongly directional: ${(best.rate * 100).toFixed(0)}% of passes from the ${best.q} are heard against ${(worst.rate * 100).toFixed(0)}% from the ${worst.q}. Something solid stands between the tag and the ${worst.q} — a seawall, bank, hull, piling, vegetation or the object it is resting against. Search that side first, and expect a receiver to go quiet when the tag is between you and the obstruction.`;
   } else if (received.length / passes.length > 0.3 && thinPasses(rate)) {
-    pattern = 'unknown';
+    pattern = 'covered_all_round';
     confidence = 0.5;
     const r = rate!;
     reasoning = `Passes are heard about evenly from every direction and elevation, so nothing screens one side — but each carries only ${r.messagesPerPass!.toFixed(1)} messages` +

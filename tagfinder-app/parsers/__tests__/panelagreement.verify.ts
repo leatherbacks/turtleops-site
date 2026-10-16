@@ -20,6 +20,7 @@ import { parseArgos } from '@/parsers/wc/argos';
 import { parseStatus } from '@/parsers/wc/status';
 import { parseSummary } from '@/parsers/wc/summary';
 import type { AnnotatedPass } from '@/lib/types';
+import { findContradiction } from '@/lib/briefGuard';
 
 let pass = 0, fail = 0;
 const chk = (label: string, ok: boolean, detail = '') => {
@@ -36,9 +37,22 @@ console.log('\n== SKY VIEW: EVEN SKY, THIN PASSES ==');
   const bare = analyzeAntennaExposure(even);
   chk('without a message rate: clear, as before', bare.pattern === 'clear', bare.pattern);
   const thin = analyzeAntennaExposure(even, { messagesPerPass: 2.4, baselineMessagesPerPass: 7.7 });
-  chk('2.4 a pass against 7.7 afloat: not "exposed"', thin.pattern !== 'clear' && /cover all round/.test(thin.reasoning), thin.pattern);
+  chk('2.4 a pass against 7.7 afloat: covered all round, shown', thin.pattern === 'covered_all_round' && /cover all round/.test(thin.reasoning), thin.pattern);
   const full = analyzeAntennaExposure(even, { messagesPerPass: 7.1, baselineMessagesPerPass: 7.7 });
   chk('7.1 against 7.7: still clear', full.pattern === 'clear', full.pattern);
+}
+
+console.log('\n== BRIEF GUARD: NEGATED CLAIMS ==');
+{
+  const ashore = { tagState: { phase: 'likely_recovered' } };
+  const real =
+    "**Headline: the tag is OUT OF THE WATER and almost certainly in somebody's possession — it is sitting at a residence. Do not plan a boat.**\n\n" +
+    'The tag is not afloat and is not drifting. It stopped dead on 14 October at 21:49 UTC and has not moved since.';
+  chk('33938 16 Oct brief ("is not afloat"): no contradiction', findContradiction(real, ashore) === null, String(findContradiction(real, ashore)));
+  chk('"the tag is afloat": contradiction', findContradiction('Headline: the tag is afloat off the beach.', ashore) !== null);
+  chk('"no longer afloat, but search by boat": still caught', findContradiction('It is no longer afloat. Search by boat at first light.', ashore) !== null);
+  const afloat = { tagState: { phase: 'surface' } };
+  chk('"not stranded" with an afloat verdict: no contradiction', findContradiction('The tag is not stranded; it floats 2 km off.', afloat) === null);
 }
 
 const dir = process.env.HOME && resolve(process.env.HOME, 'Documents/Apps/tagfinder/data/wc-33938-2026-10-16');

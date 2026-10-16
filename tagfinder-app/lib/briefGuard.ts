@@ -122,6 +122,23 @@ ${rule}
 const ASHORE_CLAIMS = /\b(afloat|at sea|open water|over (about |roughly )?\d+ ?m of water|drifting at the surface|riding the surface|search by boat|vessel search|still in (the )?water)\b/i;
 const AFLOAT_CLAIMS = /\b(stranded|ashore|beached|washed up|on (the )?(beach|sand|land)|buried|indoors|on a windowsill)\b/i;
 
+/**
+ * The first claim in the text that is not negated. "The tag is not afloat and
+ * is not drifting" agrees with an ashore verdict; on 33938 (16 Oct) the guard
+ * read it as calling the tag afloat, spent a rewrite on it, and prepended a
+ * contradiction notice to a brief that was right.
+ */
+const NEGATION = /\b(not|no longer|never|isn't|is not|nor|rather than|instead of|don't|do not|no)\s+(?:\S+\s+){0,2}$/i;
+function firstClaim(re: RegExp, text: string): RegExpExecArray | null {
+  const g = new RegExp(re.source, re.flags.includes('g') ? re.flags : re.flags + 'g');
+  for (let m = g.exec(text); m; m = g.exec(text)) {
+    // Only words in the same sentence can negate the claim.
+    const before = text.slice(Math.max(0, m.index - 40), m.index).split(/[.!?;:\n]/).pop() ?? '';
+    if (!NEGATION.test(before)) return m;
+  }
+  return null;
+}
+
 /** The brief's opening — headline and first paragraph — is what gets acted on. */
 function opening(brief: string): string {
   const paras = brief.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
@@ -136,11 +153,11 @@ export function findContradiction(brief: string, analysis: unknown): string | nu
   const phase = str(rec(rec(analysis).tagState).phase) ?? 'unknown';
   const head = opening(brief);
   if (ASHORE_PHASES.has(phase)) {
-    const m = ASHORE_CLAIMS.exec(head);
+    const m = firstClaim(ASHORE_CLAIMS, head);
     if (m) return `The computed tag state is ${phase.toUpperCase()} (out of the water), but the brief opens by calling the tag "${m[0]}".`;
   }
   if (AFLOAT_PHASES.has(phase)) {
-    const m = AFLOAT_CLAIMS.exec(head);
+    const m = firstClaim(AFLOAT_CLAIMS, head);
     if (m) return `The computed tag state is ${phase.toUpperCase()} (in the water), but the brief opens by calling the tag "${m[0]}".`;
   }
   return null;

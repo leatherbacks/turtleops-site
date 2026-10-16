@@ -208,7 +208,7 @@ function windowNote(since: Date | null, perPass: number, baseline: number | null
   if (baseline === null) return ` Judged since ${when} UTC, when the tag stopped moving.`;
   const pct = Math.round((100 * perPass) / baseline);
   return (
-    ` Judged since ${when} UTC, when the tag stopped moving. Before that, adrift, the same tag sent ` +
+    ` Judged since ${when} UTC, when the tag stopped moving. Before that the same tag sent ` +
     `${baseline.toFixed(1)} a pass; it is now sending ${pct}% of that` +
     (perPass < BASELINE_DROP_FRACTION * baseline ? ', a drop no open sky explains.' : '.')
   );

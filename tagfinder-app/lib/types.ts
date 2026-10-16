@@ -889,6 +889,7 @@ export type ExposurePattern =
   | 'horizon_obstructed' // Only mid/high elevations work — horizon blocked all around
   | 'narrow_cone'        // Only very high elevations work — tiny sky window
   | 'directional'        // Received passes cluster in one compass direction
+  | 'covered_all_round'  // Heard evenly from every side, but each pass carries few messages
   | 'too_few_passes'     // Not enough data to conclude
   | 'unknown';
 
