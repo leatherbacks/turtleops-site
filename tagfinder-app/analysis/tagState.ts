@@ -172,7 +172,7 @@ export function analyzeTagState(
   // Status.csv readings are exempt — a tag self-reporting status is describing
   // itself, not the animal. This mirrors the guard tempComparison and
   // burialDetection already apply.
-  const hasReleaseDate = Boolean(summary?.releaseDate);
+  const hasReleaseDate = Boolean(effectiveRelease);
   if (!hasReleaseDate && statuses.length === 0 && series && series.length > 0) {
     return {
       // 0 reports used — the series exists but none of it could be attributed
@@ -196,7 +196,7 @@ export function analyzeTagState(
 
   // For PSAT tags, filter Series readings to post-release-date only.
   // Pre-release readings reflect animal diving behavior, not current tag state.
-  const postReleaseCutoff = summary?.releaseDate?.getTime() ?? 0;
+  const postReleaseCutoff = effectiveRelease?.getTime() ?? 0;
   if (series && series.length > 0) {
     for (const r of series) {
       if (r.date.getTime() < postReleaseCutoff) continue;

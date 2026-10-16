@@ -26,6 +26,7 @@ import { parseLocations } from '@/parsers/wc/locations';
 import { parseArgos } from '@/parsers/wc/argos';
 import { parseStatus } from '@/parsers/wc/status';
 import { parseSummary } from '@/parsers/wc/summary';
+import { parseSeries } from '@/parsers/wc/series';
 import { parseArgosMessages } from '@/parsers/argos/messages';
 import { haversineKm } from '@/lib/haversine';
 import type { ArgosFix, ArgosPass, DeploySummary, TagStatus } from '@/lib/types';
@@ -100,6 +101,25 @@ for (const name of ['wc-33938-2026-10-15', 'wc-33938-2026-10-16']) {
   chk('antenna not called clear', r.rq.verdict !== 'clear', r.rq.verdict);
   chk('afloat baseline above 6 a pass', (r.rq.baselineMessagesPerPass ?? 0) > 6, `${r.rq.baselineMessagesPerPass}`);
   chk('tag state does not carry the stale "in surf"', !['surface', 'partially_submerged', 'submerged'].includes(r.ts.phase), r.ts.phase);
+}
+
+const wc285927 = dataDir('wc-285927');
+if (wc285927) {
+  console.log('\n== MiniPAT 285927 — PADRE ISLAND, FOUND ==');
+  const fixes = parseLocations(csv(resolve(wc285927, '285927-Locations.csv')));
+  const r = run(fixes, parseArgos(csv(resolve(wc285927, '285927-Argos.csv'))), [], null);
+  report(r);
+  const q3 = r.pos.basis.find((f) => f.quality === '3');
+  chk('the class 3 (306 × 66 m) is in the position', !!q3);
+  const d = haversineKm(r.pos.lat, r.pos.lon, 27.58633, -97.22134);
+  chk('position within 0.5 km of the class 3, not on the 3.9 km class 2', d < 0.5, `${d.toFixed(2)} km`);
+  // Found buried flat in the sand. The export has no ReleaseDate; the parser
+  // infers one from transmission starting after the archive ended.
+  const summary = parseSummary(csv(resolve(wc285927, '285927-Summary.csv')));
+  chk('release inferred from the record', summary?.inferredReleaseDate?.toISOString() === '2026-04-01T01:20:00.000Z');
+  const env = { elevation: { meters: 1.88, classification: 'land', source: 'test' }, location: { name: 'Nueces County, TX', place: { name: 'Access Raod 5', kind: 'road', category: 'highway', type: 'service' } } } as never;
+  const st = analyzeTagState([], summary, env, parseSeries(csv(resolve(wc285927, '285927-Series.csv'))), null, fixes, r.rq, null, null, null);
+  chk('tag state: buried, as found', st.phase === 'buried', st.phase);
 }
 
 const wc40996 = dataDir('wc-40996-2026-10-02');

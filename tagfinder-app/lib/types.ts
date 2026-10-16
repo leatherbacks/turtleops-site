@@ -889,6 +889,7 @@ export type ExposurePattern =
   | 'horizon_obstructed' // Only mid/high elevations work — horizon blocked all around
   | 'narrow_cone'        // Only very high elevations work — tiny sky window
   | 'directional'        // Received passes cluster in one compass direction
+  | 'covered_all_round'  // Heard evenly from every side, but each pass carries few messages
   | 'too_few_passes'     // Not enough data to conclude
   | 'unknown';
 
@@ -1153,6 +1154,16 @@ export interface EnvironmentData {
     tidalRange: number | null; // feet, difference between next H and next L
     station: string;
     stationDistanceKm: number;
+    /** 'sheltered' under 0.6 ft of range, 'open' from 1.5 ft. */
+    regime?: 'sheltered' | 'open' | 'mixed' | null;
+    /** The nearest station of the other regime within 30 km: the other side of a barrier island. */
+    alternate?: {
+      station: string;
+      stationDistanceKm: number;
+      tidalRange: number | null;
+      nextLow: { time: Date; height: number } | null;
+      regime: 'sheltered' | 'open' | 'mixed';
+    } | null;
   } | null;
   location: {
     name: string; // e.g., "<Headland>, <Parish>, <State>"

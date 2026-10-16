@@ -1,3 +1,4 @@
+import { effectiveRelease } from '@/lib/release';
 import { useState, useCallback } from 'react';
 import type {
   AnalysisResult,
@@ -641,7 +642,7 @@ export function useAnalysis(): UseAnalysisReturn {
       // projection then sends a boat after a tag lying on sand. The grounding
       // check reads the passes that kept arriving after the fixes stopped.
       const grounding =
-        passes.length > 0 ? detectGrounding(workingFixes, passes, summary?.releaseDate ?? null) : null;
+        passes.length > 0 ? detectGrounding(workingFixes, passes, effectiveRelease(summary)) : null;
       const grounded = grounding?.verdict === 'grounded';
       if (grounded) {
         const since = grounding!.groundedSince?.toISOString().slice(0, 16).replace('T', ' ') ?? 'the last fix';

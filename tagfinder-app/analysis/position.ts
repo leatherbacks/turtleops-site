@@ -1,6 +1,5 @@
 import type { ArgosFix, DriftLabel } from '@/lib/types';
 import { getPositionFixes } from './quality';
-import { haversineKm } from '@/lib/haversine';
 
 /** Window treated as "the tag has not meaningfully moved" for a drifting tag. */
 const DRIFT_POSITION_WINDOW_HOURS = 2;
@@ -30,8 +29,9 @@ const DRIFT_FALLBACK_MAX_HOURS = 6;
  * into a point 13 km out at sea on the 13 Oct track, where the tag had been for
  * an hour. The stopped tag's fixes are the ones that agree with the newest
  * fixes: walking back from the newest, a fix joins while it sits within
- * CLUSTER_SIGMA of its own error (plus CLUSTER_FLOOR_KM) of the cluster's
- * weighted centre, and the first fix that does not is where the tag stopped.
+ * CLUSTER_SIGMA of the cluster's centre, measured with both error ellipses
+ * (each floored at CLUSTER_FLOOR_KM), and two disagreeing fixes in a row are
+ * where the tag stopped.
  * On 33938 that drops the class 2 fix 1.9 km offshore 95 minutes before
  * landfall and keeps all seven position fixes from the island.
  */
@@ -108,15 +108,66 @@ export function stoppedCluster(positionFixes: ArgosFix[]): ArgosFix[] {
     .filter((f) => !isNaN(f.date.getTime()))
     .sort((a, b) => a.date.getTime() - b.date.getTime());
   if (dated.length === 0) return positionFixes;
-  const cluster = [dated[dated.length - 1]];
+  // Agreement is judged with the full error ellipses, of the fix and of the
+  // cluster so far. A radius alone got MiniPAT 285927 wrong: its newest fix
+  // was a class 2 stretched 3.9 km east–west, and the class 3 1.5 km west of
+  // it (306 × 66 m) failed a test sized by its own small radius, so the
+  // headline sat on the class 2. Offsets along a long ellipse are cheap,
+  // offsets across it are not: 33938's last class 2 afloat, 1.9 km east of
+  // the island cluster, lies across its ellipse and stays out.
+  const o = dated[dated.length - 1];
+  const kx = 111.32 * Math.cos((o.latitude * Math.PI) / 180), ky = 110.95;
+  const xy = (f: ArgosFix): [number, number] => [(f.longitude - o.longitude) * kx, (f.latitude - o.latitude) * ky];
+  const cluster = [o];
+  let info = inv(covOf(o)), infoX = mulv(info, xy(o));
+  let misses = 0;
   for (let i = dated.length - 2; i >= 0; i--) {
     const f = dated[i];
-    const c = weightedMean(cluster);
-    const errKm = Number.isFinite(f.effectiveError) ? f.effectiveError / 1000 : 0;
-    if (haversineKm(f.latitude, f.longitude, c.lat, c.lon) > CLUSTER_SIGMA * errKm + CLUSTER_FLOOR_KM) break;
+    const cc = inv(info);
+    const mu = mulv(cc, infoX);
+    const [x, y] = xy(f);
+    const d: [number, number] = [x - mu[0], y - mu[1]];
+    const S = add(covOf(f), cc);
+    const Si = inv(S);
+    const m2 = d[0] * (Si[0] * d[0] + Si[1] * d[1]) + d[1] * (Si[2] * d[0] + Si[3] * d[1]);
+    if (Math.sqrt(m2) > CLUSTER_SIGMA) {
+      if (++misses >= 2) break;
+      continue;
+    }
+    misses = 0;
     cluster.push(f);
+    const fi = inv(covOf(f));
+    info = add(info, fi);
+    const fx = mulv(fi, [x, y]);
+    infoX = [infoX[0] + fx[0], infoX[1] + fx[1]];
   }
   return cluster.reverse();
+}
+
+type M2 = [number, number, number, number]; // row-major 2×2
+/** A fix's error covariance in km², east/north, from its CLS ellipse where it has one. */
+function covOf(f: ArgosFix): M2 {
+  const fl = CLUSTER_FLOOR_KM / CLUSTER_SIGMA; // floor, so tight fixes still allow CLUSTER_FLOOR_KM
+  if (f.semiMajor > 0 && f.semiMinor > 0) {
+    const a = f.semiMajor / 1000, b = f.semiMinor / 1000, t = (f.orientation * Math.PI) / 180;
+    const u = [Math.sin(t), Math.cos(t)], v = [Math.cos(t), -Math.sin(t)];
+    return [
+      a * a * u[0] * u[0] + b * b * v[0] * v[0] + fl * fl, a * a * u[0] * u[1] + b * b * v[0] * v[1],
+      a * a * u[0] * u[1] + b * b * v[0] * v[1], a * a * u[1] * u[1] + b * b * v[1] * v[1] + fl * fl,
+    ];
+  }
+  const e = (Number.isFinite(f.effectiveError) ? f.effectiveError : 0) / 1000;
+  return [e * e + fl * fl, 0, 0, e * e + fl * fl];
+}
+function inv(m: M2): M2 {
+  const det = m[0] * m[3] - m[1] * m[2];
+  return [m[3] / det, -m[1] / det, -m[2] / det, m[0] / det];
+}
+function add(a: M2, b: M2): M2 {
+  return [a[0] + b[0], a[1] + b[1], a[2] + b[2], a[3] + b[3]];
+}
+function mulv(m: M2, v: [number, number]): [number, number] {
+  return [m[0] * v[0] + m[1] * v[1], m[2] * v[0] + m[3] * v[1]];
 }
 
 function weightedMean(fixes: ArgosFix[]): { lat: number; lon: number } {

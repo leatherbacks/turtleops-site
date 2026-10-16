@@ -1,5 +1,6 @@
 'use client';
 
+import { effectiveRelease } from '@/lib/release';
 import dynamic from 'next/dynamic';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAnalysis } from '@/hooks/useAnalysis';
@@ -112,7 +113,7 @@ export default function TagFinderPage() {
   // depth explains the temperature and a comparison against surface water
   // means nothing.
   const postReleaseTemps = useMemo(() => {
-    const release = result?.summary?.releaseDate?.getTime() ?? null;
+    const release = effectiveRelease(result?.summary)?.getTime() ?? null;
     return series
       .filter(
         (s) =>
@@ -121,7 +122,7 @@ export default function TagFinderPage() {
           (release === null || s.date.getTime() >= release)
       )
       .map((s) => ({ date: s.date, temperatureC: s.temperature as number }));
-  }, [series, result?.summary?.releaseDate]);
+  }, [series, result?.summary]);
 
   const waterMatch = useWaterMatch(
     postReleaseTemps,
@@ -419,7 +420,8 @@ export default function TagFinderPage() {
         sstTempC: latestSST,
       },
       dailySummaries,
-      histograms
+      histograms,
+      restingSinceOf(result.allFixes)
     );
   }, [result, series, statuses, envData.weather, dailySummaries, histograms]);
 
@@ -428,7 +430,7 @@ export default function TagFinderPage() {
   // of; the brief is told the same so it does not read a week-old "in water"
   // as the present.
   const sensorAge = useMemo(
-    () => (result ? sensorDataAge(series, statuses, result.summary?.releaseDate, result.allFixes) : null),
+    () => (result ? sensorDataAge(series, statuses, effectiveRelease(result.summary), result.allFixes) : null),
     [result, series, statuses]
   );
 
@@ -1061,6 +1063,10 @@ export default function TagFinderPage() {
                   loading={envLoading}
                   afloat={displayResult.driftPrediction !== null}
                   inHand={displayResult.tagState?.phase === 'likely_recovered'}
+                  dataAgeDays={(() => {
+                    const t = displayResult.allFixes.reduce((m, f) => Math.max(m, f.date.getTime()), -Infinity);
+                    return Number.isFinite(t) ? (Date.now() - t) / 86_400_000 : null;
+                  })()}
                 />
 
                 {/* Dive profile (if we have Series data) */}

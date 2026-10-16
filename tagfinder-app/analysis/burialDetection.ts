@@ -1,3 +1,4 @@
+import { effectiveRelease } from '@/lib/release';
 import type {
   SeriesReading,
   TagStatus,
@@ -47,9 +48,18 @@ export function detectBurial(
   /** Time-At-Depth histograms from Histos.csv. When post-release TAD rows
    *  show ~100% of the day in Bin 1 (depth 0–1 m), the tag has been
    *  continuously dry — strong corroboration for beach burial vs floating. */
-  histograms: HistogramSet | null = null
+  histograms: HistogramSet | null = null,
+  /**
+   * When the tag stopped. Readings before it describe the drift: MiniPAT
+   * 285931's only full days of readings were its first four afloat after
+   * release (1.2 °C swing, water), and this panel read them as "buried in
+   * sand" for a tag that later swung 5 °C to 24 °C in a day on an open
+   * Louisiana beach.
+   */
+  since: Date | null = null
 ): BurialDetection {
-  const releaseTime = summary?.releaseDate?.getTime() ?? null;
+  const release = effectiveRelease(summary)?.getTime() ?? null;
+  const releaseTime = release === null ? null : Math.max(release, since ? since.getTime() : -Infinity);
 
   if (releaseTime === null) {
     return {
@@ -148,6 +158,25 @@ export function detectBurial(
   }
 
   if (windows.length < 2) {
+    // Sparse readings can understate a day's swing but never overstate it, so
+    // two or three status messages a day that already span 10 °C prove a tag
+    // in the open, even where they are too few to prove one buried.
+    const sparse = sparseWindows(readings);
+    const big = sparse.filter((w) => w.amp > HIGH_AMPLITUDE_C);
+    if (big.length >= 2) {
+      const amp = median(big.map((w) => w.amp));
+      return {
+        verdict: 'surface_exposed',
+        reasoning:
+          `Only ${readings.length} readings${since ? ' since the tag stopped' : ''}, too sparse for a full diel curve, but they already swing ` +
+          `${amp.toFixed(1)} °C within a day on ${big.length} days (${Math.min(...readings.map((r) => r.temp)).toFixed(1)}–${Math.max(...readings.map((r) => r.temp)).toFixed(1)} °C). ` +
+          `Sparse sampling can only understate a swing, so this is a tag exposed to sun and night air. Not buried, not in water.`,
+        medianDielAmplitudeC: Number(amp.toFixed(2)),
+        medianTempC: median(readings.map((r) => r.temp)),
+        windowsAnalyzed: big.length,
+        confidence: 0.75,
+      };
+    }
     return {
       verdict: 'insufficient',
       reasoning: `Only ${windows.length} full 24-hour window${windows.length === 1 ? '' : 's'} of post-release temperature data — need at least 2 complete days to compute a reliable diel amplitude.`,
@@ -170,7 +199,7 @@ export function detectBurial(
   let confidence: number;
 
   const LOW_AMPLITUDE = 3; // °C — sand signature
-  const HIGH_AMPLITUDE = 5; // °C — surface-exposed signature
+  const HIGH_AMPLITUDE = HIGH_AMPLITUDE_C; // °C — surface-exposed signature
 
   const airDelta =
     sources.airTempC !== null ? Math.abs(medianTemp - sources.airTempC) : null;
@@ -386,4 +415,20 @@ function median(values: number[]): number {
   if (n === 0) return NaN;
   if (n % 2 === 1) return sorted[(n - 1) / 2];
   return (sorted[n / 2 - 1] + sorted[n / 2]) / 2;
+}
+
+const HIGH_AMPLITUDE_C = 5;
+
+/** 24-hour windows with at least three readings over ten hours: enough to bound a swing from below. */
+function sparseWindows(readings: { t: number; temp: number }[]): { amp: number }[] {
+  const out: { amp: number }[] = [];
+  let i = 0;
+  while (i < readings.length) {
+    const start = readings[i].t;
+    const win = readings.filter((r) => r.t >= start && r.t < start + 86_400_000);
+    const spanH = (win[win.length - 1].t - win[0].t) / 3_600_000;
+    if (win.length >= 3 && spanH >= 10) out.push({ amp: Math.max(...win.map((r) => r.temp)) - Math.min(...win.map((r) => r.temp)) });
+    i += win.length;
+  }
+  return out;
 }

@@ -64,6 +64,28 @@ console.log('\n== TOO FEW PASSES TO CONCLUDE ANYTHING ==');
   chk('a 0/2 satellite is NOT written off', c.nonServing.length, 0);
 }
 
+console.log('\n== A SILENT CONSTELLATION ON A SHORT RECORD ==');
+// MiniPAT 40996: two days, twenty Kinéis satellites at four passes each, none
+// heard; METOP and SARAL heard it routinely. Each Kinéis satellite is under the
+// six-pass floor, but together they had eighty chances.
+{
+  const predicted: SatellitePass[] = [];
+  const received: ArgosPass[] = [];
+  let t = 0;
+  const kineis = Array.from({ length: 20 }, (_, i) => `KINEIS-${1 + (i % 5)}${'ABCDE'[Math.floor(i / 5)]}`);
+  for (let i = 0; i < 4; i++) for (const s of kineis) { predicted.push(mkPred(s, t)); t++; }
+  for (let i = 0; i < 6; i++) for (const s of ['METOP-B', 'METOP-C', 'SARAL']) {
+    predicted.push(mkPred(s, t)); if (i % 3 !== 0) received.push(mkRecv(s, t)); t++;
+  }
+  const c = analyzeSatCoverage(predicted, received);
+  chk('the whole silent constellation is excluded', c.nonServing.length, 20);
+  chk('rate from the satellites that serve it', Math.round(c.receptionRate * 100), 67);
+  chk('healthy, not marginal', c.health, 'healthy');
+  // The same constellation, but the tag is heard by nobody: covered, not a roster question.
+  const none = analyzeSatCoverage(predicted, []);
+  chk('nobody hears it: Kinéis not written off', none.nonServing.filter((s) => s.name.startsWith('KINEIS')).length, 0);
+}
+
 console.log('\n== NORMAL SAMPLING SPREAD IS NOT OBSTRUCTION ==');
 // Every satellite has the SAME true reception probability. With ~17 passes each
 // the observed rates still scatter widely — a max-minus-min range test fires on

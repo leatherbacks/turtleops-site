@@ -100,6 +100,19 @@ export function normalizeSatName(name: string): string {
  * heard something.
  */
 const NON_SERVING_MIN_PASSES = 6;
+
+/**
+ * Satellites that share a payload are judged together. On a short record
+ * each Kinéis satellite gets four or five passes, under the floor above, so
+ * MiniPAT 40996's two days counted twenty of them as 0/4 "missed" and read
+ * 13.5% coverage, "marginal", for a tag that every other satellite heard. As
+ * a constellation they had ninety opportunities and heard nothing. Pooled
+ * only when some other satellite did hear the tag in the window: a tag
+ * nobody hears is a covered tag, not a roster question.
+ */
+function constellationOf(name: string): string {
+  return /^KINEIS/i.test(name) ? 'KINEIS' : name;
+}
 /** Standard errors from the overall rate before a satellite counts as odd. */
 const SAT_OUTLIER_SIGMA = 3;
 /** ...and the passes needed before that comparison is worth making. */
@@ -149,8 +162,19 @@ export function analyzeSatCoverage(
   // Satellites that never heard the tag across enough opportunities are not
   // serving it. Drop them from the denominator and from every downstream
   // obstruction judgement, but report them so the exclusion is visible.
+  const pooled = new Map<string, { predicted: number; received: number }>();
+  for (const s of perSat) {
+    const g = pooled.get(constellationOf(s.name)) ?? { predicted: 0, received: 0 };
+    pooled.set(constellationOf(s.name), { predicted: g.predicted + s.predicted, received: g.received + s.received });
+  }
+  const heardAtAll = perSat.some((s) => s.received > 0);
   const nonServing = perSat
-    .filter((s) => s.received === 0 && s.predicted >= NON_SERVING_MIN_PASSES)
+    .filter((s) => {
+      if (s.received !== 0) return false;
+      if (s.predicted >= NON_SERVING_MIN_PASSES) return true;
+      const g = pooled.get(constellationOf(s.name))!;
+      return heardAtAll && constellationOf(s.name) !== s.name && g.received === 0 && g.predicted >= NON_SERVING_MIN_PASSES;
+    })
     .map((s) => ({ name: s.name, predicted: s.predicted }));
   const nonServingNames = new Set(nonServing.map((s) => s.name));
   const servingPerSat = perSat.filter((s) => !nonServingNames.has(s.name));
@@ -297,10 +321,12 @@ function interpretCoverage(
 
   if (nonServing.length > 0) {
     const names = nonServing.map((s) => s.name).join(', ');
+    const total = nonServing.reduce((n, s) => n + s.predicted, 0);
+    const many = nonServing.length > 1;
     bits.push(
-      `${nonServing.length} satellite${nonServing.length > 1 ? 's' : ''} (${names}) never ` +
-        `heard this tag across ${Math.min(...nonServing.map((s) => s.predicted))}+ passes each ` +
-        `and are treated as not carrying it, so they are excluded from the rate above rather ` +
+      `${nonServing.length} satellite${many ? 's' : ''} (${names}) never ` +
+        `heard this tag across ${total} passes${many ? ' between them (constellations judged together)' : ''} ` +
+        `and ${many ? 'are' : 'is'} treated as not carrying it, so ${many ? 'they are' : 'it is'} excluded from the rate above rather ` +
         `than counted as missed.`
     );
   }

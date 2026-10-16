@@ -1,3 +1,4 @@
+import { effectiveRelease } from '@/lib/release';
 import { classifyHeat } from './sunHeat';
 import type {
   SeriesReading,
@@ -51,7 +52,7 @@ export function compareTemperatures(
   summary: DeploySummary | null,
   sources: TempSources
 ): TempComparison {
-  const releaseTime = summary?.releaseDate?.getTime() ?? null;
+  const releaseTime = effectiveRelease(summary)?.getTime() ?? null;
 
   if (releaseTime === null) {
     return {

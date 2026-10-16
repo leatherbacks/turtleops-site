@@ -1,3 +1,4 @@
+import { effectiveRelease } from '@/lib/release';
 import type { SeriesReading, TagStatus, DeploySummary, TidalIntrusion } from '@/lib/types';
 import { screenIsolatedDepths } from './depthScreen';
 
@@ -25,7 +26,7 @@ export function analyzeTidalIntrusion(
    */
   opts: { stoppedAt?: Date | null; drifting?: boolean } = {}
 ): TidalIntrusion | null {
-  const releaseDate = summary?.releaseDate;
+  const releaseDate = effectiveRelease(summary);
   if (!releaseDate) return null;
   const from = Math.max(releaseDate.getTime(), opts.stoppedAt?.getTime() ?? -Infinity);
 
