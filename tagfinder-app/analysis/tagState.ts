@@ -333,6 +333,33 @@ export function analyzeTagState(
       satCoverage.receptionRate < 0.1;
     const obstructedAntenna = reception?.verdict === 'obstructed';
 
+    // Covered, at a house. MiniPAT 33938 read BURIED with its search circle
+    // on a residential lot at Melbourne Beach, beside a light sensor that
+    // went dark 40 minutes after the tag reached the island. Nobody buries a
+    // tag in a yard; a tag carried home from the beach sits indoors, in a bag
+    // or in a car, and covers its antenna just as well. At an inhabited place
+    // the covered antenna is the second signal that someone has it.
+    if (inhabited && (poorReception || obstructedAntenna)) {
+      const evidence = obstructedAntenna
+        ? reception!.reasoning
+        : `Satellite reception is ${(satCoverage!.receptionRate * 100).toFixed(0)}% of predicted passes.`;
+      return {
+        phase: 'likely_recovered',
+        reasoning:
+          `Covered, at ${place!.name ? `${place!.name}, a ${place!.kind}` : `a ${place!.kind}`} (elevation ${elevation.meters.toFixed(1)} m). ${evidence} ` +
+          `A tag in a residential lot is far likelier indoors, in a bag or in a vehicle than buried.${advice ? ` ${advice}` : ''}`,
+        lastDepth,
+        lastTemperature,
+        avgTemperature,
+        tempRange,
+        depthVariability,
+        lastReportDate: mostRecent?.date ?? depthPoints[0]?.date ?? null,
+        reportCount: depthPoints.length,
+        recentDepths,
+        recentTemps,
+      };
+    }
+
     // Screened on ONE side is not covered. 47127's reception was "obstructed"
     // by messages-per-pass, but the sky view showed the sea half heard and
     // the land half not — a 3 m seawall beside it, not sand over it.

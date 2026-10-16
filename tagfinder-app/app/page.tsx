@@ -249,7 +249,16 @@ export default function TagFinderPage() {
           setRestingSince(stoppedAt);
           setSkyEnd(latest);
           setRestingCoverage(resting);
-          setRestingExposure(resting ? analyzeAntennaExposure(resting.passes) : null);
+          setRestingExposure(
+            resting
+              ? analyzeAntennaExposure(
+                  resting.passes,
+                  receptionQuality && receptionQuality.since
+                    ? { messagesPerPass: receptionQuality.messagesPerPass, baselineMessagesPerPass: receptionQuality.baselineMessagesPerPass }
+                    : null
+                )
+              : null
+          );
           // Same TLEs, so this costs nothing extra: recover why each fix is as
           // good or bad as it is, and where its mirror solution actually lies.
           setPassGeometry(analyzePassGeometry(passes, data.entries));
@@ -264,7 +273,7 @@ export default function TagFinderPage() {
     return () => {
       cancelled = true;
     };
-  }, [result, passes]);
+  }, [result, passes, receptionQuality]);
 
   // Walk the predicted drift path and find where it first meets land.
   // One batched elevation request — these routes are rate limited per IP, so
@@ -1051,6 +1060,7 @@ export default function TagFinderPage() {
                   data={envData}
                   loading={envLoading}
                   afloat={displayResult.driftPrediction !== null}
+                  inHand={displayResult.tagState?.phase === 'likely_recovered'}
                 />
 
                 {/* Dive profile (if we have Series data) */}
