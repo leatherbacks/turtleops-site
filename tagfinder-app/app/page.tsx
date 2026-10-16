@@ -134,14 +134,18 @@ export default function TagFinderPage() {
 
   // How much sky the antenna can see, from the received passes alone. Unlike
   // satCoverage this needs no orbital elements, so it still works on a tag whose
-  // transmissions ended months ago — which is every recovered tag.
+  // transmissions ended months ago — which is every recovered tag. Judged since
+  // the tag stopped, against its own rate while afloat: the whole record is
+  // mostly float, and 33938 read "antenna clear" a day after it came ashore.
   const receptionQuality = useMemo(() => {
     if (!result || passes.length === 0) return null;
-    const located = result.allFixes.filter((f) => !f.isOutlier);
+    const since = restingSinceOf(result.allFixes);
+    const located = result.allFixes.filter((f) => !f.isOutlier && (!since || f.date >= since));
     return analyzeReceptionQuality(
       passes,
       located.length,
-      located.map((f) => f.quality)
+      located.map((f) => f.quality),
+      { since }
     );
   }, [result, passes]);
 
@@ -472,6 +476,8 @@ export default function TagFinderPage() {
         bestLat: displayResult.bestLat,
         bestLon: displayResult.bestLon,
         positionMethod: displayResult.positionMethod,
+        positionFixCount: displayResult.positionFixCount,
+        positionSince: displayResult.positionSince,
         primaryRadiusM: displayResult.primaryRadiusM,
         expandedRadiusM: displayResult.expandedRadiusM,
         validFixes: displayResult.validFixes?.map((f) => ({

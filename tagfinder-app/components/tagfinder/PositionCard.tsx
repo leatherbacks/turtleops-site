@@ -132,6 +132,9 @@ export default function PositionCard({ result, hero = false }: PositionCardProps
           {result.positionMethod === 'weighted_mean'
             ? 'Weighted mean'
             : 'Recent fixes only'}
+          {result.positionFixCount && result.positionSince
+            ? ` of ${result.positionFixCount} fix${result.positionFixCount === 1 ? '' : 'es'} since ${new Date(result.positionSince).toISOString().slice(0, 16).replace('T', ' ')} UTC`
+            : ''}
         </span>
         <span>Search radius: {formatDistance(result.primaryRadiusM)}</span>
         <span>

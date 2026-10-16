@@ -56,7 +56,20 @@ export interface ReceptionQuality {
   /** Share of locations at class 1, 2 or 3. */
   qualityFixFraction: number | null;
   reasoning: string;
+  /** Start of the judged window: when the tag stopped, or earlier if that left too few passes. Null = whole record. */
+  since?: Date | null;
+  /** Messages per pass before the window, while the tag was moving. */
+  baselineMessagesPerPass?: number | null;
 }
+
+/**
+ * Below this share of its own afloat rate, a tag is not "clear" whatever the
+ * absolute figure. Absolute thresholds do not carry from tag to tag: afloat,
+ * 33938 sent 7.7 a pass, 47125 5.3 and 47127 1.9. What a cover does is cut the
+ * tag's own rate — 33938 fell to 2.4 ashore, 47125 from 7.1 on open sand to 3.1
+ * on a balcony.
+ */
+const BASELINE_DROP_FRACTION = 0.5;
 
 /**
  * Argos needs four messages in a pass to solve a class 1-3 position, three for
@@ -85,10 +98,26 @@ const QUALITY_CLASSES = ['1', '2', '3'];
 export function analyzeReceptionQuality(
   passes: ArgosPass[],
   locationCount?: number,
-  locationQualities?: string[]
+  locationQualities?: string[],
+  opts: { since?: Date | null } = {}
 ): ReceptionQuality {
-  const dated = passes.filter((p) => !isNaN(p.date.getTime()));
-  const withCounts = dated.filter((p) => Number.isFinite(p.msgCount) && p.msgCount > 0);
+  const dated = passes
+    .filter((p) => !isNaN(p.date.getTime()))
+    .sort((a, b) => a.date.getTime() - b.date.getTime());
+  const counted = dated.filter((p) => Number.isFinite(p.msgCount) && p.msgCount > 0);
+  // The window since the tag stopped, reaching back far enough for MIN_PASSES.
+  let start = 0;
+  if (opts.since) {
+    const t = opts.since.getTime();
+    start = counted.findIndex((p) => p.date.getTime() >= t);
+    if (start < 0) start = counted.length;
+    start = Math.max(0, Math.min(start, counted.length - MIN_PASSES));
+  }
+  const withCounts = counted.slice(start);
+  const before = counted.slice(0, start);
+  const baselineMessagesPerPass =
+    before.length >= MIN_PASSES ? Number((before.reduce((s, p) => s + p.msgCount, 0) / before.length).toFixed(1)) : null;
+  const since = start > 0 ? withCounts[0]?.date ?? null : null;
 
   const base = {
     passes: withCounts.length,
@@ -101,6 +130,8 @@ export function analyzeReceptionQuality(
   if (withCounts.length < MIN_PASSES) {
     return {
       ...base,
+      since,
+      baselineMessagesPerPass,
       verdict: 'insufficient',
       messagesPerPass: withCounts.length
         ? base.totalMessages / withCounts.length
@@ -146,9 +177,14 @@ export function analyzeReceptionQuality(
   } else {
     verdict = 'degraded';
   }
+  const dropped =
+    baselineMessagesPerPass !== null && messagesPerPass < BASELINE_DROP_FRACTION * baselineMessagesPerPass;
+  if (verdict === 'clear' && dropped) verdict = 'degraded';
 
   return {
     ...base,
+    since,
+    baselineMessagesPerPass,
     verdict,
     messagesPerPass,
     resolvingFraction: Number(resolvingFraction.toFixed(3)),
@@ -162,8 +198,20 @@ export function analyzeReceptionQuality(
       resolvingFraction,
       locationYield,
       qualityFixFraction
-    ),
+    ) + windowNote(since, messagesPerPass, baselineMessagesPerPass),
   };
+}
+
+function windowNote(since: Date | null, perPass: number, baseline: number | null): string {
+  if (!since) return '';
+  const when = since.toISOString().slice(0, 16).replace('T', ' ');
+  if (baseline === null) return ` Judged since ${when} UTC, when the tag stopped moving.`;
+  const pct = Math.round((100 * perPass) / baseline);
+  return (
+    ` Judged since ${when} UTC, when the tag stopped moving. Before that, adrift, the same tag sent ` +
+    `${baseline.toFixed(1)} a pass; it is now sending ${pct}% of that` +
+    (perPass < BASELINE_DROP_FRACTION * baseline ? ', a drop no open sky explains.' : '.')
+  );
 }
 
 function explain(
@@ -190,7 +238,7 @@ function explain(
         `${(resolving * 100).toFixed(0)}% of passes reached that floor.${tail} ` +
         `A satellite overhead has a clear line to anything on an open surface, so ` +
         `transmissions this reliably lost mean the antenna is covered or screened — ` +
-        `sand, wrack, vegetation or debris over the tag rather than beside it.`
+        `sand, wrack, vegetation, debris or a roof over the tag rather than beside it.`
     );
   } else if (verdict === 'degraded') {
     parts.push(

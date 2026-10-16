@@ -49,6 +49,7 @@ export default function ReceptionQualityPanel({ quality }: ReceptionQualityPanel
           {messagesPerPass.toFixed(1)}
           <span className="text-sm font-sans font-normal text-muted ml-2">
             messages per pass, across {passes} passes
+            {quality.since ? ` since ${new Date(quality.since).toISOString().slice(5, 16).replace('T', ' ')} UTC` : ''}
           </span>
         </p>
       )}

@@ -1050,6 +1050,9 @@ export interface AnalysisResult {
   bestLat: number;
   bestLon: number;
   positionMethod: 'weighted_mean' | 'recent_only';
+  /** How many fixes the position averages, and the oldest of them. */
+  positionFixCount?: number;
+  positionSince?: Date | null;
 
   // Drift
   driftState: DriftState;

@@ -386,9 +386,10 @@ kHz from the 401.650 MHz nominal. A search on the wrong frequency finds nothing.
 avgMsgPerPass to say roughly how often the tag transmits, so the team knows how long to dwell.
 
 **releaseInterpretation tells you why the tag came off, and some values are alerts.**
-'floater', 'sitter', and 'sinker' are mortality-associated: the animal likely died at or near
-the surface, was stationary, or sank. Surface these plainly and early — they change how the
-recovery and the surrounding science are framed. 'scheduled' and 'detachment' are normal.
+'sitter' and 'sinker' are mortality-associated: the animal was stationary or sank. 'floater'
+is ambiguous: a shed tag floating trips it as readily as an animal dead at the surface — say
+it may indicate a mortality, not that it does. Surface these plainly and early. 'scheduled'
+and 'detachment' are normal.
 
 **diveProfile and crushDepthEvent describe the ANIMAL before release, not the tag now.**
 Never use dive depths to reason about where the tag is sitting today. If there is no release
@@ -638,8 +639,9 @@ Guidelines:
 - Start with a one-sentence headline about where the tag is and your best guess at its state.
 - Describe the current position with context (use env.location.name verbatim).
 - Explain the tag's physical state with specific evidence from the data.
-- **If release type is 'Floater', 'Sitter', 'Sinker', or 'Crush depth', acknowledge that the animal
-  likely died** — phrase it compassionately but factually. These are mortality signals.
+- **If release type is 'Sitter', 'Sinker', or 'Crush depth', acknowledge that the animal
+  likely died** — phrase it compassionately but factually. These are mortality signals. A
+  'Floater' release is a possible mortality only; say both readings.
 - **A Lotek PSAT+ releasing on inactivity is genuinely ambiguous, and must be reported that
   way.** The manufacturer offers three release triggers — elapsed days, overpressure, and no
   change in pressure over several days — and their own manual states that the third fires
@@ -764,7 +766,8 @@ ${JSON.stringify(
     positionMethod: a.positionMethod,
     primaryRadiusM: a.primaryRadiusM,
     expandedRadiusM: a.expandedRadiusM,
-    fixesUsed: (a.validFixes as unknown[])?.length,
+    fixesUsed: a.positionFixCount ?? (a.validFixes as unknown[])?.length,
+    positionAveragesFixesSince: a.positionSince ?? null,
     totalFixes: (a.allFixes as unknown[])?.length,
     searchRadiusBasis: a.searchRadiusBasis,
   },

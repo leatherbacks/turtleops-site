@@ -1,5 +1,7 @@
 import type { ArgosFix, ArgosPass } from '@/lib/types';
 import { haversineKm } from '@/lib/haversine';
+import { stoppedCluster } from './position';
+import { getPositionFixes } from './quality';
 
 /**
  * When did the tag stop?
@@ -40,8 +42,43 @@ function err(f: ArgosFix): number {
  * The time of the first fix in the final stationary cluster, or null when the
  * record has no distinct resting period: fewer than two fixes in the cluster,
  * or nothing before it that is clearly somewhere else.
+ *
+ * The 3 km break is sound for a tag that jumped, and it misses the commonest
+ * landing of all: a tag that drifts the last kilometre onto the beach. MiniPAT
+ * 33938 came from 1.9 km off Melbourne Beach to the island, the break came out
+ * at 2.1 km after errors, and every panel stayed on the whole record — reading
+ * "antenna clear, 6.6 messages a pass" for a tag that had been sending 2.4 since
+ * it landed. When the break test finds nothing, a cluster of fixes that has
+ * agreed for STOPPED_MIN_HOURS (see stoppedSince) marks the moment it stopped.
  */
 export function restingSince(fixes: ArgosFix[]): Date | null {
+  return restingSinceByBreak(fixes) ?? stoppedSince(fixes);
+}
+
+/**
+ * Fixes that agree within their errors for this long are a tag that has
+ * stopped, whatever the 24-hour drift window says. That window straddled
+ * 33938's landfall for a day, so the tag read ACTIVELY DRIFTING on the
+ * morning after it came ashore, and the drift projection crossed the island
+ * into the lagoon. At the 0.3 km/h it had been drifting, twelve hours is
+ * 4 km, beyond the cluster tolerance of anything better than class A.
+ */
+export const STOPPED_MIN_HOURS = 12;
+
+/** When a tag the drift window still calls drifting has in fact stopped, or null. */
+export function stoppedSince(fixes: ArgosFix[]): Date | null {
+  return clusterStart(fixes, STOPPED_MIN_HOURS);
+}
+
+function clusterStart(fixes: ArgosFix[], minHours: number): Date | null {
+  const positions = getPositionFixes(fixes).filter((f) => !isNaN(f.date.getTime()));
+  const cluster = stoppedCluster(positions);
+  if (cluster.length < 2 || cluster.length === positions.length) return null;
+  const spanH = (cluster[cluster.length - 1].date.getTime() - cluster[0].date.getTime()) / 3_600_000;
+  return spanH >= minHours ? cluster[0].date : null;
+}
+
+function restingSinceByBreak(fixes: ArgosFix[]): Date | null {
   const dated = fixes
     .filter((f) => !f.isOutlier && !isNaN(f.date.getTime()))
     .sort((a, b) => a.date.getTime() - b.date.getTime());

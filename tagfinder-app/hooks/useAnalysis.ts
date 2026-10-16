@@ -94,6 +94,7 @@ import { classifyDrift } from '@/analysis/drift';
 import { markOutliers } from '@/analysis/outliers';
 import { detectCarried } from '@/analysis/carried';
 import { computePosition } from '@/analysis/position';
+import { stoppedSince } from '@/analysis/restingPeriod';
 import { analyzePayloadHealth } from '@/analysis/payloadHealth';
 import { computeSearchRadius } from '@/analysis/searchRadius';
 import { predictDrift } from '@/analysis/driftPredict';
@@ -665,6 +666,23 @@ export function useAnalysis(): UseAnalysisReturn {
         };
       }
 
+      // 6c. Stopped, though the 24 h window still spans the last of the drift.
+      // The position then averages the stopped cluster, and nothing projects a
+      // drift the fixes no longer show.
+      const stoppedAt =
+        !grounded && carried.verdict !== 'carried' &&
+        (driftState.recent !== 'insufficient' ? driftState.recent : driftState.allTime) === 'drifting'
+          ? stoppedSince(workingFixes)
+          : null;
+      if (stoppedAt) {
+        driftState = {
+          ...driftState,
+          recent: 'stuck',
+          recentSpreadKm: 0,
+          pattern: `Drifted, then stopped about ${stoppedAt.toISOString().slice(0, 16).replace('T', ' ')} UTC — every fix since agrees within its error`,
+        };
+      }
+
       // 7. Compute position. A grounded tag is where its last fixes put it,
       //    not at the mean of a track that ended there; a carried tag is at
       //    its latest quality fix and nowhere else.
@@ -672,7 +690,8 @@ export function useAnalysis(): UseAnalysisReturn {
         driftState.recent !== 'insufficient' ? driftState.recent : driftState.allTime;
       const pos =
         carried.verdict === 'carried' && carried.to
-          ? { lat: carried.to.latitude, lon: carried.to.longitude, method: 'recent_only' as const }
+          ? { lat: carried.to.latitude, lon: carried.to.longitude, method: 'recent_only' as const,
+              basis: workingFixes.filter((f) => f.date.getTime() === carried.to!.date.getTime()) }
           : computePosition(
               workingFixes,
               grounded ? 'drifting' : finalLabel === 'insufficient' ? 'stuck' : finalLabel
@@ -689,10 +708,12 @@ export function useAnalysis(): UseAnalysisReturn {
         primaryM,
         expandedM,
         basis: searchRadiusBasis,
-      } = computeSearchRadius(workingFixes, {
-        driftLabel: finalLabel,
-        speedKmH: driftPrediction?.speedKmH ?? null,
-      });
+      } = computeSearchRadius(
+        // A stopped tag's precision is that of the fixes the position rests on;
+        // a class 3 from the drift says nothing about where it stopped.
+        finalLabel === 'drifting' || grounded ? workingFixes : pos.basis,
+        { driftLabel: finalLabel, speedKmH: driftPrediction?.speedKmH ?? null }
+      );
 
       // tagCategory already detected above (before tracker-shed check)
 
@@ -783,6 +804,8 @@ export function useAnalysis(): UseAnalysisReturn {
         bestLat: pos.lat,
         bestLon: pos.lon,
         positionMethod: pos.method,
+        positionFixCount: pos.basis.length,
+        positionSince: pos.basis.length > 0 ? pos.basis[0].date : null,
         driftState,
         driftPrediction,
         landfall: null, // computed async in the page once elevations resolve

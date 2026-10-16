@@ -1,5 +1,6 @@
 import type { ArgosFix, DriftLabel } from '@/lib/types';
 import { getPositionFixes } from './quality';
+import { haversineKm } from '@/lib/haversine';
 
 /** Window treated as "the tag has not meaningfully moved" for a drifting tag. */
 const DRIFT_POSITION_WINDOW_HOURS = 2;
@@ -19,6 +20,23 @@ const DRIFT_MIN_FIXES = 3;
  * fresh fix beats a mean of stale ones.
  */
 const DRIFT_FALLBACK_MAX_HOURS = 6;
+/**
+ * A stopped tag is averaged over the fixes since it stopped, not over the file.
+ *
+ * "Stuck" used to mean "every fix in the record", which is right for a tag that
+ * never moved and badly wrong for one that drifted and then stopped. On MiniPAT
+ * 33938 the drift classifier correctly read the last day as stuck at Melbourne
+ * Beach, and the headline then averaged all 73 fixes, three days of them adrift,
+ * into a point 13 km out at sea on the 13 Oct track, where the tag had been for
+ * an hour. The stopped tag's fixes are the ones that agree with the newest
+ * fixes: walking back from the newest, a fix joins while it sits within
+ * CLUSTER_SIGMA of its own error (plus CLUSTER_FLOOR_KM) of the cluster's
+ * weighted centre, and the first fix that does not is where the tag stopped.
+ * On 33938 that drops the class 2 fix 1.9 km offshore 95 minutes before
+ * landfall and keeps all seven position fixes from the island.
+ */
+const CLUSTER_SIGMA = 2;
+const CLUSTER_FLOOR_KM = 0.5;
 
 /**
  * Compute best-estimate position using inverse-error-squared weighting.
@@ -32,20 +50,26 @@ const DRIFT_FALLBACK_MAX_HOURS = 6;
  * question a recovery answers is "where was it last", not "where was it on
  * average", so only the final couple of hours are used.
  */
-export function computePosition(
-  fixes: ArgosFix[],
-  driftLabel: DriftLabel
-): { lat: number; lon: number; method: 'weighted_mean' | 'recent_only' } {
+export interface PositionEstimate {
+  lat: number;
+  lon: number;
+  method: 'weighted_mean' | 'recent_only';
+  /** The fixes the estimate averages. */
+  basis: ArgosFix[];
+}
+
+export function computePosition(fixes: ArgosFix[], driftLabel: DriftLabel): PositionEstimate {
   const positionFixes = getPositionFixes(fixes);
 
   if (positionFixes.length === 0) {
     // Fallback to raw median
     const allValid = fixes.filter((f) => !f.isOutlier);
-    if (allValid.length === 0) return { lat: 0, lon: 0, method: 'weighted_mean' };
+    if (allValid.length === 0) return { lat: 0, lon: 0, method: 'weighted_mean', basis: [] };
     return {
       lat: allValid.reduce((s, f) => s + f.latitude, 0) / allValid.length,
       lon: allValid.reduce((s, f) => s + f.longitude, 0) / allValid.length,
       method: 'weighted_mean',
+      basis: allValid,
     };
   }
 
@@ -71,11 +95,28 @@ export function computePosition(
     }
     method = 'recent_only';
   } else {
-    subset = positionFixes;
+    subset = stoppedCluster(positionFixes);
     method = 'weighted_mean';
   }
 
-  return { ...weightedMean(subset), method };
+  return { ...weightedMean(subset), method, basis: subset };
+}
+
+/** The newest run of fixes that agree with each other: where a stopped tag stopped. */
+export function stoppedCluster(positionFixes: ArgosFix[]): ArgosFix[] {
+  const dated = positionFixes
+    .filter((f) => !isNaN(f.date.getTime()))
+    .sort((a, b) => a.date.getTime() - b.date.getTime());
+  if (dated.length === 0) return positionFixes;
+  const cluster = [dated[dated.length - 1]];
+  for (let i = dated.length - 2; i >= 0; i--) {
+    const f = dated[i];
+    const c = weightedMean(cluster);
+    const errKm = Number.isFinite(f.effectiveError) ? f.effectiveError / 1000 : 0;
+    if (haversineKm(f.latitude, f.longitude, c.lat, c.lon) > CLUSTER_SIGMA * errKm + CLUSTER_FLOOR_KM) break;
+    cluster.push(f);
+  }
+  return cluster.reverse();
 }
 
 function weightedMean(fixes: ArgosFix[]): { lat: number; lon: number } {
