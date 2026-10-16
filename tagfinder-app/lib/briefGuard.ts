@@ -91,6 +91,16 @@ export function verdictsBlock(analysis: unknown, environment: unknown): string {
   const lightAfter = rec(rec(a.lightAnalysis).afterStop);
   if (str(lightAfter.verdict) === 'covered' || str(lightAfter.verdict) === 'open')
     lines.push(`- Light since the tag stopped: ${String(lightAfter.verdict).toUpperCase()} — ${lightAfter.reasoning}`);
+  const radio = rec(a.radioPlan);
+  if (str(radio.scenario)) {
+    const f = num(radio.frequencyMHz), p = num(radio.periodS);
+    lines.push(
+      `- Radio: ${str(radio.headline) ?? ''} The tag transmits on ${f ? `${f.toFixed(3)} MHz` : 'the Argos band (no measured frequency)'}` +
+      `${p ? ` every ${p} s` : ''}. Recommend direction-finding from the listening spots in the Radio panel before ` +
+      `${str(radio.scenario) === 'in_hand' ? 'knocking on doors' : str(radio.scenario) === 'covered_ground' ? 'probing sand or wrack' : 'walking the search area'}` +
+      `${radio.askAboutPinger === true ? '; for this Wildlife Computers tag, first ask whoever programmed it whether a recovery pinger or VHF beacon is enabled' : ''}.`
+    );
+  }
   const payload = rec(a.payloadHealth);
   if (str(payload.verdict) === 'unreadable')
     lines.push(`- Sensor payloads: UNREADABLE since ${str(payload.unreadableSince) ?? '?'} — ${str(payload.reasoning) ?? ''}`);

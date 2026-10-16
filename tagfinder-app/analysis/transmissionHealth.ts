@@ -18,7 +18,7 @@ import type {
  * received frequency carries the satellite's Doppler shift, so it equals the
  * tag's rest frequency only at the exact instant of closest approach.
  */
-const WC_FREQUENCY_FILL_HZ = 401_650_000;
+export const WC_FREQUENCY_FILL_HZ = 401_650_000;
 
 /**
  * Largest Doppler shift available at 401 MHz from a low-Earth-orbit satellite:

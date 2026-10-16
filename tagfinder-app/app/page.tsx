@@ -46,6 +46,9 @@ import ArchivePanels from '@/components/tagfinder/ArchivePanels';
 import SkySection from '@/components/tagfinder/SkySection';
 import UpcomingPassesPanel from '@/components/tagfinder/UpcomingPassesPanel';
 import EmailGate from '@/components/tagfinder/EmailGate';
+import RadioPlanPanel from '@/components/tagfinder/RadioPlanPanel';
+import { planRadio } from '@/analysis/radioPlan';
+import { INHABITED_KINDS } from '@/lib/placeKind';
 import FeedbackWidget from '@/components/tagfinder/FeedbackWidget';
 import { useUpcomingPasses } from '@/hooks/useUpcomingPasses';
 import { useTagFinderAuth } from '@/hooks/useTagFinderAuth';
@@ -434,6 +437,29 @@ export default function TagFinderPage() {
     [result, series, statuses]
   );
 
+  // Receiver plan for a stopped tag: its own frequency and interval, and
+  // listening spots whose bearings should cross on the position.
+  const radioPlan = useMemo(() => {
+    if (!result) return null;
+    const label = result.driftState.recent !== 'insufficient' ? result.driftState.recent : result.driftState.allTime;
+    const newest = passes.reduce<Date | null>((m, p) => (!isNaN(p.date.getTime()) && (!m || p.date > m) ? p.date : m), null);
+    const place = envData.location?.place ?? null;
+    return planRadio({
+      lat: result.bestLat,
+      lon: result.bestLon,
+      searchRadiusM: result.primaryRadiusM,
+      frequencyMHz: result.dataQuality?.nominalFrequencyMHz ?? null,
+      repetition: result.repetitionRate ?? null,
+      manufacturer: detectedFiles.find((f) => f.manufacturer !== 'unknown')?.manufacturer ?? 'unknown',
+      phase: fusedTagState?.phase ?? result.tagState?.phase ?? null,
+      covered:
+        receptionQuality?.verdict === 'obstructed' || result.lightAnalysis?.afterStop?.verdict === 'covered',
+      inhabited: !!(place && INHABITED_KINDS.has(place.kind)),
+      drifting: label === 'drifting',
+      newestMessage: newest,
+    });
+  }, [result, passes, envData.location, detectedFiles, fusedTagState, receptionQuality]);
+
   // Merge fused tag state + satellite coverage into result for display
   const displayResult = useMemo(() => {
     if (!result) return null;
@@ -450,8 +476,9 @@ export default function TagFinderPage() {
     if (tempComparison) merged.tempComparison = qualifyForAge(tempComparison, sensorAge);
     if (bathymetry) merged.bathymetry = bathymetry;
     if (burialDetection) merged.burialDetection = qualifyForAge(burialDetection, sensorAge);
+    merged.radioPlan = radioPlan;
     return merged;
-  }, [result, fusedTagState, satCoverage, antennaExposure, landfall, driftForcing, tempComparison, bathymetry, burialDetection, sensorAge, restingSince, restingCoverage, restingExposure, skyEnd]);
+  }, [result, fusedTagState, satCoverage, antennaExposure, landfall, driftForcing, tempComparison, bathymetry, burialDetection, sensorAge, restingSince, restingCoverage, restingExposure, skyEnd, radioPlan]);
 
   // Fetch AI brief once environment + sat coverage are loaded.
   //
@@ -537,6 +564,7 @@ export default function TagFinderPage() {
         waterStation: waterMatch.station,
         waterStationDistanceKm: waterMatch.stationDistanceKm,
         repetitionRate: displayResult.repetitionRate,
+        radioPlan: displayResult.radioPlan,
         passGeometry: passGeometry
           ? { ...passGeometry, fixes: passGeometry.fixes.slice(-20) }
           : null,
@@ -1118,6 +1146,7 @@ export default function TagFinderPage() {
                   error={briefError}
                   onRetry={fetchBrief}
                 />
+                {displayResult.radioPlan && <RadioPlanPanel plan={displayResult.radioPlan} />}
                 {displayResult.mirrorCheck && (
                   <MirrorCheckPanel mirror={displayResult.mirrorCheck} />
                 )}

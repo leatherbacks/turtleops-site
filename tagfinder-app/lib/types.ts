@@ -1031,6 +1031,8 @@ export interface AnalysisResult {
   /** If dive profile shows pre-release descent to near crush depth (~1700m), this is a mortality+sink signal */
   crushDepthEvent: { detected: boolean; maxDepthM: number; reasoning: string } | null;
   lightAnalysis: LightAnalysis | null;
+  /** Receiver plan for a stopped tag; computed in the page once tag state and environment are in. */
+  radioPlan?: import('@/analysis/radioPlan').RadioPlan | null;
   tempComparison: TempComparison | null;
   bathymetry: Bathymetry | null;
   transmissionHealth: TransmissionHealth | null;
@@ -1231,6 +1233,7 @@ export type FileType =
   | 'lightloc'
   | 'dailydata'
   | 'histos'
+  | 'raw_argos'
   // Lotek
   | 'lotek_daylog'
   | 'lotek_divelog'
