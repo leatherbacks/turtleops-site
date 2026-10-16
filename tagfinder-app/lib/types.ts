@@ -709,6 +709,7 @@ export type LightPattern =
   | 'indoor'           // Erratic light pattern not matching natural day/night — artificial lighting
   | 'fully_dark'       // No light at all — deeply buried or inside opaque container
   | 'covered'          // Darker since the tag stopped than its own open-sky curves at the same sun height
+  | 'artificial_night' // Brighter at night than the moon allows (Lotek health light readings)
   | 'insufficient'
   | 'unknown';
 
@@ -726,6 +727,8 @@ export interface LightAnalysis {
   afterStop?: import('@/analysis/lightAfterStop').LightAfterStop | null;
   /** Post-release dawn/dusk curves logged with the sun far below the horizon. */
   nightEvents?: import('@/analysis/lightAfterStop').NightLightEvent[];
+  /** Lotek: night-time light levels against what the moon allows. */
+  nightBrightness?: import('@/analysis/nightBrightness').NightBrightness | null;
 }
 
 // ─── Temperature Comparison ───

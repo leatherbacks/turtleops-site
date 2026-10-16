@@ -97,6 +97,8 @@ import { detectCarried } from '@/analysis/carried';
 import { computePosition } from '@/analysis/position';
 import { restingSince, stoppedSince } from '@/analysis/restingPeriod';
 import { analyzeLightAfterStop, nightLightEvents } from '@/analysis/lightAfterStop';
+import { analyzeNightBrightness } from '@/analysis/nightBrightness';
+import type { LightAnalysis } from '@/lib/types';
 import { analyzePayloadHealth } from '@/analysis/payloadHealth';
 import { computeSearchRadius } from '@/analysis/searchRadius';
 import { predictDrift } from '@/analysis/driftPredict';
@@ -796,7 +798,16 @@ export function useAnalysis(): UseAnalysisReturn {
       const nightEvents = lightCurves.length > 0
         ? nightLightEvents(lightCurves, effectiveRelease(summary)?.getTime() ?? null, pos.lat, pos.lon)
         : [];
-      const lightAnalysis = lightBase && lightAfter
+      // Lotek tags carry no dawn/dusk curves but report a light level with
+      // every health message after release; at night that level says whether
+      // artificial light reaches the tag (analysis/nightBrightness).
+      const nightBrightness = lotekHealth?.records.length
+        ? analyzeNightBrightness(
+            lotekHealth.records.map((r) => ({ date: r.date, light: r.light })),
+            pos.lat, pos.lon, restingSince(workingFixes)
+          )
+        : null;
+      const lightCurveAnalysis = lightBase && lightAfter
         ? {
             ...lightBase,
             afterStop: lightAfter,
@@ -808,6 +819,20 @@ export function useAnalysis(): UseAnalysisReturn {
                 : {}),
           }
         : lightBase;
+      const lightAnalysis: LightAnalysis | null = lightCurveAnalysis
+        ? { ...lightCurveAnalysis, nightBrightness }
+        : nightBrightness
+          ? {
+              pattern: nightBrightness.verdict === 'lit' ? 'artificial_night' : nightBrightness.verdict === 'dark' ? 'normal_diurnal' : 'insufficient',
+              reasoning: nightBrightness.reasoning,
+              confidence: nightBrightness.verdict === 'lit' ? 0.75 : 0.5,
+              meanDaytimeLight: null,
+              meanNighttimeLight: null,
+              curveCount: 0,
+              postReleaseCurveCount: 0,
+              nightBrightness,
+            }
+          : null;
       const transmissionHealth = passes.length > 0 ? analyzeTransmissionHealth(passes, summary) : null;
 
       // 12. Build result

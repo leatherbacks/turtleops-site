@@ -91,6 +91,9 @@ export function verdictsBlock(analysis: unknown, environment: unknown): string {
   const nightEv = rec(a.lightAnalysis).nightEvents;
   if (Array.isArray(nightEv) && nightEv.length > 0)
     lines.push(`- Light changed at night: ${nightEv.length} post-release dawn/dusk event(s) logged with the sun far below the horizon. Something other than the sun changed the light around the tag — a lamp, headlights, or being carried into or out of lit space. Treat it as a sign of people nearby (a building, a vehicle, lights), not proof of indoors.`);
+  const nb = rec(rec(a.lightAnalysis).nightBrightness);
+  if (str(nb.verdict) === 'lit' || str(nb.verdict) === 'dark')
+    lines.push(`- Night light (Lotek light readings vs the moon): ${String(nb.verdict).toUpperCase()} — ${nb.reasoning}`);
   const lightAfter = rec(rec(a.lightAnalysis).afterStop);
   if (str(lightAfter.verdict) === 'covered' || str(lightAfter.verdict) === 'open')
     lines.push(`- Light since the tag stopped: ${String(lightAfter.verdict).toUpperCase()} — ${lightAfter.reasoning}`);

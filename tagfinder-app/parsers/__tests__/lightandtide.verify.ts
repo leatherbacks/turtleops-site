@@ -15,6 +15,10 @@ import { resolve } from 'path';
 import Papa from 'papaparse';
 import { analyzeLightAfterStop, nightLightEvents } from '@/analysis/lightAfterStop';
 import { effectiveRelease } from '@/lib/release';
+import { analyzeNightBrightness } from '@/analysis/nightBrightness';
+import { moonAt } from '@/analysis/moon';
+import { parseLotekHealthMessages } from '@/parsers/lotek/healthMessage';
+import { fixture } from './fixtures';
 import { analyzeTidalIntrusion } from '@/analysis/tidalIntrusion';
 import { analyzeTidePhase } from '@/analysis/tidePhase';
 import { restingSince } from '@/analysis/restingPeriod';
@@ -134,6 +138,23 @@ for (const [name, ptt, want] of [
   const f = fixes[fixes.length - 1];
   const ev = nightLightEvents(curves, effectiveRelease(summary)?.getTime() ?? null, f.latitude, f.longitude);
   chk(`${ptt}: ${want} night light event(s)`, ev.length === want, ev.map((e) => `${e.type} ${e.date.toISOString().slice(0, 16)} sun ${e.sunMaxDeg.toFixed(0)}°`).join('; ') || 'none');
+}
+
+console.log('\n== MOON ==');
+chk('full moon 28 Aug 2026', moonAt(new Date('2026-08-28T04:00Z'), 30, -81).illumination > 0.98);
+chk('new moon 12 Aug 2026', moonAt(new Date('2026-08-12T17:00Z'), 30, -81).illumination < 0.02);
+
+console.log('\n== LOTEK: LIGHT AT NIGHT AGAINST THE MOON ==');
+for (const [file, lat, lon, want] of [
+  ['47125-cls-messages-2026-10-01.csv', 25.90, -80.13, 'lit'],   // off Miami and on the Surfside beachfront, moon down
+  ['47128-cls-messages-2026-10-07.csv', 30.19, -81.36, 'dark'],  // open water: 0 without a moon, <= 52 under a full one
+] as const) {
+  const f = fixture(file);
+  if (!f) { console.log(`  (${file} absent)`); continue; }
+  const h = parseLotekHealthMessages(csv(f));
+  const nb = analyzeNightBrightness(h.records.map((r) => ({ date: r.date, light: r.light })), lat, lon, null);
+  console.log('        ' + nb?.reasoning);
+  chk(`${file.slice(0, 5)}: ${want}`, nb?.verdict === want, nb?.verdict ?? 'none');
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

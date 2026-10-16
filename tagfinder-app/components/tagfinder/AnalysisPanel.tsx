@@ -605,6 +605,10 @@ function LightAnalysisCard({ light }: { light: LightAnalysis }) {
       label: 'Fully dark',
       color: 'text-error bg-error/10 border-error/20',
     },
+    artificial_night: {
+      label: 'Artificial light at night',
+      color: 'text-warning bg-warning/10 border-warning/20',
+    },
     covered: {
       label: 'Covered since it stopped',
       color: 'text-warning bg-warning/10 border-warning/20',
