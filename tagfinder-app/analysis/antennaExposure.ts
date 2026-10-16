@@ -183,7 +183,19 @@ function describeObstruction(o: SkyObstruction): string {
   return `Reception is one-sided: ${openPct}% of passes over the ${o.openSide} half of the sky are heard (${o.openHeard} of ${o.openPredicted}) against ${blockedPct}% over the ${o.toward} half (${o.blockedHeard} of ${o.blockedPredicted}). Something solid stands immediately ${o.toward} of the tag, ${height}. Search along its ${o.openSide} face first, and expect a receiver to go quiet when the obstruction is between you and the tag.`;
 }
 
-export function analyzeAntennaExposure(passes: AnnotatedPass[]): AntennaExposure {
+/**
+ * The message rate behind the passes, when known. Which passes are heard says
+ * where the sky is blocked; how much each pass carries says how much is
+ * blocked. On 33938, indoors, two thirds of passes were heard from every
+ * direction, and this panel called the antenna "relatively exposed" beside
+ * an Antenna Exposure panel reading 2.4 messages a pass against 7.7 afloat.
+ */
+export interface ExposureRate {
+  messagesPerPass: number | null;
+  baselineMessagesPerPass?: number | null;
+}
+
+export function analyzeAntennaExposure(passes: AnnotatedPass[], rate: ExposureRate | null = null): AntennaExposure {
   const received = passes.filter((p) => p.received);
   const missed = passes.filter((p) => !p.received);
 
@@ -273,6 +285,13 @@ export function analyzeAntennaExposure(passes: AnnotatedPass[]): AntennaExposure
     const worst = rates.reduce((a, b) => (a.rate < b.rate ? a : b));
     const best = rates.reduce((a, b) => (a.rate > b.rate ? a : b));
     reasoning = `Reception is strongly directional: ${(best.rate * 100).toFixed(0)}% of passes from the ${best.q} are heard against ${(worst.rate * 100).toFixed(0)}% from the ${worst.q}. Something solid stands between the tag and the ${worst.q} — a seawall, bank, hull, piling, vegetation or the object it is resting against. Search that side first, and expect a receiver to go quiet when the tag is between you and the obstruction.`;
+  } else if (received.length / passes.length > 0.3 && thinPasses(rate)) {
+    pattern = 'unknown';
+    confidence = 0.5;
+    const r = rate!;
+    reasoning = `Passes are heard about evenly from every direction and elevation, so nothing screens one side — but each carries only ${r.messagesPerPass!.toFixed(1)} messages` +
+      (r.baselineMessagesPerPass ? ` against ${r.baselineMessagesPerPass.toFixed(1)} afloat` : '') +
+      `. That is cover all round — a roof, a bag, or sand over the tag — not a wall beside it. See Antenna Exposure.`;
   } else if (received.length / passes.length > 0.3) {
     pattern = 'clear';
     confidence = 0.6;
@@ -502,4 +521,12 @@ function detectAzimuthBias(
 
   const best = rates.find((r) => r.rate === maxRate);
   return best ? best.q : 'symmetric';
+}
+
+/** Below the four messages a quality fix needs, or under half the tag's own afloat rate. */
+function thinPasses(rate: ExposureRate | null): boolean {
+  const m = rate?.messagesPerPass;
+  if (m === null || m === undefined) return false;
+  const base = rate?.baselineMessagesPerPass;
+  return m < 4 || (base !== null && base !== undefined && m < 0.5 * base);
 }

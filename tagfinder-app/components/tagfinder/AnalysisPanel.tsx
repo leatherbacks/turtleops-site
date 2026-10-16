@@ -688,7 +688,9 @@ function TempComparisonCard({ temp }: { temp: TempComparison }) {
     },
   };
 
-  const info = envLabels[temp.environment] ?? envLabels.unknown;
+  const info0 = envLabels[temp.environment] ?? envLabels.unknown;
+  // A stale verdict keeps its label but loses its colour: it describes the tag then.
+  const info = temp.staleHours ? { ...info0, color: envLabels.unknown.color } : info0;
 
   return (
     <div className="bg-surface rounded-xl border border-border p-5">
@@ -700,7 +702,9 @@ function TempComparisonCard({ temp }: { temp: TempComparison }) {
         <span
           className={`inline-block px-3 py-1 rounded-full text-xs font-semibold border ${info.color}`}
         >
-          {info.label.toUpperCase()}
+          {temp.staleHours && temp.asOf
+            ? `${info.label} on ${temp.asOf.toISOString().slice(5, 10)} · stale`.toUpperCase()
+            : info.label.toUpperCase()}
         </span>
       </div>
       {temp.staleHours ? (
@@ -779,7 +783,8 @@ function BurialDetectionCard({ burial }: { burial: BurialDetection }) {
     },
   };
 
-  const info = verdictMeta[burial.verdict] ?? verdictMeta.unknown;
+  const info0 = verdictMeta[burial.verdict] ?? verdictMeta.unknown;
+  const info = burial.staleHours ? { ...info0, color: verdictMeta.unknown.color } : info0;
 
   return (
     <div className="bg-surface rounded-xl border border-border p-5">
@@ -791,7 +796,9 @@ function BurialDetectionCard({ burial }: { burial: BurialDetection }) {
         <span
           className={`inline-block px-3 py-1 rounded-full text-xs font-semibold border ${info.color}`}
         >
-          {info.label.toUpperCase()}
+          {burial.staleHours && burial.asOf
+            ? `${info.label} on ${burial.asOf.toISOString().slice(5, 10)} · stale`.toUpperCase()
+            : info.label.toUpperCase()}
         </span>
       </div>
       {burial.staleHours ? (

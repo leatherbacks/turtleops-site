@@ -21,6 +21,8 @@ interface EnvironmentPanelProps {
    * window is closing and the drift is about to speed up.
    */
   afloat?: boolean;
+  /** Tag state says someone probably has it: shoreline advice is secondary. */
+  inHand?: boolean;
   loading: {
     elevation: boolean;
     weather: boolean;
@@ -30,10 +32,10 @@ interface EnvironmentPanelProps {
   };
 }
 
-export default function EnvironmentPanel({ data, loading, afloat = false }: EnvironmentPanelProps) {
+export default function EnvironmentPanel({ data, loading, afloat = false, inHand = false }: EnvironmentPanelProps) {
   return (
     <div className="space-y-4">
-      {data.forecast?.stormAlert && <StormAlertBanner data={data} afloat={afloat} />}
+      {data.forecast?.stormAlert && <StormAlertBanner data={data} afloat={afloat} inHand={inHand} />}
       <div className="bg-surface rounded-xl border border-border p-5">
         <h3 className="font-semibold mb-4">Environmental Context</h3>
 
@@ -41,7 +43,7 @@ export default function EnvironmentPanel({ data, loading, afloat = false }: Envi
           <LocationSection data={data} loading={loading.location} />
           <ElevationSection data={data} loading={loading.elevation} />
           <WeatherSection data={data} loading={loading.weather} />
-          <TidesSection data={data} loading={loading.tides} afloat={afloat} />
+          <TidesSection data={data} loading={loading.tides} afloat={afloat} inHand={inHand} />
         </div>
         {data.forecast && !data.forecast.stormAlert && (
           <div className="mt-4 pt-4 border-t border-border">
@@ -58,14 +60,14 @@ export default function EnvironmentPanel({ data, loading, afloat = false }: Envi
   );
 }
 
-function StormAlertBanner({ data, afloat }: { data: EnvironmentData; afloat: boolean }) {
+function StormAlertBanner({ data, afloat, inHand }: { data: EnvironmentData; afloat: boolean; inHand: boolean }) {
   if (!data.forecast?.stormAlert) return null;
   return (
     <div className="bg-error/10 border border-error/40 rounded-xl p-4 flex items-start gap-3">
       <AlertTriangle className="w-5 h-5 text-error flex-shrink-0 mt-0.5" />
       <div>
         <div className="font-semibold text-error text-sm uppercase tracking-wide">
-          {afloat ? 'Storm alert — vessel window closing' : 'Storm alert — recover ASAP'}
+          {afloat ? 'Storm alert — vessel window closing' : inHand ? 'Weather alert — go before it turns' : 'Storm alert — recover ASAP'}
         </div>
         <div className="text-sm mt-1">
           {afloat
@@ -75,9 +77,13 @@ function StormAlertBanner({ data, afloat }: { data: EnvironmentData; afloat: boo
               'only makes sense when the tag is close to a port with fresh fixes; far ' +
               'offshore it is not a reasonable target. Re-run the drift projection each ' +
               'morning and watch for the fixes to stop moving.'
-            : `${data.forecast.alertReason}. Tag could be washed off the beach into open ` +
-              'water, making recovery much harder. Prioritize a ground search in the next ' +
-              '24–48 hours before conditions deteriorate.'}
+            : inHand
+              ? `${data.forecast.alertReason}. The tag looks to be indoors with someone, so the ` +
+                'weather will not move it — but door-knocking and a receiver sweep are easier ' +
+                'on a dry day, and a finder is easier to reach before plans change. Go in the next 24–48 hours.'
+              : `${data.forecast.alertReason}. Tag could be washed off the beach into open ` +
+                'water, making recovery much harder. Prioritize a ground search in the next ' +
+                '24–48 hours before conditions deteriorate.'}
         </div>
       </div>
     </div>
@@ -264,7 +270,14 @@ function WeatherSection({ data, loading }: { data: EnvironmentData; loading: boo
   );
 }
 
-function TidesSection({ data, loading, afloat = false }: { data: EnvironmentData; loading: boolean; afloat?: boolean }) {
+/**
+ * Below this range (feet) the tide does not uncover shore worth waiting for.
+ * The Indian River Lagoon at Melbourne Causeway runs about 0.2 ft; there wind
+ * sets the water level, and "search at low tide" means nothing.
+ */
+const NEGLIGIBLE_TIDE_FT = 0.6;
+
+function TidesSection({ data, loading, afloat = false, inHand = false }: { data: EnvironmentData; loading: boolean; afloat?: boolean; inHand?: boolean }) {
   const stateColors: Record<string, string> = {
     rising: 'text-info',
     falling: 'text-warning',
@@ -307,9 +320,15 @@ function TidesSection({ data, loading, afloat = false }: { data: EnvironmentData
               </div>
             )}
           </div>
-          {data.tides.nextLow && !afloat && (
+          {data.tides.nextLow && !afloat && data.tides.tidalRange !== null && data.tides.tidalRange < NEGLIGIBLE_TIDE_FT && (
+            <div className="text-xs text-muted mt-1">
+              Tide range here is only {data.tides.tidalRange.toFixed(1)} ft (sheltered water): low tide uncovers
+              almost no extra shore, and wind moves the water level more than the tide does. Search whenever suits.
+            </div>
+          )}
+          {data.tides.nextLow && !afloat && !(data.tides.tidalRange !== null && data.tides.tidalRange < NEGLIGIBLE_TIDE_FT) && (
             <div className="text-xs text-success mt-1">
-              ★ Best beach-search window: around low tide ({formatTime(
+              ★ {inHand ? 'If you search the shoreline: ' : 'Best beach-search window: '}around low tide ({formatTime(
                 data.tides.nextLow.time
               )}). Widest exposed sand + easiest to scan the wrack line.
             </div>
