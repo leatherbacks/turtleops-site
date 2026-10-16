@@ -36,7 +36,9 @@ function yyyymmdd(d: Date): string {
 export function useTidePhase(
   passes: ArgosPass[],
   lat: number | null,
-  lon: number | null
+  lon: number | null,
+  /** When the tag stopped; passes before it describe the drift, not the resting place. */
+  since: Date | null = null
 ): UseTidePhaseReturn {
   const [analysis, setAnalysis] = useState<TidePhaseAnalysis | null>(null);
   const [station, setStation] = useState<string | null>(null);
@@ -101,7 +103,7 @@ export function useTidePhase(
         setStationDistanceKm(
           typeof res.stationDistanceKm === 'number' ? res.stationDistanceKm : null
         );
-        setAnalysis(analyzeTidePhase(dated, extremes));
+        setAnalysis(analyzeTidePhase(dated, extremes, new Date(), since));
       })
       .catch(() => {
         if (!cancelled) {
@@ -119,7 +121,7 @@ export function useTidePhase(
     // passes is rebuilt on every analysis; keying on its length and bounds
     // avoids refetching on every render without deep-comparing the array.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lat, lon, passes.length]);
+  }, [lat, lon, passes.length, since?.getTime()]);
 
   return { analysis, station, stationDistanceKm, loading, unavailable };
 }

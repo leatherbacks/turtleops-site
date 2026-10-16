@@ -88,6 +88,9 @@ export function verdictsBlock(analysis: unknown, environment: unknown): string {
   } else if (restingN !== null && restingN > 0) {
     lines.push(`- Since the tag stopped: only ${restingN} passes predicted so far, ${num(resting.totalReceived) ?? 0} heard — too few to read the sky at the resting place; satCoverage and antennaExposure describe the float.`);
   }
+  const lightAfter = rec(rec(a.lightAnalysis).afterStop);
+  if (str(lightAfter.verdict) === 'covered' || str(lightAfter.verdict) === 'open')
+    lines.push(`- Light since the tag stopped: ${String(lightAfter.verdict).toUpperCase()} — ${lightAfter.reasoning}`);
   const payload = rec(a.payloadHealth);
   if (str(payload.verdict) === 'unreadable')
     lines.push(`- Sensor payloads: UNREADABLE since ${str(payload.unreadableSince) ?? '?'} — ${str(payload.reasoning) ?? ''}`);

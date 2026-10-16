@@ -26,6 +26,12 @@ import type { ArgosPass, TideExtreme, TidePhaseAnalysis, TidePhaseBin } from '@/
  *    transition and reports 0.94x, washing out a real effect. So several windows
  *    are evaluated and they must agree; a result appearing at only one cutoff is
  *    a result of choosing that cutoff, and is reported as unstable.
+ *
+ * 3. THE STOP. Windows counted back from the last message still straddle the
+ *    moment the tag stopped when it stopped recently. MiniPAT 33938's "last 2
+ *    days" on 16 Oct was 15 passes afloat and 10 after it was carried indoors,
+ *    and the panel read the mixture as "no tidal window, search whenever". When
+ *    the resting start is known, nothing before it is used.
  */
 
 /** Windows to try, in days back from the last message received. */
@@ -166,7 +172,8 @@ function splitByPhase(passes: ArgosPass[], extremes: TideExtreme[]): Split {
 export function analyzeTidePhase(
   passes: ArgosPass[],
   extremes: TideExtreme[],
-  now: Date = new Date()
+  now: Date = new Date(),
+  since: Date | null = null
 ): TidePhaseAnalysis | null {
   if (extremes.length < 2 || passes.length === 0) return null;
 
@@ -176,7 +183,7 @@ export function analyzeTidePhase(
     .sort((a, b) => a.time.getTime() - b.time.getTime());
   if (sorted.length < 2) return null;
 
-  const dated = passes.filter((p) => !isNaN(p.date.getTime()));
+  const dated = passes.filter((p) => !isNaN(p.date.getTime()) && (!since || p.date >= since));
   if (dated.length === 0) return null;
   const lastHeard = Math.max(...dated.map((p) => p.date.getTime()));
 
@@ -197,14 +204,17 @@ export function analyzeTidePhase(
 
   if (candidates.length === 0) {
     const split = splitByPhase(dated, sorted);
-    return build(split, dated, null, false, null, sorted, now);
+    return build(split, dated, null, false, null, sorted, now, since);
   }
 
   const primary = candidates[0];
 
   // Agreement across windows. A finding that survives at only one boundary is
   // an artefact of that boundary.
-  const ratios = candidates
+  // Windows that hold the same passes are one window, however many cutoffs
+  // produced them: after a recent stop every cutoff reaches back to the stop.
+  const distinct = candidates.filter((c, i) => candidates.findIndex((d) => d.subset.length === c.subset.length) === i);
+  const ratios = distinct
     .map((c) => c.split.excess)
     .filter((r): r is number => r !== null && isFinite(r));
   const robust =
@@ -215,7 +225,7 @@ export function analyzeTidePhase(
     ? [Math.min(...ratios), Math.max(...ratios)]
     : null;
 
-  return build(primary.split, primary.subset, primary.days, robust, spread, sorted, now);
+  return build(primary.split, primary.subset, primary.days, robust, spread, sorted, now, since);
 }
 
 function build(
@@ -225,7 +235,8 @@ function build(
   robust: boolean,
   spread: [number, number] | null,
   extremes: TideExtreme[],
-  now: Date
+  now: Date,
+  since: Date | null = null
 ): TidePhaseAnalysis {
   const enough = split.totalMessages >= MIN_MESSAGES;
   const strength: TidePhaseAnalysis['strength'] =
@@ -259,7 +270,7 @@ function build(
     windowDays,
     analyzedFrom: new Date(times.length ? Math.min(...times) : NaN),
     analyzedTo: new Date(times.length ? Math.max(...times) : NaN),
-    reasoning: explain(split, strength, robust, spread, windowDays),
+    reasoning: explain(split, strength, robust, spread, windowDays, since),
   };
 }
 
@@ -305,11 +316,17 @@ function explain(
   strength: TidePhaseAnalysis['strength'],
   robust: boolean,
   spread: [number, number] | null,
-  windowDays: number | null
+  windowDays: number | null,
+  since: Date | null = null
 ): string {
-  const scope = windowDays
-    ? `Over the last ${windowDays} days of reception, `
-    : `Across the whole reception record, `;
+  const stopped = since ? since.toISOString().slice(0, 16).replace('T', ' ') : '';
+  const scope = since
+    ? windowDays
+      ? `Over the last ${windowDays} days, all since the tag stopped (${stopped} UTC), `
+      : `Since the tag stopped (${stopped} UTC), `
+    : windowDays
+      ? `Over the last ${windowDays} days of reception, `
+      : `Across the whole reception record, `;
   const counts =
     `${scope}${split.messages.falling} messages arrived on the falling tide across ` +
     `${split.passes.falling} passes (${split.perPass.falling.toFixed(1)} per pass), against ` +
@@ -320,6 +337,14 @@ function explain(
     return (
       `${counts} That is too little traffic to read a tidal pattern from — at least ` +
       `${MIN_MESSAGES} messages are needed before the split means anything.`
+    );
+  }
+
+  if (strength === 'none' && since && spread && spread[0] === spread[1] && spread[1] >= MODERATE_EXCESS) {
+    return (
+      `${counts} That is ${spread[1].toFixed(1)}x in favour of the ${split.dominant} tide, but every ` +
+      `window reaches back to the stop, so there is only one span to test it on and nothing to ` +
+      `check it against. Not solid enough to plan a search around; worth revisiting as data arrives.`
     );
   }
 
