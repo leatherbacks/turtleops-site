@@ -708,6 +708,7 @@ export type LightPattern =
   | 'shaded'           // Consistently low light during daytime — under tree canopy or structure
   | 'indoor'           // Erratic light pattern not matching natural day/night — artificial lighting
   | 'fully_dark'       // No light at all — deeply buried or inside opaque container
+  | 'covered'          // Darker since the tag stopped than its own open-sky curves at the same sun height
   | 'insufficient'
   | 'unknown';
 
@@ -721,6 +722,8 @@ export interface LightAnalysis {
   meanNighttimeLight: number | null;
   curveCount: number;
   postReleaseCurveCount: number;
+  /** Curves since the tag stopped against its own open-sky curves; see lightAfterStop. */
+  afterStop?: import('@/analysis/lightAfterStop').LightAfterStop | null;
 }
 
 // ─── Temperature Comparison ───

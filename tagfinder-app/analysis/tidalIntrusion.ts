@@ -16,21 +16,29 @@ const MAX_MEAN_DEPTH_FOR_TIDAL = 3;
 export function analyzeTidalIntrusion(
   series: SeriesReading[],
   statuses: TagStatus[],
-  summary: DeploySummary | null
+  summary: DeploySummary | null,
+  /**
+   * When the tag stopped, and whether it is still drifting. Tidal flooding is
+   * a stationary tag on a shore; readings from the drift are a float riding
+   * swell. MiniPAT 33938 read "tidally flooded, wet 67%, 21 h cycle" from 21
+   * status messages, 20 of them adrift, on a tag by then indoors.
+   */
+  opts: { stoppedAt?: Date | null; drifting?: boolean } = {}
 ): TidalIntrusion | null {
   const releaseDate = summary?.releaseDate;
   if (!releaseDate) return null;
+  const from = Math.max(releaseDate.getTime(), opts.stoppedAt?.getTime() ?? -Infinity);
 
   // Collect post-release depth readings
   type DepthPoint = { t: number; d: number };
   let points: DepthPoint[] = [];
 
   for (const r of series) {
-    if (r.date.getTime() < releaseDate.getTime()) continue;
+    if (r.date.getTime() < from) continue;
     if (r.depth !== null) points.push({ t: r.date.getTime(), d: r.depth });
   }
   for (const s of statuses) {
-    if (s.date.getTime() < releaseDate.getTime()) continue;
+    if (s.date.getTime() < from) continue;
     if (s.depth !== null) points.push({ t: s.date.getTime(), d: s.depth });
   }
 
@@ -42,11 +50,26 @@ export function analyzeTidalIntrusion(
   const screenNote = screen.reason;
   if (screen.kept.length > 0) points = screen.kept;
 
+  if (opts.drifting && !opts.stoppedAt) {
+    return {
+      detected: false,
+      confidence: 0,
+      reasoning: 'The tag is still drifting, so its depth readings are a float riding the swell, not a tide covering it.',
+      wetPct: 0,
+      maxPostReleaseDepth: points.length > 0 ? Math.max(...points.map((p) => p.d)) : 0,
+      cyclePeriodHours: null,
+      screenedReadings,
+      screenNote,
+    };
+  }
+
   if (points.length < 10) {
     return {
       detected: false,
       confidence: 0,
-      reasoning: 'Not enough post-release depth readings for tidal analysis',
+      reasoning: opts.stoppedAt
+        ? `Only ${points.length} depth reading${points.length === 1 ? '' : 's'} since the tag stopped (${opts.stoppedAt.toISOString().slice(0, 16).replace('T', ' ')} UTC) — too few for tidal analysis. Earlier readings describe the drift.`
+        : 'Not enough post-release depth readings for tidal analysis',
       wetPct: 0,
       maxPostReleaseDepth: points.length > 0 ? Math.max(...points.map((p) => p.d)) : 0,
       cyclePeriodHours: null,
@@ -60,7 +83,11 @@ export function analyzeTidalIntrusion(
   const depths = points.map((p) => p.d);
   const maxDepth = Math.max(...depths);
   const meanDepth = depths.reduce((s, v) => s + v, 0) / depths.length;
-  const wetCount = depths.filter((d) => d > DRY_THRESHOLD_M).length;
+  // A reading one sensor step above zero is the surface. Status-message depth
+  // on a MiniPAT comes in 0.5 m steps, so a 0.2 m threshold counted every
+  // 0.5 m reading of a tag at the surface as "wet".
+  const dry = Math.max(DRY_THRESHOLD_M, depthStep(depths));
+  const wetCount = depths.filter((d) => d > dry).length;
   const wetPct = (wetCount / depths.length) * 100;
 
   // If tag is consistently submerged (mean depth too high), it's not tidal — it's underwater
@@ -82,7 +109,7 @@ export function analyzeTidalIntrusion(
     return {
       detected: false,
       confidence: 0,
-      reasoning: `Tag is consistently dry (depth <${DRY_THRESHOLD_M}m in ${(100 - wetPct).toFixed(0)}% of readings). Above tide line.`,
+      reasoning: `Tag is consistently dry (depth ≤${dry}m in ${(100 - wetPct).toFixed(0)}% of readings). Above tide line.`,
       wetPct,
       maxPostReleaseDepth: maxDepth,
       cyclePeriodHours: null,
@@ -96,7 +123,7 @@ export function analyzeTidalIntrusion(
     return {
       detected: false,
       confidence: 0.3,
-      reasoning: `Tag is consistently wet (depth >${DRY_THRESHOLD_M}m in ${wetPct.toFixed(0)}% of readings). Likely submerged below the tide line.`,
+      reasoning: `Tag is consistently wet (depth >${dry}m in ${wetPct.toFixed(0)}% of readings). Likely submerged below the tide line.`,
       wetPct,
       maxPostReleaseDepth: maxDepth,
       cyclePeriodHours: null,
@@ -124,7 +151,7 @@ export function analyzeTidalIntrusion(
     };
   }
 
-  const cyclePeriod = estimateCyclePeriod(points);
+  const cyclePeriod = estimateCyclePeriod(points, dry);
 
   // Tidal periods: semidiurnal ≈ 12.42h, diurnal ≈ 24.84h
   let confidence = 0.5;
@@ -154,12 +181,20 @@ export function analyzeTidalIntrusion(
   };
 }
 
+/** The smallest step between distinct readings: the sensor's resolution as transmitted. */
+function depthStep(depths: number[]): number {
+  const u = [...new Set(depths.map((d) => Math.round(d * 100) / 100))].sort((a, b) => a - b);
+  let step = Infinity;
+  for (let i = 1; i < u.length; i++) step = Math.min(step, u[i] - u[i - 1]);
+  return Number.isFinite(step) && step >= 0.05 ? step : 0;
+}
+
 /**
  * Estimate dominant cycle period via autocorrelation.
  * Converts depth series to binary wet/dry signal, resamples to 1-hour bins,
  * then finds the lag with peak autocorrelation in the tidal range.
  */
-function estimateCyclePeriod(points: { t: number; d: number }[]): number | null {
+function estimateCyclePeriod(points: { t: number; d: number }[], dry: number): number | null {
   const firstT = points[0].t;
   const lastT = points[points.length - 1].t;
   const durationHours = (lastT - firstT) / (1000 * 60 * 60);
@@ -175,7 +210,7 @@ function estimateCyclePeriod(points: { t: number; d: number }[]): number | null 
       bins - 1,
       Math.floor((p.t - firstT) / (1000 * 60 * 60))
     );
-    signal[binIdx] += p.d > DRY_THRESHOLD_M ? 1 : 0;
+    signal[binIdx] += p.d > dry ? 1 : 0;
     counts[binIdx] += 1;
   }
 

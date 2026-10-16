@@ -97,10 +97,14 @@ export default function TagFinderPage() {
   const [passGeometry, setPassGeometry] =
     useState<import('@/lib/types').PassGeometryAnalysis | null>(null);
 
+  // Tide against reception only since the tag stopped: before that it was
+  // adrift, and a window across the stop mixes two places.
+  const tideSince = useMemo(() => (result ? restingSinceOf(result.allFixes) : null), [result]);
   const tidePhase = useTidePhase(
     passes,
     result?.bestLat ?? null,
-    result?.bestLon ?? null
+    result?.bestLon ?? null,
+    tideSince
   );
 
   // Did the tag stop tracking water temperature, and when? Post-release

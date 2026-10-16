@@ -94,7 +94,8 @@ import { classifyDrift } from '@/analysis/drift';
 import { markOutliers } from '@/analysis/outliers';
 import { detectCarried } from '@/analysis/carried';
 import { computePosition } from '@/analysis/position';
-import { stoppedSince } from '@/analysis/restingPeriod';
+import { restingSince, stoppedSince } from '@/analysis/restingPeriod';
+import { analyzeLightAfterStop } from '@/analysis/lightAfterStop';
 import { analyzePayloadHealth } from '@/analysis/payloadHealth';
 import { computeSearchRadius } from '@/analysis/searchRadius';
 import { predictDrift } from '@/analysis/driftPredict';
@@ -764,7 +765,10 @@ export function useAnalysis(): UseAnalysisReturn {
       const diveProfile = seriesReadings.length > 0 ? buildDiveProfile(seriesReadings) : null;
       const tidalIntrusion =
         tagCategory.category === 'psat'
-          ? analyzeTidalIntrusion(seriesReadings, parsedStatuses, summary)
+          ? analyzeTidalIntrusion(seriesReadings, parsedStatuses, summary, {
+              stoppedAt: restingSince(workingFixes),
+              drifting: finalLabel === 'drifting',
+            })
           : null;
       const mirrorCheck = passes.length > 0 ? checkMirrorSolutions(passes) : null;
       // Lotek tags carry their release cause in every health message rather
@@ -780,7 +784,24 @@ export function useAnalysis(): UseAnalysisReturn {
         dailyDives.length > 0 ? dailyDives : null,
         summary
       );
-      const lightAnalysis = lightCurves.length > 0 ? analyzeLightLevel(lightCurves, summary) : null;
+      const lightBase = lightCurves.length > 0 ? analyzeLightLevel(lightCurves, summary) : null;
+      // Absolute peaks cannot tell a dim evening from a roof; the tag's own
+      // curves at the surface, at the same sun height, can. Once it has
+      // stopped, that comparison decides the panel.
+      const lightAfter = lightBase
+        ? analyzeLightAfterStop(lightCurves, restingSince(workingFixes), pos.lat, pos.lon)
+        : null;
+      const lightAnalysis = lightBase && lightAfter
+        ? {
+            ...lightBase,
+            afterStop: lightAfter,
+            ...(lightAfter.verdict === 'covered'
+              ? { pattern: 'covered' as const, reasoning: lightAfter.reasoning, confidence: 0.8 }
+              : lightAfter.verdict === 'open' || lightAfter.verdict === 'mixed'
+                ? { reasoning: `${lightAfter.reasoning} ${lightBase.reasoning}` }
+                : {}),
+          }
+        : lightBase;
       const transmissionHealth = passes.length > 0 ? analyzeTransmissionHealth(passes, summary) : null;
 
       // 12. Build result

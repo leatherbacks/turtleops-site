@@ -604,6 +604,10 @@ function LightAnalysisCard({ light }: { light: LightAnalysis }) {
       label: 'Fully dark',
       color: 'text-error bg-error/10 border-error/20',
     },
+    covered: {
+      label: 'Covered since it stopped',
+      color: 'text-warning bg-warning/10 border-warning/20',
+    },
     insufficient: {
       label: 'Insufficient data',
       color: 'text-muted bg-surface-elevated border-border',
