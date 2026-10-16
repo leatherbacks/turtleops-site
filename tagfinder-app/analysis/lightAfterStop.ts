@@ -155,3 +155,55 @@ export function analyzeLightAfterStop(
   }
   return { verdict, reasoning, curvesJudged, referenceCurves: refCount, darkSince, referenceFloor: floor, samples: judged };
 }
+
+/**
+ * A dawn or dusk the sun cannot have made.
+ *
+ * The tag logs a Dawn or Dusk curve when its light level crosses a threshold.
+ * After release, a crossing with the sun well below the horizon is a light
+ * switched on or off, headlights, or the tag being carried into or out of
+ * lit space. MiniPAT 40996, a week before a beachcomber took it to a camper,
+ * logged a "dusk" at 9:34 pm and a "dawn" at 1:44 am with the sun 30–55°
+ * down. The samples sat at the sensor's dark floor either side, so the curve
+ * does not show the light itself, only that it changed at night.
+ */
+const NIGHT_SUN_DEG = -12;
+
+export interface NightLightEvent {
+  date: Date;
+  type: 'Dawn' | 'Dusk';
+  /** Highest sun elevation across the curve's samples. */
+  sunMaxDeg: number;
+  levelMin: number;
+  levelMax: number;
+}
+
+export function nightLightEvents(curves: LightCurve[], releaseTime: number | null, lat: number, lon: number): NightLightEvent[] {
+  if (releaseTime === null) return [];
+  const out: NightLightEvent[] = [];
+  for (const c of curves) {
+    if ((c.type !== 'Dawn' && c.type !== 'Dusk') || c.date.getTime() < releaseTime) continue;
+    const pts = samplesOf(c, lat, lon);
+    if (pts.length === 0) continue;
+    const sunMax = Math.max(...pts.map((p) => p.elev));
+    if (sunMax >= NIGHT_SUN_DEG) continue;
+    out.push({
+      date: c.date,
+      type: c.type,
+      sunMaxDeg: sunMax,
+      levelMin: Math.min(...pts.map((p) => p.level)),
+      levelMax: Math.max(...pts.map((p) => p.level)),
+    });
+  }
+  return out;
+}
+
+/** One sentence for the light panel and the brief. */
+export function describeNightLight(events: NightLightEvent[]): string {
+  const when = (e: NightLightEvent) => `a "${e.type.toLowerCase()}" at ${e.date.toISOString().slice(0, 16).replace('T', ' ')} UTC (sun ${Math.abs(e.sunMaxDeg).toFixed(0)}°+ below the horizon)`;
+  return (
+    `After release the tag logged ${events.length === 1 ? when(events[0]) : `${events.length} dawn/dusk events in full darkness, e.g. ${when(events[0])}`}. ` +
+    `The sun cannot make those: the light around the tag changed at night — a lamp switched on or off, headlights, or the tag carried into or out of lit space. ` +
+    `It points to people nearby (a building, a vehicle, lights) rather than a dark, empty shore, though headlights on a drivable beach would do it too.`
+  );
+}

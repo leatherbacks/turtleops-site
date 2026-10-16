@@ -96,7 +96,7 @@ import { markOutliers } from '@/analysis/outliers';
 import { detectCarried } from '@/analysis/carried';
 import { computePosition } from '@/analysis/position';
 import { restingSince, stoppedSince } from '@/analysis/restingPeriod';
-import { analyzeLightAfterStop } from '@/analysis/lightAfterStop';
+import { analyzeLightAfterStop, nightLightEvents } from '@/analysis/lightAfterStop';
 import { analyzePayloadHealth } from '@/analysis/payloadHealth';
 import { computeSearchRadius } from '@/analysis/searchRadius';
 import { predictDrift } from '@/analysis/driftPredict';
@@ -793,10 +793,14 @@ export function useAnalysis(): UseAnalysisReturn {
       const lightAfter = lightBase
         ? analyzeLightAfterStop(lightCurves, restingSince(workingFixes), pos.lat, pos.lon)
         : null;
+      const nightEvents = lightCurves.length > 0
+        ? nightLightEvents(lightCurves, effectiveRelease(summary)?.getTime() ?? null, pos.lat, pos.lon)
+        : [];
       const lightAnalysis = lightBase && lightAfter
         ? {
             ...lightBase,
             afterStop: lightAfter,
+            nightEvents,
             ...(lightAfter.verdict === 'covered'
               ? { pattern: 'covered' as const, reasoning: lightAfter.reasoning, confidence: 0.8 }
               : lightAfter.verdict === 'open' || lightAfter.verdict === 'mixed'

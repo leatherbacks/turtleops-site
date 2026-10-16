@@ -88,6 +88,9 @@ export function verdictsBlock(analysis: unknown, environment: unknown): string {
   } else if (restingN !== null && restingN > 0) {
     lines.push(`- Since the tag stopped: only ${restingN} passes predicted so far, ${num(resting.totalReceived) ?? 0} heard — too few to read the sky at the resting place; satCoverage and antennaExposure describe the float.`);
   }
+  const nightEv = rec(a.lightAnalysis).nightEvents;
+  if (Array.isArray(nightEv) && nightEv.length > 0)
+    lines.push(`- Light changed at night: ${nightEv.length} post-release dawn/dusk event(s) logged with the sun far below the horizon. Something other than the sun changed the light around the tag — a lamp, headlights, or being carried into or out of lit space. Treat it as a sign of people nearby (a building, a vehicle, lights), not proof of indoors.`);
   const lightAfter = rec(rec(a.lightAnalysis).afterStop);
   if (str(lightAfter.verdict) === 'covered' || str(lightAfter.verdict) === 'open')
     lines.push(`- Light since the tag stopped: ${String(lightAfter.verdict).toUpperCase()} — ${lightAfter.reasoning}`);

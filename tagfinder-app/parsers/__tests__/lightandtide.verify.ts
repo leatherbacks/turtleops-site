@@ -13,7 +13,8 @@
 import { existsSync, readFileSync } from 'fs';
 import { resolve } from 'path';
 import Papa from 'papaparse';
-import { analyzeLightAfterStop } from '@/analysis/lightAfterStop';
+import { analyzeLightAfterStop, nightLightEvents } from '@/analysis/lightAfterStop';
+import { effectiveRelease } from '@/lib/release';
 import { analyzeTidalIntrusion } from '@/analysis/tidalIntrusion';
 import { analyzeTidePhase } from '@/analysis/tidePhase';
 import { restingSince } from '@/analysis/restingPeriod';
@@ -116,6 +117,23 @@ if (d41008) {
   const l = analyzeLightAfterStop(t.light, t.since, t.pos.lat, t.pos.lon);
   console.log(`        since ${t.since?.toISOString() ?? 'none'}: ${l.reasoning}`);
   chk('never called covered', l.verdict !== 'covered', l.verdict);
+}
+
+console.log('\n== LIGHT CHANGED AT NIGHT ==');
+for (const [name, ptt, want] of [
+  ['wc-40996-2026-10-02', '40996', 2],     // "dusk" 9:34 pm and "dawn" 1:44 am EDT, 25–26 Sep
+  ['wc-33938-2026-10-16-1548', '33938', 0], // real dawns and dusks only
+  ['wc-285931', '285931', 0],
+  ['wc-41008', '41008', 0],
+] as const) {
+  const dir = dataDir(name);
+  if (!dir || !existsSync(resolve(dir, `${ptt}-LightLoc.csv`))) { console.log(`  (${name} absent)`); continue; }
+  const curves = parseLightLoc(csv(resolve(dir, `${ptt}-LightLoc.csv`)));
+  const summary = existsSync(resolve(dir, `${ptt}-Summary.csv`)) ? parseSummary(csv(resolve(dir, `${ptt}-Summary.csv`))) : null;
+  const fixes = parseLocations(csv(resolve(dir, `${ptt}-Locations.csv`)));
+  const f = fixes[fixes.length - 1];
+  const ev = nightLightEvents(curves, effectiveRelease(summary)?.getTime() ?? null, f.latitude, f.longitude);
+  chk(`${ptt}: ${want} night light event(s)`, ev.length === want, ev.map((e) => `${e.type} ${e.date.toISOString().slice(0, 16)} sun ${e.sunMaxDeg.toFixed(0)}°`).join('; ') || 'none');
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

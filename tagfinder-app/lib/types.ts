@@ -724,6 +724,8 @@ export interface LightAnalysis {
   postReleaseCurveCount: number;
   /** Curves since the tag stopped against its own open-sky curves; see lightAfterStop. */
   afterStop?: import('@/analysis/lightAfterStop').LightAfterStop | null;
+  /** Post-release dawn/dusk curves logged with the sun far below the horizon. */
+  nightEvents?: import('@/analysis/lightAfterStop').NightLightEvent[];
 }
 
 // ─── Temperature Comparison ───

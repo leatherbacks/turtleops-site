@@ -1,5 +1,6 @@
 'use client';
 
+import { describeNightLight } from '@/analysis/lightAfterStop';
 import { useState } from 'react';
 
 import type {
@@ -634,6 +635,12 @@ function LightAnalysisCard({ light }: { light: LightAnalysis }) {
         </span>
       </div>
       <p className="text-sm text-muted mb-3">{light.reasoning}</p>
+      {light.nightEvents && light.nightEvents.length > 0 && (
+        <p className="text-sm text-warning mb-3">
+          <span className="font-semibold">Light changed at night. </span>
+          {describeNightLight(light.nightEvents)}
+        </p>
+      )}
       <div className="grid grid-cols-3 gap-3 text-sm">
         {light.meanDaytimeLight !== null && (
           <div>
