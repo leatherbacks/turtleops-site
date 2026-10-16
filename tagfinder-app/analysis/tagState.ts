@@ -1,3 +1,5 @@
+import { SENSOR_STALE_HOURS } from '@/lib/sensorAge';
+import { restingSince } from './restingPeriod';
 import type { ReceptionQuality } from './receptionQuality';
 import type {
   TagStatus,
@@ -451,6 +453,38 @@ export function analyzeTagState(
       phase = lastDepth === 0 ? 'surface' : 'submerged';
       reasoning = `Single depth reading of ${lastDepth.toFixed(1)}m — low confidence`;
     }
+  }
+
+  // 3b. Depth readings have a date. On MiniPAT 33938 the last status message
+  // was sent 95 minutes before the tag reached the beach, and two days later
+  // this panel still read PARTIALLY SUBMERGED, "bobbing in surf", for a tag
+  // that had been on the island since; the brief guard then made the headline
+  // say "in the water". Readings that end more than a day before the newest
+  // fix describe the tag then. Say what they showed, and when, and do not let
+  // them decide where it is now.
+  const newestFix = (fixes ?? [])
+    .filter((f) => !f.isOutlier && !isNaN(f.date.getTime()))
+    .reduce<Date | null>((a, f) => (!a || f.date > a ? f.date : a), null);
+  // The same holds a day sooner when the tag has since stopped somewhere:
+  // on the 15 Oct export the newest reading was 19 hours old, but all but one
+  // of the readings behind the verdict were taken adrift.
+  const newestDepth = depthPoints[0]?.date ?? null;
+  const stop = fixes ? restingSince(fixes) : null;
+  const afloatShare = stop && recentDepths.length > 0
+    ? recentDepths.filter((d) => d.date < stop).length / recentDepths.length
+    : 0;
+  const ageH = newestFix && newestDepth ? (newestFix.getTime() - newestDepth.getTime()) / 3_600_000 : 0;
+  if (
+    newestDepth && (phase === 'surface' || phase === 'partially_submerged' || phase === 'submerged') &&
+    (ageH > SENSOR_STALE_HOURS || afloatShare > 0.5)
+  ) {
+    const then = `${reasoning.charAt(0).toLowerCase()}${reasoning.slice(1)} (${phase.replace('_', ' ')})`;
+    reasoning = afloatShare > 0.5
+      ? `${Math.round(afloatShare * 100)}% of the depth readings behind this were taken before the tag stopped moving at ` +
+        `${stop!.toISOString().slice(0, 16).replace('T', ' ')} UTC. Then: ${then}. They describe the drift, not where the tag is now.`
+      : `Depth readings end ${newestDepth.toISOString().slice(0, 16).replace('T', ' ')} UTC, ` +
+        `${(ageH / 24).toFixed(1)} days before the newest fix. Then: ${then}. They do not say where the tag is now.`;
+    phase = 'unknown';
   }
 
   // 4. Out of the water on the Argos geometry alone. Elevation data put the

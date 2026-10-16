@@ -5,7 +5,7 @@ import type { DeploySummary, ReleaseInterpretation, ReleaseCategory } from '@/li
  * Wildlife Computers MiniPAT values (and similar tags):
  *   - "Interval" / "Date" — scheduled release (normal)
  *   - "Detachment" / "Premature (Detachment)" — tag shed from animal
- *   - "Floater" — animal likely dead at surface
+ *   - "Floater" — tag floating at the surface: shed, or animal dead at the surface
  *   - "Sitter" — constant depth for N days
  *   - "Sinker" — below threshold depth for N days
  *   - "Crush Depth" — failsafe near 1700m
@@ -52,7 +52,7 @@ export function interpretReleaseType(
       category: 'floater',
       rawType: raw,
       label: 'Premature: Floater',
-      implication: 'Tag was floating at the surface for extended time (>50% dry per hour). This often indicates the animal died at or near the surface.',
+      implication: 'Tag was floating at the surface for extended time (>50% dry per hour). Either it came off the animal and floated, or the animal stayed at the surface, which can mean it died there; the rule cannot tell which. Check the days before release in the depth record before calling a mortality.',
       severity: 'alert',
     };
   }
