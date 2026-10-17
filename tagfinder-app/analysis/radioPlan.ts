@@ -1,4 +1,5 @@
 import type { RepetitionRate } from '@/lib/types';
+import { radioGear, type RadioGear } from './radioGear';
 
 /**
  * Radio direction-finding before searching by eye or knocking on doors.
@@ -43,6 +44,8 @@ export interface RadioPlan {
   /** Days since the newest message; past a week the tag may have gone quiet. */
   messageAgeDays: number | null;
   steps: string[];
+  /** Settings per receiver type, from the tag's frequency and interval. */
+  gear: RadioGear[];
 }
 
 export interface RadioPlanInput {
@@ -66,6 +69,12 @@ export interface RadioPlanInput {
 /** Listening spots sit this far out, scaled to the search area. */
 const MIN_STANDOFF_M = 300;
 const MAX_STANDOFF_M = 1200;
+/**
+ * A covered tag carries a short way on the ground. 33938, shut in a boat
+ * lockup, was heard on a CLS RXG-234 only within about 200 m; spots 750 m
+ * out would hear nothing and read as "not transmitting".
+ */
+const COVERED_MAX_STANDOFF_M = 400;
 /** Nominal Argos uplink, for when no pass carried a frequency. */
 const ARGOS_NOMINAL_MHZ = 401.65;
 
@@ -74,7 +83,8 @@ export function planRadio(i: RadioPlanInput): RadioPlan | null {
   const now = (i.now ?? new Date()).getTime();
   const period = i.repetition?.periodS ?? null;
   const dwellS = period ? Math.max(120, Math.ceil(((2 * period + (i.repetition?.jitterS ?? 0)) * 1.2) / 60) * 60) : 180;
-  const d = Math.round(Math.min(MAX_STANDOFF_M, Math.max(MIN_STANDOFF_M, 1.5 * i.searchRadiusM)) / 50) * 50;
+  const shut = i.phase === 'likely_recovered' || i.phase === 'buried' || i.covered;
+  const d = Math.round(Math.min(shut ? COVERED_MAX_STANDOFF_M : MAX_STANDOFF_M, Math.max(MIN_STANDOFF_M, 1.5 * i.searchRadiusM)) / 50) * 50;
   const stations = (['north', 'east', 'south', 'west'] as const).map((side, k) => {
     const back = [180, 270, 0, 90][k];
     const [la, lo] = offset(i.lat, i.lon, (back + 180) % 360, d);
@@ -106,7 +116,7 @@ export function planRadio(i: RadioPlanInput): RadioPlan | null {
       ? `It transmits a short burst every ${period} s. Listen at least ${Math.round(dwellS / 60)} minutes at each spot; ` +
         `silence longer than ${Math.round((i.repetition?.silenceThresholdS ?? 3 * period) / 60)} minutes means it is not transmitting, not that you are in the wrong place.`
       : `The interval could not be measured from this export; Argos tags usually send every 30–90 s. Listen at least 3 minutes at each spot.`,
-    `Use an Argos direction finder (goniometer), or a software radio with a waterfall display and a small directional antenna (a 70 cm amateur Yagi works, slightly off-tune at 401 MHz). Bring an attenuator or gain control for the last 50 m.`,
+    `Use an Argos direction finder (goniometer), a handheld UHF radio, or a software radio with a waterfall display, with a small directional antenna (a 70 cm amateur Yagi works, slightly off-tune at 401 MHz). Bring an attenuator or gain control for the last 50 m. Settings for each are below; check the frequency on the receiver before trusting what you hear.`,
     `Take a bearing from each listening spot (the nearest public road or beach access to it). Sweep a full circle, then hold on the strongest direction for the next burst. Try the antenna upright and on its side: a tag lying flat radiates sideways.`,
     `Write the bearings down. Reflections off buildings and dunes shift any one bearing by 20–30°; three or four that cross give the spot. If they disagree with the expected bearings by much more than 30°, believe the radio, not the map.`,
     scenario === 'covered_ground'
@@ -133,6 +143,7 @@ export function planRadio(i: RadioPlanInput): RadioPlan | null {
     askAboutPinger: i.manufacturer === 'wildlife_computers',
     messageAgeDays: ageDays,
     steps,
+    gear: radioGear({ frequencyMHz: i.frequencyMHz, periodS: period, manufacturer: i.manufacturer }),
   };
 }
 
