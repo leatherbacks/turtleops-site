@@ -13,6 +13,7 @@ import { parseWCRawArgosTimes } from '@/parsers/wc/rawArgos';
 import { detectFile } from '@/parsers/detect';
 import { analyzeDataQuality } from '@/analysis/dataQuality';
 import { parseArgos } from '@/parsers/wc/argos';
+import { bandFor } from '@/analysis/radioGear';
 
 let pass = 0, fail = 0;
 const chk = (label: string, ok: boolean, detail = '') => {
@@ -65,6 +66,8 @@ const worst = Math.max(...p.stations.map((s) => {
   return Math.min(Math.abs(b - s.bearingDeg), 360 - Math.abs(b - s.bearingDeg));
 }));
 chk('each spot\'s bearing points at the position', worst < 0.5, `${worst.toFixed(2)}°`);
+chk('covered tag: spots no more than 400 m out', p.stations.every((s) => s.distanceM <= 400), `${p.stations[0].distanceM} m`);
+chk('open tag, wide radius: spots further out', planRadio({ ...base, phase: 'stranded_on_land', covered: false, inhabited: false, searchRadiusM: 700 })!.stations[0].distanceM > 400);
 chk('spots 300–1200 m out', p.stations.every((s) => s.distanceM >= 300 && s.distanceM <= 1200), `${p.stations[0].distanceM} m`);
 const buried = planRadio({ ...base, phase: 'buried', inhabited: false })!;
 chk('285927-style buried: covered ground, probe where loudest', buried.scenario === 'covered_ground' && /probe/i.test(buried.headline));
@@ -74,6 +77,22 @@ const old = planRadio({ ...base, newestMessage: new Date('2026-10-01T00:00Z') })
 chk('two-week-old file: pull a fresh export first', /fresh export/.test(old.steps[0]));
 const noFreq = planRadio({ ...base, frequencyMHz: null, repetition: null })!;
 chk('no measured frequency or interval: scan the band, listen 3 min', /401\.620–401\.680/.test(noFreq.steps.join(' ')) && noFreq.dwellS === 180);
+
+console.log('\n== RECEIVER SETTINGS ==');
+// 33938 as the satellites measured it on 12 Oct.
+const g = planRadio({ ...base, frequencyMHz: 401.677582 })!.gear;
+const gonio = g.find((x) => x.id === 'gonio2')!;
+chk('GONIO 2: band B1 (Argos-only) or ESS3 (Kinéis)', /Band B1 .*ESS3/.test(gonio.settings[0]), gonio.settings[0].slice(0, 80));
+chk('GONIO 2: proximity off while searching', gonio.settings.some((x) => /Proximity OFF/.test(x)));
+chk('GONIO 2: favourite + GPS so the visit is logged', gonio.settings.some((x) => /favourite/.test(x)) && gonio.settings.some((x) => /GPS ON/.test(x)));
+chk('GONIO 2: repeat period from the data', gonio.settings.some((x) => /Repeat period 60 s/.test(x)));
+chk('check window is the measured frequency ±2 kHz', /401,675,582–401,679,582 Hz/.test(gonio.verify), gonio.verify.slice(0, 70));
+chk('verify explains hex ID vs decimal PTT', /hexadecimal/.test(gonio.verify));
+const hh = g.find((x) => x.id === 'uhf_handheld')!;
+chk('handheld: nearest 2.5 kHz step, receive only', /401\.6775 MHz/.test(hh.settings[0]) && hh.settings.some((x) => /RECEIVE ONLY/.test(x)));
+chk('WC tag: pinger card; Lotek: none', g.some((x) => x.id === 'vhf_pinger') && !planRadio({ ...base, manufacturer: 'lotek' })!.gear.some((x) => x.id === 'vhf_pinger'));
+chk('overlapping bands: pick the one the frequency sits inside', bandFor(401.65, [{ name: 'B1', lo: 401.61, hi: 401.69 }, { name: 'B2', lo: 401.53, hi: 401.61 }]) === 'B1');
+chk('no measured frequency: band-wide check window', /401,610,000–401,690,000/.test(noFreq.gear[0].verify));
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -65,6 +65,28 @@ export default function RadioPlanPanel({ plan }: { plan: RadioPlan }) {
           <li key={k}>{s}</li>
         ))}
       </ol>
+
+      {plan.gear.length > 0 && (
+        <div className="mt-4">
+          <div className="text-xs text-muted uppercase tracking-wide mb-1.5">Settings for your receiver</div>
+          <div className="space-y-1.5">
+            {plan.gear.map((g) => (
+              <details key={g.id} className="rounded-lg border border-border px-3 py-2">
+                <summary className="cursor-pointer text-sm font-medium">{g.name}</summary>
+                <p className="text-xs text-muted mt-1.5">{g.summary}</p>
+                <ul className="list-disc pl-5 mt-1.5 space-y-1 text-sm text-muted">
+                  {g.settings.map((s, k) => (
+                    <li key={k}>{s}</li>
+                  ))}
+                </ul>
+                <p className="text-sm mt-2">
+                  <span className="font-medium">Check it&apos;s your tag:</span> {g.verify}
+                </p>
+              </details>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

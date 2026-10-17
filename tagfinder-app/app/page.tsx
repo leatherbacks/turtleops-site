@@ -388,6 +388,7 @@ export default function TagFinderPage() {
       sstTempC: latestSST,
       lat: result.bestLat,
       lon: result.bestLon,
+      since: restingSinceOf(result.allFixes),
     });
   }, [result, series, statuses, envData]);
 
@@ -564,7 +565,8 @@ export default function TagFinderPage() {
         waterStation: waterMatch.station,
         waterStationDistanceKm: waterMatch.stationDistanceKm,
         repetitionRate: displayResult.repetitionRate,
-        radioPlan: displayResult.radioPlan,
+        // Device cards are for the field team; the brief needs only the plan.
+        radioPlan: displayResult.radioPlan ? { ...displayResult.radioPlan, gear: undefined } : null,
         passGeometry: passGeometry
           ? { ...passGeometry, fixes: passGeometry.fixes.slice(-20) }
           : null,

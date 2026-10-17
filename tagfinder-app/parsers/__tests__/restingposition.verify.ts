@@ -22,6 +22,7 @@ import { analyzeReceptionQuality } from '@/analysis/receptionQuality';
 import { analyzeTagState } from '@/analysis/tagState';
 import { detectGrounding } from '@/analysis/grounding';
 import { getPositionFixes } from '@/analysis/quality';
+import { compareTemperatures } from '@/analysis/tempComparison';
 import { parseLocations } from '@/parsers/wc/locations';
 import { parseArgos } from '@/parsers/wc/argos';
 import { parseStatus } from '@/parsers/wc/status';
@@ -56,8 +57,9 @@ function run(fixes: ArgosFix[], passes: ArgosPass[], statuses: TagStatus[], summ
   const grounded = passes.length > 0 && detectGrounding(fixes, passes, summary?.releaseDate ?? null).verdict === 'grounded';
   let label = drift.recent !== 'insufficient' ? drift.recent : drift.allTime;
   if (!grounded && label === 'drifting' && stoppedSince(fixes)) label = 'stuck';
-  const pos = computePosition(fixes, grounded ? 'drifting' : label === 'insufficient' ? 'stuck' : label);
-  const radius = computeSearchRadius(label === 'drifting' || grounded ? fixes : pos.basis, { driftLabel: label });
+  const rest = grounded ? restingSince(fixes) : null;
+  const pos = computePosition(fixes, grounded ? (rest ? 'stuck' : 'drifting') : label === 'insufficient' ? 'stuck' : label);
+  const radius = computeSearchRadius(label === 'drifting' || (grounded && !rest) ? fixes : pos.basis, { driftLabel: label });
   const since = restingSince(fixes);
   const located = fixes.filter((f) => !f.isOutlier && (!since || f.date >= since));
   const rq = analyzeReceptionQuality(passes, located.length, located.map((f) => f.quality), { since });
@@ -81,7 +83,7 @@ function report(r: ReturnType<typeof run>) {
 }
 
 const ISLAND = { lat: 28.0299, lon: -80.5435 };
-for (const name of ['wc-33938-2026-10-15', 'wc-33938-2026-10-16']) {
+for (const name of ['wc-33938-2026-10-15', 'wc-33938-2026-10-16', 'wc-33938-2026-10-17']) {
   const dir = dataDir(name);
   if (!dir) { console.log(`\n  (${name} absent)`); continue; }
   console.log(`\n== MiniPAT 33938 — ${name} ==`);
@@ -101,6 +103,15 @@ for (const name of ['wc-33938-2026-10-15', 'wc-33938-2026-10-16']) {
   chk('antenna not called clear', r.rq.verdict !== 'clear', r.rq.verdict);
   chk('afloat baseline above 6 a pass', (r.rq.baselineMessagesPerPass ?? 0) > 6, `${r.rq.baselineMessagesPerPass}`);
   chk('tag state does not carry the stale "in surf"', !['surface', 'partially_submerged', 'submerged'].includes(r.ts.phase), r.ts.phase);
+  if (name.endsWith('10-17')) {
+    // 27.1–28.7 °C ashore against 28.3–29.0 °C afloat; air and sea both ~28.
+    const tc = compareTemperatures([], parseStatus(csv(resolve(dir, '33938-Status.csv'))), parseSummary(csv(resolve(dir, '33938-Summary.csv'))),
+      { airTempC: 24.0, sstTempC: 28.5, lat: r.pos.lat, lon: r.pos.lon, since: r.since });
+    chk('temperature: not "in water" from a mean that is mostly the float', tc.environment !== 'in_water', `${tc.environment}: ${tc.reasoning.slice(0, 70)}`);
+    const whole = compareTemperatures([], parseStatus(csv(resolve(dir, '33938-Status.csv'))), parseSummary(csv(resolve(dir, '33938-Summary.csv'))),
+      { airTempC: 24.0, sstTempC: 28.5, lat: r.pos.lat, lon: r.pos.lon });
+    chk('(without the window it still reads the float as water)', whole.environment === 'in_water', whole.environment);
+  }
 }
 
 const wc285927 = dataDir('wc-285927');

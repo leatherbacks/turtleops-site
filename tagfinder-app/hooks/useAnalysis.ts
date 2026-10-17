@@ -645,8 +645,19 @@ export function useAnalysis(): UseAnalysisReturn {
       const grounding =
         passes.length > 0 ? detectGrounding(workingFixes, passes, effectiveRelease(summary)) : null;
       const grounded = grounding?.verdict === 'grounded';
+      // Grounded with a resting cluster: the tag stopped where those fixes
+      // agree. MiniPAT 33938 came ashore at 21:49Z 14 Oct and its last class 3
+      // was 11:02Z 16 Oct; after that only east–west smeared class A and B
+      // arrived, and a "last few fixes" position slid 300 m toward the beach
+      // on three of them with a 1.2 km radius. Without a cluster (PSAT+ 47125
+      // produced no fix at all on the beach) the last fixes are all there is.
+      const groundedRest = grounded ? restingSince(workingFixes) : null;
       if (grounded) {
-        const since = grounding!.groundedSince?.toISOString().slice(0, 16).replace('T', ' ') ?? 'the last fix';
+        const at =
+          groundedRest && grounding!.groundedSince && groundedRest < grounding!.groundedSince
+            ? groundedRest
+            : grounding!.groundedSince;
+        const since = at?.toISOString().slice(0, 16).replace('T', ' ') ?? 'the last fix';
         const spread = grounding!.recent?.spreadKm ?? 0;
         driftState = {
           ...driftState,
@@ -697,7 +708,7 @@ export function useAnalysis(): UseAnalysisReturn {
               basis: workingFixes.filter((f) => f.date.getTime() === carried.to!.date.getTime()) }
           : computePosition(
               workingFixes,
-              grounded ? 'drifting' : finalLabel === 'insufficient' ? 'stuck' : finalLabel
+              grounded ? (groundedRest ? 'stuck' : 'drifting') : finalLabel === 'insufficient' ? 'stuck' : finalLabel
             );
 
       // 8. Drift prediction (only for drifting tags). Computed before the
@@ -714,7 +725,7 @@ export function useAnalysis(): UseAnalysisReturn {
       } = computeSearchRadius(
         // A stopped tag's precision is that of the fixes the position rests on;
         // a class 3 from the drift says nothing about where it stopped.
-        finalLabel === 'drifting' || grounded ? workingFixes : pos.basis,
+        finalLabel === 'drifting' || (grounded && !groundedRest) ? workingFixes : pos.basis,
         { driftLabel: finalLabel, speedKmH: driftPrediction?.speedKmH ?? null }
       );
 

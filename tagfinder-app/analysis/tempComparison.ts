@@ -17,7 +17,20 @@ interface TempSources {
   /** Tag position, so hot readings can be judged against the sun's elevation. */
   lat?: number | null;
   lon?: number | null;
+  /**
+   * When the tag stopped moving. Readings from then on describe where it is
+   * now; earlier ones describe the float.
+   */
+  since?: Date | null;
 }
+
+/**
+ * How far outside its own afloat range a stopped tag's reading may sit and
+ * still be "in the water it floated in". A floating tag holds the sea's
+ * temperature to within a few tenths over days; 33938 read 28.3–29.0 °C for
+ * three days afloat, then 27.1 °C ashore.
+ */
+const AFLOAT_BAND_MARGIN_C = 0.8;
 
 /**
  * Compare the tag's internal temperature to external references (air / SST)
@@ -92,6 +105,28 @@ export function compareTemperatures(
     tagTemps.push(...statusTemps);
   }
 
+  // Since the tag stopped: the readings that describe where it is now. The
+  // whole post-release mean is mostly the float, and on 33938 it "matched SST"
+  // (28.6 against 28.5 °C) while the tag sat in a lockup ashore.
+  const sinceMs = sources.since?.getTime() ?? null;
+  let afloatBand: { min: number; max: number } | null = null;
+  let windowed = false;
+  if (sinceMs !== null) {
+    const datedAll = (postReleaseSeries.length
+      ? postReleaseSeries.map((s) => ({ date: s.date, t: s.temperature as number }))
+      : statuses
+          .filter((s) => s.date.getTime() >= releaseTime && s.temperature !== null)
+          .map((s) => ({ date: s.date, t: s.temperature as number }))
+    ).filter((s) => !isNaN(s.t));
+    const before = datedAll.filter((s) => s.date.getTime() < sinceMs).map((s) => s.t);
+    const after = datedAll.filter((s) => s.date.getTime() >= sinceMs).map((s) => s.t);
+    if (after.length > 0) {
+      tagTemps.splice(0, tagTemps.length, ...after);
+      windowed = true;
+      if (before.length >= 3) afloatBand = { min: Math.min(...before), max: Math.max(...before) };
+    }
+  }
+
   if (tagTemps.length === 0) {
     return {
       environment: 'insufficient',
@@ -125,7 +160,7 @@ export function compareTemperatures(
         .filter((s) => s.date.getTime() >= releaseTime && s.temperature !== null)
         .map((s) => ({ date: s.date, t: s.temperature as number }))
   )
-    .filter((s) => !isNaN(s.t))
+    .filter((s) => !isNaN(s.t) && (!windowed || s.date.getTime() >= sinceMs!))
     .sort((a, b) => a.date.getTime() - b.date.getTime());
   const DAY_MS = 86_400_000;
   let tagSwing = 0;
@@ -239,6 +274,20 @@ export function compareTemperatures(
           ` water-temperature comparison as the stronger test where it is available.`
         : '');
     confidence = swingRestsOnExtremes ? 0.6 : 0.85;
+  } else if (
+    tagMinusSST !== null && Math.abs(tagMinusSST) < 2 && afloatBand &&
+    (tagMin < afloatBand.min - AFLOAT_BAND_MARGIN_C || tagMax > afloatBand.max + AFLOAT_BAND_MARGIN_C)
+  ) {
+    // Near SST on average, but outside the band the sea held it in. Where air
+    // and sea sit within a couple of degrees, as on a Florida coast in
+    // autumn, the mean cannot tell them apart; leaving the water's band can.
+    environment = 'unknown';
+    reasoning =
+      `Since the tag stopped it has read ${tagMin.toFixed(1)}–${tagMax.toFixed(1)}°C over ${tagTemps.length} reading${tagTemps.length === 1 ? '' : 's'}, ` +
+      `outside the ${afloatBand.min.toFixed(1)}–${afloatBand.max.toFixed(1)}°C it held while afloat, so it is not in the water it floated in. ` +
+      `Its mean (${tagMean.toFixed(1)}°C) is close to the sea's (${sources.sstTempC!.toFixed(1)}°C), but air and sea are too close here for the mean to say more; ` +
+      `read light and reception for where it is.`;
+    confidence = 0.5;
   } else if (tagMinusSST !== null && Math.abs(tagMinusSST) < 2) {
     environment = 'in_water';
     reasoning = `Tag mean ${tagMean.toFixed(1)}°C matches SST (${sources.sstTempC!.toFixed(
