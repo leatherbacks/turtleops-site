@@ -82,7 +82,9 @@ console.log('\n== RECEIVER SETTINGS ==');
 // 33938 as the satellites measured it on 12 Oct.
 const g = planRadio({ ...base, frequencyMHz: 401.677582 })!.gear;
 const gonio = g.find((x) => x.id === 'gonio2')!;
-chk('GONIO 2: band B1 (Argos-only) or ESS3 (Kinéis)', /Band B1 .*ESS3/.test(gonio.settings[0]), gonio.settings[0].slice(0, 80));
+chk('GONIO 2: firmware checked before the trip (update wipes the log)', /^Before the trip/.test(gonio.settings[0]) && /erases the stored message log/.test(gonio.settings[0]));
+const bandLine = gonio.settings.find((x) => /Argos Band/.test(x)) ?? '';
+chk('GONIO 2: band B1 (Argos-only) or ESS3 (Kinéis)', /Band B1 .*ESS3/.test(bandLine), bandLine.slice(0, 80));
 chk('GONIO 2: proximity off while searching', gonio.settings.some((x) => /Proximity OFF/.test(x)));
 chk('GONIO 2: favourite + GPS so the visit is logged', gonio.settings.some((x) => /favourite/.test(x)) && gonio.settings.some((x) => /GPS ON/.test(x)));
 chk('GONIO 2: repeat period from the data', gonio.settings.some((x) => /Repeat period 60 s/.test(x)));

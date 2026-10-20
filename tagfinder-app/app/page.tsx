@@ -8,12 +8,13 @@ import { reloadIfStale } from '@/lib/buildCheck';
 import { useEnvironment } from '@/hooks/useEnvironment';
 import { useTidePhase } from '@/hooks/useTidePhase';
 import { useWaterMatch } from '@/hooks/useWaterMatch';
+import { useAirMatch } from '@/hooks/useAirMatch';
 import { analyzeTagState } from '@/analysis/tagState';
 import { predictPassesInWindow } from '@/analysis/satPrediction';
 import { analyzePassGeometry } from '@/analysis/passGeometry';
 import { analyzeSatCoverage } from '@/analysis/satCoverage';
 import { analyzeReceptionQuality } from '@/analysis/receptionQuality';
-import { analyzeAntennaExposure } from '@/analysis/antennaExposure';
+import { analyzeAntennaExposure, overheadMessages } from '@/analysis/antennaExposure';
 import { restingSince as restingSinceOf, skyWindowEnd } from '@/analysis/restingPeriod';
 import { compareTemperatures } from '@/analysis/tempComparison';
 import { analyzeBathymetry } from '@/analysis/bathymetry';
@@ -132,6 +133,19 @@ export default function TagFinderPage() {
     result?.bestLat ?? null,
     result?.bestLon ?? null
   );
+
+  // Readings since the tag stopped, against the air at their own hour. Series
+  // where the tag sends it; Status otherwise, which is all 33938 sent ashore.
+  const restingTemps = useMemo(() => {
+    const since = tideSince?.getTime() ?? null;
+    if (since === null) return [];
+    const fromSeries = postReleaseTemps.filter((r) => r.date.getTime() >= since);
+    if (fromSeries.length) return fromSeries;
+    return statuses
+      .filter((s) => s.temperature !== null && !isNaN(s.date.getTime()) && s.date.getTime() >= since)
+      .map((s) => ({ date: s.date, temperatureC: s.temperature as number }));
+  }, [postReleaseTemps, statuses, tideSince]);
+  const airMatch = useAirMatch(restingTemps, result?.bestLat ?? null, result?.bestLon ?? null);
 
   // Predict upcoming satellite passes over the tag's position (next 48h)
   const upcoming = useUpcomingPasses({
@@ -255,12 +269,12 @@ export default function TagFinderPage() {
           setRestingCoverage(resting);
           setRestingExposure(
             resting
-              ? analyzeAntennaExposure(
-                  resting.passes,
-                  receptionQuality && receptionQuality.since
-                    ? { messagesPerPass: receptionQuality.messagesPerPass, baselineMessagesPerPass: receptionQuality.baselineMessagesPerPass }
-                    : null
-                )
+              ? analyzeAntennaExposure(resting.passes, {
+                  messagesPerPass: receptionQuality?.since ? receptionQuality.messagesPerPass : null,
+                  baselineMessagesPerPass: receptionQuality?.since ? receptionQuality.baselineMessagesPerPass : null,
+                  // The float is the same tag, antenna and satellites with nothing over it.
+                  baselineOverheadMessagesPerPass: overheadMessages(coverage.passes)?.messagesPerPass ?? null,
+                })
               : null
           );
           // Same TLEs, so this costs nothing extra: recover why each fix is as
@@ -389,8 +403,9 @@ export default function TagFinderPage() {
       lat: result.bestLat,
       lon: result.bestLon,
       since: restingSinceOf(result.allFixes),
+      airMatch: airMatch.analysis,
     });
-  }, [result, series, statuses, envData]);
+  }, [result, series, statuses, envData, airMatch.analysis]);
 
   // Compute bathymetry once GEBCO responds
   const bathymetry = useMemo(() => {
