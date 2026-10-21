@@ -123,6 +123,14 @@ export function planRadio(i: RadioPlanInput): RadioPlan | null {
       ? `Close in on foot. As the signal saturates, turn the gain down, add attenuation, then take the antenna off: if the bare receiver still hears it you are within a few metres. Probe or sweep the sand there; buried tags lie flat and shallow.`
       : `Close in along public ways. As the signal saturates, turn the gain down, add attenuation, then take the antenna off: if the bare receiver still hears it you are within a few tens of metres.`,
   ];
+  // A tag taken off the beach by someone may end up in their trash. 33938 sat
+  // a week in a block of houses at Melbourne Beach, under a lid by its
+  // antenna and in something that held the day's heat; on collection day the
+  // search turned to the curbside bins after they had been emptied.
+  if (scenario === 'in_hand')
+    steps.unshift(
+      `Find the trash and recycling collection day for these streets (the town, HOA or hauler's website). A tag someone found and lost interest in goes in a bin. Before collection: listen at the curbside bins and dumpsters in the search area. After it: fixes that move along roads or settle at a hauler's yard, transfer station or landfill mean it was collected; call the hauler the same day and ask which truck served these streets and where it unloads.`
+    );
   if (i.manufacturer === 'wildlife_computers')
     steps.unshift(
       `Before going: ask whoever programmed the tag (or Wildlife Computers support, with the serial number) whether a recovery pinger or VHF beacon is fitted and enabled. If it is, home on that; it is easier than Argos. The export does not say.`

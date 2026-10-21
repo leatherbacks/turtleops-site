@@ -60,6 +60,7 @@ chk('33938: in someone\'s hands, radio before the door', p.scenario === 'in_hand
 chk('frequency is the measured one', p.frequencyMHz === 401.6776 && /401\.678 MHz/.test(p.steps.join(' ')));
 chk('listen at least two bursts (>= 2 min)', p.dwellS >= 120, `${p.dwellS} s`);
 chk('WC tag: ask about a pinger, first step', p.askAboutPinger && /pinger/.test(p.steps[0]));
+chk('in someone\'s hands: trash collection day, bins before pickup, hauler after', /collection day/.test(p.steps.join(' ')) && /curbside bins/.test(p.steps.join(' ')) && /call the hauler/.test(p.steps.join(' ')));
 chk('four spots, one per side', p.stations.length === 4 && new Set(p.stations.map((s) => s.side)).size === 4);
 const worst = Math.max(...p.stations.map((s) => {
   const b = bearing(s.lat, s.lon, base.lat, base.lon);
