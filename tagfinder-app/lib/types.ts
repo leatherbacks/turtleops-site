@@ -14,6 +14,8 @@ export interface ArgosFix {
   // Computed
   effectiveError: number; // meters — errorRadius or empirical fallback
   isOutlier: boolean;
+  /** The satellite that produced it, where the source says (CLS message exports). */
+  satellite?: string;
 }
 
 // ─── Argos Pass (per-satellite-pass stats) ───
