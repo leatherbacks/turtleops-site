@@ -678,19 +678,19 @@ export default function TagFinderPage() {
   };
 
   const skyReady = result !== null && skySettledFor === result;
+  // The analysis is recorded once per result, as soon as it has settled. The
+  // brief is not written until someone asks for it: on 33938 the automatic
+  // brief ran on each of ten uploads in a week at ~62,000 input tokens apiece,
+  // most of them re-reading a record that had not changed.
+  const briefReady = !!displayResult && envReady && skyReady && !upcoming.loading;
+  const recordedForRef = useRef<unknown>(null);
   useEffect(() => {
-    if (!displayResult || !envReady || !skyReady || brief || briefLoading) return;
-    // Also wait for upcoming passes unless that query errored or returned no data
-    if (upcoming.loading) return;
-    // Claim the slot before the first await, or a re-render during the record
-    // POST fires this effect again and writes two rows and two briefs.
-    setBriefLoading(true);
-    (async () => {
-      const id = await recordAnalysis(displayResult);
-      await fetchBrief(id);
-    })();
+    if (!briefReady || !displayResult || recordedForRef.current === result) return;
+    // Claim it before the await, or a re-render during the POST writes two rows.
+    recordedForRef.current = result;
+    recordAnalysis(displayResult);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [displayResult, envReady, skyReady, upcoming.loading]);
+  }, [briefReady, displayResult]);
 
 
 
@@ -1146,7 +1146,8 @@ export default function TagFinderPage() {
                   brief={brief}
                   loading={briefLoading}
                   error={briefError}
-                  onRetry={fetchBrief}
+                  onRetry={() => fetchBrief()}
+                  ready={briefReady}
                 />
                 {displayResult.radioPlan && <RadioPlanPanel plan={displayResult.radioPlan} />}
                 {displayResult.mirrorCheck && (

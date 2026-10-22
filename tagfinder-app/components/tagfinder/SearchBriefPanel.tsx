@@ -8,6 +8,8 @@ interface SearchBriefPanelProps {
   loading: boolean;
   error: string | null;
   onRetry: () => void;
+  /** The environment and sky have settled, so a brief can be written. */
+  ready: boolean;
 }
 
 const STATUS_MESSAGES = [
@@ -25,6 +27,7 @@ export default function SearchBriefPanel({
   loading,
   error,
   onRetry,
+  ready,
 }: SearchBriefPanelProps) {
   const [statusIndex, setStatusIndex] = useState(0);
   const [elapsedSec, setElapsedSec] = useState(0);
@@ -113,9 +116,19 @@ export default function SearchBriefPanel({
       )}
 
       {!brief && !loading && !error && (
-        <p className="text-sm text-muted">
-          Brief will generate once the environmental data is loaded.
-        </p>
+        <div className="space-y-2">
+          <p className="text-sm text-muted">
+            A written summary of every panel below, with a recommended next step. Takes 15–30 seconds.
+          </p>
+          <button
+            onClick={onRetry}
+            disabled={!ready}
+            className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg border border-primary/40 text-primary hover:bg-primary/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Sparkles className="w-4 h-4" />
+            {ready ? 'Write recovery brief' : 'Loading environmental data…'}
+          </button>
+        </div>
       )}
     </div>
   );
