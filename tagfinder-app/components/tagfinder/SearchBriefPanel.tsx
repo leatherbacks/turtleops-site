@@ -86,8 +86,8 @@ export default function SearchBriefPanel({
           </div>
 
           <p className="text-xs text-muted pt-2">
-            Claude Opus is reasoning through the analysis — usually takes
-            15–30 seconds. Longer for complex cases.
+            Our recovery AI is working through this tag, drawing on what past
+            recoveries have taught us. Usually 15–30 seconds.
           </p>
         </div>
       )}
