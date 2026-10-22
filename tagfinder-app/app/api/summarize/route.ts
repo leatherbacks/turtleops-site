@@ -87,6 +87,14 @@ export async function POST(request: NextRequest) {
   const client = new Anthropic({ apiKey });
 
   const prompt = buildPrompt(body.analysis, body.environment);
+  // Input is nearly all of a brief's cost (33938: 62k tokens in, 1.2k out).
+  // Log the largest sections so the next cut goes where the tokens are.
+  const sections = prompt
+    .split('\n## ')
+    .map((sec) => ({ name: sec.slice(0, sec.indexOf('\n')).slice(0, 50), chars: sec.length }))
+    .sort((x, y) => y.chars - x.chars)
+    .slice(0, 8);
+  console.log(`[summarize] prompt ${prompt.length} chars; largest: ${sections.map((x) => `${x.name} ${x.chars}`).join(' | ')}`);
 
   try {
     const response = await client.messages.create({
@@ -101,7 +109,7 @@ export async function POST(request: NextRequest) {
       // makes this the obvious place to tune. Opus 5 performs unusually well at
       // 'low'/'medium' — worth a sweep against real briefs if cost matters.
       output_config: { effort: 'high' },
-      system: SYSTEM_PROMPT,
+      system: SYSTEM_CACHED,
       messages: [{ role: 'user', content: prompt }],
     });
 
@@ -140,7 +148,7 @@ export async function POST(request: NextRequest) {
         max_tokens: 8000,
         thinking: { type: 'adaptive' },
         output_config: { effort: 'high' },
-        system: SYSTEM_PROMPT,
+        system: SYSTEM_CACHED,
         messages: [
           { role: 'user', content: prompt },
           { role: 'assistant', content: textBlock.text },
@@ -699,6 +707,12 @@ provided, say so in one clause and name the file or export that would supply it.
 
 Keep the total response under 300 words.`;
 
+// The instructions are the same on every call: cached, a repeat call within
+// the cache window reads them at a tenth of the input price.
+const SYSTEM_CACHED: Anthropic.TextBlockParam[] = [
+  { type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
+];
+
 /** Strip the verbose trackPoints arrays from satCoverage before sending to the AI.
  *  Per-pass sky trajectories don't add signal beyond the summary stats. */
 function stripSatPasses(sc: unknown): unknown {
@@ -753,10 +767,7 @@ ${JSON.stringify(
     ptt: a.ptt,
     tagCategory: a.tagCategory,
     summary: a.summary,
-  },
-  null,
-  2
-)}
+  })}
 
 ## Position
 ${JSON.stringify(
@@ -770,85 +781,82 @@ ${JSON.stringify(
     positionAveragesFixesSince: a.positionSince ?? null,
     totalFixes: (a.allFixes as unknown[])?.length,
     searchRadiusBasis: a.searchRadiusBasis,
-  },
-  null,
-  2
-)}
+  })}
 
 ## Drift state
-${JSON.stringify(a.driftState, null, 2)}
+${JSON.stringify(a.driftState)}
 
 ## Drift prediction (if drifting)
-${JSON.stringify(a.driftPrediction, null, 2)}
+${JSON.stringify(a.driftPrediction)}
 
 ## Most recent fixes of ANY quality, including ones excluded from the position
 Class B and Z solutions are excluded from the best-estimate position because they
 are unreliable, but they still constrain where the tag can be. A weak fix near the
 last good position is evidence the tag did NOT continue on its previous heading.
-${JSON.stringify((a as Record<string, unknown>).recentFixesAnyQuality, null, 2)}
+${JSON.stringify((a as Record<string, unknown>).recentFixesAnyQuality)}
 
 ## Predicted landfall (where the drift path first meets land)
 When landfall.projectable is false the drift vector is too old to extrapolate and NO
 strand point exists. Do not compute one, do not name a town, and do not describe the
 tag as "likely ashore" — report the last confirmed position and search outward from it.
-${JSON.stringify(a.landfall, null, 2)}
+${JSON.stringify(a.landfall)}
 
 ## Wind and current cross-check on the drift vector
-${JSON.stringify(a.driftForcing, null, 2)}
+${JSON.stringify(a.driftForcing)}
 
 ## Release type (why the tag came off — mortality signals live here)
-${JSON.stringify(a.releaseInterpretation, null, 2)}
+${JSON.stringify(a.releaseInterpretation)}
 
 ## Data quality and transmit frequency (the RDF / goniometer tuning number)
-${JSON.stringify(a.dataQuality, null, 2)}
+${JSON.stringify(a.dataQuality)}
 
 ## Dive profile (pre-release, describes the animal — not the tag's current state)
-${JSON.stringify(a.diveProfile, null, 2)}
+${JSON.stringify(a.diveProfile)}
 
 ## Crush-depth event (pre-release descent near the tag's failsafe depth)
-${JSON.stringify(a.crushDepthEvent, null, 2)}
+${JSON.stringify(a.crushDepthEvent)}
 
 ## Tag state (depth, submersion, physical condition)
-${JSON.stringify(a.tagState, null, 2)}
+${JSON.stringify(a.tagState)}
 
 ## Out-of-the-water check (Argos geometry: fix yield collapsing while passes continue = grounded)
-${JSON.stringify(a.grounding, null, 2)}
+${JSON.stringify(a.grounding)}
 
 ## Carried check (a quality fix far from the previous ones at a speed no float can reach = somebody has it; the "to" fix is where it is now)
-${JSON.stringify(a.carried, null, 2)}
+${JSON.stringify(a.carried)}
 
 ## Tidal intrusion analysis
-${JSON.stringify(a.tidalIntrusion, null, 2)}
+${JSON.stringify(a.tidalIntrusion)}
 
 ## Satellite coverage (reception health)
-${JSON.stringify(stripSatPasses(a.satCoverage), null, 2)}
+${JSON.stringify(stripSatPasses(a.satCoverage))}
 
 ## Mirror solution check (if primary Argos fixes diverge, the secondaries may reveal the true position)
-${JSON.stringify(a.mirrorCheck, null, 2)}
+${JSON.stringify(a.mirrorCheck)}
 
 ## Antenna exposure analysis (what the sky-pass pattern reveals about the tag's physical condition)
-${JSON.stringify(a.antennaExposure, null, 2)}
+${JSON.stringify(a.antennaExposure)}
 
 ## Light-level analysis (from LightLoc.csv — tells us if the tag is buried/shaded/indoors/in open sky)
-${JSON.stringify(a.lightAnalysis, null, 2)}
+${JSON.stringify(a.lightAnalysis)}
 
 ## Temperature comparison (tag internal temp vs air/SST — helps distinguish in-water vs in-air vs inside a warm space)
-${JSON.stringify(a.tempComparison, null, 2)}
+${JSON.stringify(a.tempComparison)}
 
 ## Bathymetry (seabed depth at tag position — is the tag resting on the bottom, or floating above deep water?)
-${JSON.stringify(a.bathymetry, null, 2)}
+${JSON.stringify(a.bathymetry)}
 
 ## Burial detection (thermal signature — small diel temperature swing = buried in sand per sea turtle nest logger literature)
-${JSON.stringify(a.burialDetection, null, 2)}
+${JSON.stringify(a.burialDetection)}
 
 ## Tracker tag separation (live tracker that stopped moving — treat as recovery target if 'separated')
-${JSON.stringify(a.trackerShed, null, 2)}
+${JSON.stringify(a.trackerShed)}
 
 ## Transmission health trend (is the tag's signal degrading? Rising CRC rate, falling power, and rising frequency drift together diagnose a tag in trouble — e.g. buried, covered, overheating)
-${JSON.stringify(a.transmissionHealth, null, 2)}
+${JSON.stringify(a.transmissionHealth)}
 
 ## Reception vs tide (does the tag get heard preferentially on a falling or rising tide?)
-${JSON.stringify((a as Record<string, unknown>).tidePhase, null, 2)}
+${JSON.stringify((a as Record<string, unknown>).tidePhase)}
 
 ## Antenna exposure from reception alone (no orbital elements needed)
 Messages heard per pass, against the four Argos needs to solve a quality position.
@@ -856,13 +864,13 @@ Calibrated on two physically recovered tags: one buried in beach sand at 2.3 mes
 per pass, one lying exposed on an organic bank at 5.1. Prefer this over the satellite
 coverage rate when the two disagree — the coverage rate only counts whether a pass
 produced anything, not how much, and it called the wrack-bound tag "well-exposed".
-${JSON.stringify((a as Record<string, unknown>).receptionQuality, null, 2)}
+${JSON.stringify((a as Record<string, unknown>).receptionQuality)}
 
 ## Water-temperature match (did the tag stop tracking the water, and when?)
 Each post-release reading against water temperature at the same moment, from the gauge
 named in waterStation, waterStationDistanceKm away. transition, when present, brackets
 the tag leaving the water.
-${JSON.stringify((a as Record<string, unknown>).waterMatch, null, 2)}
+${JSON.stringify((a as Record<string, unknown>).waterMatch)}
 Gauge: ${JSON.stringify((a as Record<string, unknown>).waterStation ?? null)} at ${JSON.stringify((a as Record<string, unknown>).waterStationDistanceKm ?? null)} km
 
 ## Transmission repetition rate (how often the tag actually transmits)
@@ -872,7 +880,7 @@ receiver means "wrong place" or "not fired yet". If present, state periodS plain
 the recommendations and give silenceThresholdS as the point at which to move on. Note
 that a ground receiver at close range has tens of dB of margin and hears essentially
 every transmission, so these intervals are what someone standing there should expect.
-${JSON.stringify((a as Record<string, unknown>).repetitionRate, null, 2)}
+${JSON.stringify((a as Record<string, unknown>).repetitionRate)}
 
 ## END OF LIFE — read repetitionRate.slowedDown before saying anything about battery
 These transmitters buffer each burst in a capacitor, so the transmitter fires at full power
@@ -899,20 +907,20 @@ and no downward trend means the tag is not buried or under canopy.
 Do NOT present wetFlag as current wet/dry state — see lotekHealthStatusChanged. If that
 is false the status byte has never varied and cannot distinguish "wet now" from "always
 reports wet".
-${JSON.stringify(((a as Record<string, unknown>).lotekHealth as unknown[] | null)?.slice(-15) ?? null, null, 2)}
+${JSON.stringify(((a as Record<string, unknown>).lotekHealth as unknown[] | null)?.slice(-15) ?? null)}
 Status byte ever changed: ${JSON.stringify((a as Record<string, unknown>).lotekHealthStatusChanged)}
 
 ## Argos pass geometry (why each fix is good or bad, and where its mirror solution lies — last 20 fixes)
-${JSON.stringify((a as Record<string, unknown>).passGeometry, null, 2)}
+${JSON.stringify((a as Record<string, unknown>).passGeometry)}
 
 ## Upcoming satellite passes (next 48 hours over the tag's current position)
-${JSON.stringify(summarizeUpcoming((a as Record<string, unknown>).upcomingPasses as unknown[] | undefined), null, 2)}
+${JSON.stringify(summarizeUpcoming((a as Record<string, unknown>).upcomingPasses as unknown[] | undefined))}
 
 ## Environmental context
-${JSON.stringify(env, null, 2)}
+${JSON.stringify(env)}
 
 ## Popoff estimate (if computed)
-${JSON.stringify(a.popoff, null, 2)}
+${JSON.stringify(a.popoff)}
 
 Write the recovery brief now.`;
 }
