@@ -89,9 +89,11 @@ export default function SkySection({
 
       {other && other.totalPredicted > 0 && (
         <p className="text-xs text-muted px-1">
+          {/* One sentence that compares the two windows, so the drop reads as the place it is in. */}
           {showResting
-            ? `Afloat, ${day(firstFix)} to ${day(restingSince)}: ${other.totalReceived} of ${other.totalPredicted} passes heard (${pct(other)}). That figure describes the float, not this place.`
-            : `Since it stopped at ${stamp(restingSince)}: ${other.totalReceived} of ${other.totalPredicted} passes heard (${pct(other)}).`}
+            ? `For comparison: afloat (${day(firstFix)} to ${day(restingSince)}) it was heard on ${other.totalReceived} of ${other.totalPredicted} passes (${pct(other)}); since it stopped, ${coverage.totalReceived} of ${coverage.totalPredicted} (${pct(coverage)}).` +
+              (other.receptionRate - coverage.receptionRate >= 0.25 ? ' Something around it now is costing it passes it heard in the open.' : '')
+            : `For comparison: since it stopped at ${stamp(restingSince)} it has been heard on ${other.totalReceived} of ${other.totalPredicted} passes (${pct(other)}), against ${pct(coverage)} afloat.`}
         </p>
       )}
     </div>
