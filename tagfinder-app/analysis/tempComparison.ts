@@ -1,5 +1,6 @@
 import { effectiveRelease } from '@/lib/release';
 import { classifyHeat } from './sunHeat';
+import type { AirMatchAnalysis } from './airMatch';
 import type {
   SeriesReading,
   TagStatus,
@@ -22,6 +23,12 @@ interface TempSources {
    * now; earlier ones describe the float.
    */
   since?: Date | null;
+  /**
+   * The readings since the stop paired with the air at their own hour. When
+   * present it replaces airTempC as the air reference, and once the water is
+   * ruled out its verdict on what surrounds the tag stands.
+   */
+  airMatch?: AirMatchAnalysis | null;
 }
 
 /**
@@ -58,6 +65,13 @@ const MIN_READINGS_FOR_SWING = 5;
  * construction. See the note where it is computed.
  */
 const MIN_WINDOW_READINGS_FOR_TRIMMED_SWING = 4;
+
+const AIR_VERDICT_ENVIRONMENT: Record<Exclude<AirMatchAnalysis['verdict'], 'unclear'>, TempEnvironment> = {
+  tracks_air: 'in_air_exposed',
+  buffered: 'in_air_insulated',
+  climate_controlled: 'air_conditioned',
+  sun_heated: 'in_air_insulated',
+};
 
 export function compareTemperatures(
   seriesReadings: SeriesReading[],
@@ -204,8 +218,17 @@ export function compareTemperatures(
 
   const tagMinusSST =
     sources.sstTempC !== null ? Number((tagMean - sources.sstTempC).toFixed(2)) : null;
-  const tagMinusAir =
-    sources.airTempC !== null ? Number((tagMean - sources.airTempC).toFixed(2)) : null;
+  // Air at the readings' own hours when known; the current air otherwise.
+  const paired = windowed && sources.airMatch && sources.airMatch.pairs.length > 0 ? sources.airMatch : null;
+  if (paired) {
+    const ps = paired.pairs;
+    sources = { ...sources, airTempC: Number((ps.reduce((s, p) => s + p.airC, 0) / ps.length).toFixed(2)) };
+  }
+  const tagMinusAir = paired
+    ? Number((paired.pairs.reduce((s, p) => s + p.deltaC, 0) / paired.pairs.length).toFixed(2))
+    : sources.airTempC !== null
+      ? Number((tagMean - sources.airTempC).toFixed(2))
+      : null;
   const heat = classifyHeat(datedTemps.map((d) => ({ date: d.date, temp: d.t })), sources.lat ?? null, sources.lon ?? null);
 
   let environment: TempEnvironment;
@@ -345,9 +368,18 @@ export function compareTemperatures(
     confidence = 0.3;
   }
 
+  // Once the water is ruled out, how the tag follows the air says what is
+  // round it, which the mean comparisons above cannot.
+  if (paired && paired.verdict !== 'unclear' && environment !== 'in_water' && environment !== 'anomalous_hot') {
+    environment = AIR_VERDICT_ENVIRONMENT[paired.verdict];
+    reasoning = paired.reasoning;
+    confidence = paired.pairs.length >= 4 ? 0.75 : 0.65;
+  }
+
   return {
     environment,
     reasoning,
+    ...(paired ? { airMatch: paired } : {}),
     tagTempRange: { min: tagMin, max: tagMax },
     airTempC: sources.airTempC,
     sstTempC: sources.sstTempC,

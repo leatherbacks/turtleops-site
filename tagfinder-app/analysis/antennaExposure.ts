@@ -193,6 +193,39 @@ function describeObstruction(o: SkyObstruction): string {
 export interface ExposureRate {
   messagesPerPass: number | null;
   baselineMessagesPerPass?: number | null;
+  /** Messages per heard overhead pass while the same tag was afloat — see overheadMessages. */
+  baselineOverheadMessagesPerPass?: number | null;
+}
+
+/**
+ * Passes peaking at least this high count as overhead. Below it a pass spends
+ * most of its time near the horizon, where a wall, a dune or the antenna's own
+ * lie can cost it messages; above it nothing beside the tag is in the way.
+ */
+export const OVERHEAD_MIN_ELEVATION = 50;
+/** Heard overhead passes needed before their message count means anything. */
+const MIN_OVERHEAD_PASSES = 3;
+/** Overhead passes carrying under this share of the afloat count are muffled from above. */
+const OVERHEAD_MUFFLED_RATIO = 0.5;
+
+/**
+ * How many messages the heard overhead passes carry.
+ *
+ * Losing the low passes says the horizon is blocked, but a tag lying on its
+ * side loses them too: a flat antenna sends little toward the horizon, and an
+ * upright one over sea water sends most. What lying flat cannot do is lose
+ * the passes overhead, which see a flat antenna as well as an upright one. On
+ * 33938, ashore in a lockup at Melbourne Beach, passes above 50° were heard
+ * 4 times out of 4 but carried 2.8 messages each against 11.2 afloat; the
+ * sky panel, counting only whether they were heard, said overhead sky was
+ * still reaching the antenna.
+ */
+export function overheadMessages(passes: AnnotatedPass[]): { n: number; messagesPerPass: number } | null {
+  const heard = passes.filter(
+    (p) => p.received && p.maxElevation >= OVERHEAD_MIN_ELEVATION && typeof p.messages === 'number'
+  );
+  if (heard.length === 0) return null;
+  return { n: heard.length, messagesPerPass: mean(heard.map((p) => p.messages!)) };
 }
 
 export function analyzeAntennaExposure(passes: AnnotatedPass[], rate: ExposureRate | null = null): AntennaExposure {
@@ -269,8 +302,22 @@ export function analyzeAntennaExposure(passes: AnnotatedPass[], rate: ExposureRa
   } else if (horizonBlocked) {
     pattern = 'horizon_obstructed';
     confidence = cleanCutoff ? 0.85 : 0.65;
-    reasoning = horizonByRate
-      ? `Reception improves steadily with elevation — ${(lowBand.rate * 100).toFixed(0)}% of passes below ${lowBand.hi}° are heard against ${(highBand.rate * 100).toFixed(0)}% above ${highBand.lo}°. The horizon is obstructed all round rather than on one side, which is what sand, wrack, vegetation or a depression over the tag produces. Overhead sky is still reaching the antenna, so the tag is covered or sunk into its surroundings rather than sealed away.`
+    const over = overheadMessages(passes);
+    const overBase = rate?.baselineOverheadMessagesPerPass ?? null;
+    const muffled =
+      over !== null && over.n >= MIN_OVERHEAD_PASSES &&
+      (overBase ? over.messagesPerPass < overBase * OVERHEAD_MUFFLED_RATIO : over.messagesPerPass < 4);
+    const lowFirst = horizonByRate
+      ? `Reception improves steadily with elevation — ${(lowBand.rate * 100).toFixed(0)}% of passes below ${lowBand.hi}° are heard against ${(highBand.rate * 100).toFixed(0)}% above ${highBand.lo}°.`
+      : `Reception only succeeds for passes above ~${minReceived.toFixed(0)}°.`;
+    reasoning = muffled
+      ? `${lowFirst} Losing the low passes alone fits sand, wrack or a wall all round, or simply the antenna lying on its side. The overhead passes say more: ${over!.n} heard above ${OVERHEAD_MIN_ELEVATION}° carried ${over!.messagesPerPass.toFixed(1)} messages each` +
+        (overBase ? ` against ${overBase.toFixed(1)} afloat at the same elevations` : `, under the four a quality fix needs`) +
+        `. A satellite overhead sees a flat antenna as well as an upright one, so something lies over the tag as well as around it — a roof, lid, tarp, hull or sand.`
+      : horizonByRate
+      ? `${lowFirst} The horizon is obstructed all round rather than on one side, which is what sand, wrack, vegetation or a depression over the tag produces — or the antenna lying on its side, which sends little toward the horizon. Overhead sky is still reaching the antenna` +
+        (over && overBase ? ` (${over.messagesPerPass.toFixed(1)} messages per overhead pass against ${overBase.toFixed(1)} afloat)` : '') +
+        `, so the tag is covered or sunk into its surroundings rather than sealed away.`
       : `Reception only succeeds for passes above ~${minReceived.toFixed(0)}°. The horizon is obstructed all around — typical of a partially buried tag where the antenna is below surface level but can see sky nearly overhead. Received passes average ${meanReceived.toFixed(0)}° elevation vs ${meanMissed.toFixed(0)}° for missed passes.`;
   } else if (azimuthBias && azimuthBias !== 'symmetric') {
     pattern = 'directional';

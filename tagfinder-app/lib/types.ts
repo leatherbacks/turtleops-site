@@ -750,6 +750,8 @@ export interface TempComparison {
   tagMinusSST: number | null;
   tagMinusAir: number | null;
   confidence: number;
+  /** Readings since the stop against the air at their own hour — see analysis/airMatch. */
+  airMatch?: import('@/analysis/airMatch').AirMatchAnalysis;
 }
 
 // ─── Burial Detection (thermal signature) ───
@@ -1003,6 +1005,12 @@ export interface AnnotatedPass {
   setAzimuth: number;
   direction: 'ascending' | 'descending';
   received: boolean;
+  /**
+   * Messages the satellite took from the tag on this pass; absent when missed.
+   * Whether a pass is heard says where the sky is open; how many messages it
+   * carries says how much signal gets through.
+   */
+  messages?: number;
   /** Azimuth/elevation samples for drawing the arc (every ~30s) */
   trackPoints: { azimuth: number; elevation: number }[];
 }

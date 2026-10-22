@@ -7,7 +7,8 @@
  * band, proximity mode left on from the start, or another transmitter would
  * explain that, and nobody had checked the frequency or ID on screen. Each
  * card here gives the settings computed from the tag's own data and a check
- * that the signal heard is this tag.
+ * that the signal heard is this tag. In the same search, a firmware update
+ * done afterwards to read the log wiped it, so the firmware check comes first.
  *
  * GONIO 2 settings follow CLS's RXG-234 Installation and User Manual
  * (CLS-ENV-MU-20-0106, issue 1.3) and Recommendations for Goniometry
@@ -92,6 +93,7 @@ export function radioGear(opts: {
       name: 'CLS GONIO 2 (RXG-234 receiver, AXG-234 antenna)',
       summary: 'Argos direction finder that decodes the ID and logs every message from a favourite, with its own GPS position, so a visit can be mapped afterwards.',
       settings: [
+        "Before the trip, not after: connect it to Argos Gonio Manager and compare the receiver's firmware (Configuration tab, or the About screen) with the latest on CLS's goniometer page. Update first if it is behind. Updating erases the stored message log, and the current Manager may fail to download from old firmware (\"Bad checksum in RFP binary data\" or \"Invalid command: $ACK,GFG\").",
         `Setup page 2: Direction mode Goniometry, Antenna type AXG234, Argos Band ${argosBand ?? '(none covers this frequency)'} on Argos-only firmware or ${kineisBand ?? '(none)'} on Argos/Kinéis firmware. In any other band the tag is not heard at all; something heard there is another transmitter.`,
         'Proximity OFF while searching. It attenuates the signal and is meant for the last 100 m; left on from the start it makes the tag audible only close in.',
         'Setup page 1: Acquisition GPS ON, so each logged message carries where you stood, and calibrate the compass if it has been near a magnet.',

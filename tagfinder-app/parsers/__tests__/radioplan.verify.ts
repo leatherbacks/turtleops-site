@@ -60,6 +60,7 @@ chk('33938: in someone\'s hands, radio before the door', p.scenario === 'in_hand
 chk('frequency is the measured one', p.frequencyMHz === 401.6776 && /401\.678 MHz/.test(p.steps.join(' ')));
 chk('listen at least two bursts (>= 2 min)', p.dwellS >= 120, `${p.dwellS} s`);
 chk('WC tag: ask about a pinger, first step', p.askAboutPinger && /pinger/.test(p.steps[0]));
+chk('in someone\'s hands: trash collection day, bins before pickup, hauler after', /collection day/.test(p.steps.join(' ')) && /curbside bins/.test(p.steps.join(' ')) && /call the hauler/.test(p.steps.join(' ')));
 chk('four spots, one per side', p.stations.length === 4 && new Set(p.stations.map((s) => s.side)).size === 4);
 const worst = Math.max(...p.stations.map((s) => {
   const b = bearing(s.lat, s.lon, base.lat, base.lon);
@@ -82,7 +83,9 @@ console.log('\n== RECEIVER SETTINGS ==');
 // 33938 as the satellites measured it on 12 Oct.
 const g = planRadio({ ...base, frequencyMHz: 401.677582 })!.gear;
 const gonio = g.find((x) => x.id === 'gonio2')!;
-chk('GONIO 2: band B1 (Argos-only) or ESS3 (Kinéis)', /Band B1 .*ESS3/.test(gonio.settings[0]), gonio.settings[0].slice(0, 80));
+chk('GONIO 2: firmware checked before the trip (update wipes the log)', /^Before the trip/.test(gonio.settings[0]) && /erases the stored message log/.test(gonio.settings[0]));
+const bandLine = gonio.settings.find((x) => /Argos Band/.test(x)) ?? '';
+chk('GONIO 2: band B1 (Argos-only) or ESS3 (Kinéis)', /Band B1 .*ESS3/.test(bandLine), bandLine.slice(0, 80));
 chk('GONIO 2: proximity off while searching', gonio.settings.some((x) => /Proximity OFF/.test(x)));
 chk('GONIO 2: favourite + GPS so the visit is logged', gonio.settings.some((x) => /favourite/.test(x)) && gonio.settings.some((x) => /GPS ON/.test(x)));
 chk('GONIO 2: repeat period from the data', gonio.settings.some((x) => /Repeat period 60 s/.test(x)));

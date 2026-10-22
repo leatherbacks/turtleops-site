@@ -132,12 +132,16 @@ export function analyzeSatCoverage(
 
   // Match each received pass to a predicted one
   const matchedIds = new Set<number>();
+  const messagesById = new Map<number, number>();
   let receivedMatched = 0;
 
   for (const recv of received) {
     const match = matchPass(recv, predicted);
     if (match) {
       const idx = predicted.indexOf(match);
+      // An export can list a pass twice when CLS reprocesses it; the larger
+      // count is the pass, a sum would double it.
+      messagesById.set(idx, Math.max(messagesById.get(idx) ?? 0, recv.msgCount || 0));
       if (!matchedIds.has(idx)) {
         matchedIds.add(idx);
         receivedMatched++;
@@ -222,6 +226,7 @@ export function analyzeSatCoverage(
     setAzimuth: p.setAzimuth,
     direction: p.direction,
     received: matchedIds.has(i),
+    ...(matchedIds.has(i) ? { messages: messagesById.get(i) } : {}),
     trackPoints: p.trackPoints.map((t) => ({
       azimuth: t.azimuth,
       elevation: t.elevation,

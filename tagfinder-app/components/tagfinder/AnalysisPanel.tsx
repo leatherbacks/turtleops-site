@@ -738,7 +738,7 @@ function TempComparisonCard({ temp }: { temp: TempComparison }) {
         )}
         {temp.airTempC !== null && (
           <div>
-            <div className="text-xs text-muted uppercase tracking-wide">Air</div>
+            <div className="text-xs text-muted uppercase tracking-wide">{temp.airMatch ? 'Air at readings' : 'Air'}</div>
             <div className="font-mono font-medium">
               {temp.airTempC.toFixed(1)}°C
               {temp.tagMinusAir !== null && (
@@ -751,6 +751,36 @@ function TempComparisonCard({ temp }: { temp: TempComparison }) {
           </div>
         )}
       </div>
+      {temp.airMatch && (
+        <div className="mt-3">
+          <table className="w-full text-xs font-mono">
+            <thead>
+              <tr className="text-muted text-left">
+                <th className="font-normal pb-1">Reading (UTC)</th>
+                <th className="font-normal pb-1 text-right">Tag</th>
+                <th className="font-normal pb-1 text-right">Air</th>
+                <th className="font-normal pb-1 text-right">Δ</th>
+              </tr>
+            </thead>
+            <tbody>
+              {temp.airMatch.pairs.map((p) => (
+                <tr key={p.date.getTime()}>
+                  <td>{p.date.toISOString().slice(5, 16).replace('T', ' ')}</td>
+                  <td className="text-right">{p.tagC.toFixed(1)}</td>
+                  <td className="text-right">{p.airC.toFixed(1)}</td>
+                  <td className="text-right">{p.deltaC > 0 ? '+' : ''}{p.deltaC.toFixed(1)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {temp.airMatch.station && (
+            <p className="text-xs text-muted mt-1">
+              Air measured at {temp.airMatch.station}
+              {typeof temp.airMatch.stationDistanceKm === 'number' ? `, ${temp.airMatch.stationDistanceKm} km away` : ''}, at each reading&apos;s hour.
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
