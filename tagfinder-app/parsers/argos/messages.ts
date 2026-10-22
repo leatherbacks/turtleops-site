@@ -42,10 +42,14 @@ const PASS_GAP_MS = 15 * 60 * 1000;
  * ArgosWeb export carried, so only the columns common to both are required;
  * everything else is optional and read when present.
  */
+// The CLS portal's column labels vary between export generations: "Doppler
+// Class" and "Doppler Date (UTC)" in the 2026 files we hold, "Loc. class" and
+// "Doppler Date of position (UTC)" in Wildlife Computers' Kinéis guide
+// (v.202609). Detection needs only the columns every generation has.
 export const ARGOS_MESSAGES_REQUIRED = [
   'Message date (UTC)',
   'Raw data',
-  'Doppler Class',
+  'Device ID',
 ];
 
 export interface ArgosMessagesResult {
@@ -148,8 +152,8 @@ export function parseArgosMessages(allRows: Record<string, string>[]): ArgosMess
     // contributed to it exactly as the id used to.
     const positionId =
       col(row, 'Doppler Position ID') ||
-      (col(row, 'Doppler Date (UTC)')
-        ? `${col(row, 'Doppler Date (UTC)')}|${col(row, 'Doppler Latitude')}|${col(row, 'Doppler Longitude')}`
+      ((col(row, 'Doppler Date (UTC)') || col(row, 'Doppler Date of position (UTC)'))
+        ? `${col(row, 'Doppler Date (UTC)') || col(row, 'Doppler Date of position (UTC)')}|${col(row, 'Doppler Latitude')}|${col(row, 'Doppler Longitude')}`
         : '');
 
     messages.push({
@@ -166,8 +170,8 @@ export function parseArgosMessages(allRows: Record<string, string>[]): ArgosMess
 
     const lat = num(col(row, 'Doppler Latitude'));
     const lon = num(col(row, 'Doppler Longitude'));
-    const fixDate = toDate(col(row, 'Doppler Date (UTC)'));
-    const quality = col(row, 'Doppler Class').toUpperCase() as ArgosQuality;
+    const fixDate = toDate(col(row, 'Doppler Date (UTC)') || col(row, 'Doppler Date of position (UTC)'));
+    const quality = (col(row, 'Doppler Class') || col(row, 'Loc. class') || col(row, 'Location class')).toUpperCase() as ArgosQuality;
     if (lat === null || lon === null || isNaN(fixDate.getTime()) || !quality) continue;
 
     positionMeta.set(positionId, { quality, lat, lon, date: fixDate });
@@ -187,6 +191,7 @@ export function parseArgosMessages(allRows: Record<string, string>[]): ArgosMess
       orientation: 0,
       effectiveError: errorRadius > 0 ? errorRadius : (EMPIRICAL_ERRORS[quality] ?? 5000),
       isOutlier: false,
+      ...(col(row, 'Satellite') ? { satellite: col(row, 'Satellite') } : {}),
     });
   }
 

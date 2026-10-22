@@ -114,6 +114,7 @@ import { detectTrackerShed } from '@/analysis/trackerShed';
 import { analyzeTransmissionHealth } from '@/analysis/transmissionHealth';
 import { estimateRepetitionRate } from '@/analysis/repetitionRate';
 import { parseWCRawArgosTimes } from '@/parsers/wc/rawArgos';
+import { mergeFixes, mergePasses, mergeMessageTimes } from '@/analysis/mergeSources';
 import {
   estimatePopoffLocation,
   meetsNaultCriteria,
@@ -493,13 +494,24 @@ export function useAnalysis(): UseAnalysisReturn {
       //    error. Wildlife Computers Locations has full ellipses; the CLS
       //    message export has a reported error radius; the DS dump has neither
       //    and falls back to per-class averages, so it ranks last.
-      const fixes = parsedData.locations
+      const baseFixes = parsedData.locations
         ? parseLocations(parsedData.locations)
         : argosPositions?.fixes.length
           ? argosPositions.fixes
           : argosMessages?.fixes.length
             ? argosMessages.fixes
             : argosDS?.fixes ?? container?.fixes ?? [];
+
+      // A CLS (Argos-Kinéis portal) export dropped beside a Wildlife Computers
+      // export of the same tag adds what WC does not yet pull: the Kinéis
+      // passes. See analysis/mergeSources.ts. A different PTT is not merged.
+      const wcPtt = parsedData.locations ? Number(parsedData.locations[0]?.['Ptt']) || null : null;
+      const clsPtt = argosMessages?.ptt ?? argosPositions?.ptt ?? null;
+      const clsExtra = parsedData.locations && (argosMessages || argosPositions?.fixes.length) ? (wcPtt && clsPtt && wcPtt !== clsPtt ? 'mismatch' : 'merge') : null;
+      const mergedFixes = clsExtra === 'merge'
+        ? mergeFixes(baseFixes, [...(argosMessages?.fixes ?? []), ...(argosPositions?.fixes ?? [])])
+        : null;
+      const fixes = mergedFixes?.fixes ?? baseFixes;
       let summary: DeploySummary | null = parsedData.summary
         ? parseSummary(parsedData.summary)
         : null;
@@ -527,9 +539,22 @@ export function useAnalysis(): UseAnalysisReturn {
         };
       }
       const parsedStatuses = parsedData.status ? parseStatus(parsedData.status) : [];
-      const passes = parsedData.argos
+      const basePasses = parsedData.argos
         ? parseArgos(parsedData.argos)
         : argosMessages?.passes ?? argosDS?.passes ?? container?.passes ?? [];
+      const mergedPasses = clsExtra === 'merge' && parsedData.argos && argosMessages
+        ? mergePasses(basePasses, argosMessages.passes)
+        : null;
+      const passes = mergedPasses?.passes ?? basePasses;
+      if (clsExtra) {
+        const d = detected.find((f) => f.fileType === 'argos_messages' || f.fileType === 'argos_positions');
+        if (d) {
+          d.warning = clsExtra === 'mismatch'
+            ? `This CLS export is PTT ${clsPtt}, the Wildlife Computers files are PTT ${wcPtt}; not combined.`
+            : `Combined with the Wildlife Computers export: ${mergedFixes?.added ?? 0} fixes and ${mergedPasses?.added ?? 0} passes it did not have (Kinéis satellites and any later data).`;
+          setDetectedFiles([...detected]);
+        }
+      }
       // Health-message readings are post-release by construction, so they are
       // the ONLY series that describes the tag's current situation rather than
       // the animal's dive record. Without them tag state, burial detection and
@@ -816,9 +841,11 @@ export function useAnalysis(): UseAnalysisReturn {
           }
         : lightBase;
       const transmissionHealth = passes.length > 0 ? analyzeTransmissionHealth(passes, summary) : null;
+      const wcMessageTimes = parsedData.raw_argos ? parseWCRawArgosTimes(parsedData.raw_argos) : [];
       const messageTimes =
-        argosMessages?.messageTimes ?? argosDS?.messageTimes ?? container?.messageTimes ??
-        (parsedData.raw_argos ? parseWCRawArgosTimes(parsedData.raw_argos) : []);
+        clsExtra === 'merge' && argosMessages
+          ? mergeMessageTimes(wcMessageTimes, argosMessages.messageTimes).messageTimes
+          : argosMessages?.messageTimes ?? argosDS?.messageTimes ?? container?.messageTimes ?? wcMessageTimes;
 
       // 12. Build result
       // For separated trackers, scope the map + fix table to the stationary
