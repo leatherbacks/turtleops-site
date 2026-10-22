@@ -1011,6 +1011,12 @@ export interface AnnotatedPass {
    * carries says how much signal gets through.
    */
   messages?: number;
+  /**
+   * Where the satellite was at each message it took, when the export carries
+   * message times. The heard stretch of the arc; empty when the times did not
+   * reach this pass.
+   */
+  heardPoints?: { azimuth: number; elevation: number }[];
   /** Azimuth/elevation samples for drawing the arc (every ~30s) */
   trackPoints: { azimuth: number; elevation: number }[];
 }
@@ -1048,6 +1054,8 @@ export interface AnalysisResult {
   lotekHealth: LotekHealthRecord[] | null;
   /** How often the tag transmits, measured from its own message timestamps. */
   repetitionRate: RepetitionRate | null;
+  /** Every message's reception time and satellite, where the export has them. */
+  messageTimes: { date: Date; satellite: string }[];
   /** True if the health status byte ever changed — see LotekHealthRecord.wetFlag. */
   lotekHealthStatusChanged: boolean;
   burialDetection: BurialDetection | null;

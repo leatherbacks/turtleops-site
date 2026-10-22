@@ -22,6 +22,11 @@ const LEGACY_SATELLITES: Record<string, number> = {
   'METOP-C': 43689,
   SARAL: 39086,
   'OCEANSAT-3': 54361,
+  // General Atomics' Argos-4 hosted payload, "CS" in Argos exports. It heard
+  // MiniPAT 33938 on 30 passes in a week; without it those passes matched
+  // nothing and the upcoming list led with Kinéis birds that account could
+  // not hear.
+  'OTB-3-GAZELLE': 54023,
 };
 
 const FETCH_OPTS = {
