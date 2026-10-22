@@ -13,7 +13,8 @@ const MAX_BODY_BYTES = 60_000;
  *
  * POST /api/analyses with { analysis, fileTypes }
  * Returns { id } for the page to hand to /api/summarize, which marks the row
- * when a brief is generated.
+ * when a brief is generated, and { previous }: what this user last saw of the
+ * same PTT (tag_last_seen), for the "since last analysis" banner.
  *
  * Until now the only trace of a user running the tool was an email alert
  * that fired from the brief route and, it turned out, had never been
@@ -105,5 +106,46 @@ export async function POST(request: NextRequest) {
     outputTokens: null,
   }).catch(() => undefined);
 
-  return NextResponse.json({ id: data.id }, { headers: { 'Cache-Control': 'no-store' } });
+  // What this user saw of the tag last time, then this analysis in its place.
+  // Optional: a missing table or a failed write must not cost the record.
+  let previous: Record<string, unknown> | null = null;
+  if (row.ptt !== null) {
+    const { data: prev } = await admin
+      .from('tag_last_seen')
+      .select('*')
+      .eq('user_email', row.user_email)
+      .eq('ptt', row.ptt)
+      .maybeSingle();
+    if (prev) {
+      previous = {
+        ptt: prev.ptt,
+        releaseAt: prev.release_at,
+        firstDataAt: prev.first_data_at,
+        lastFixAt: prev.last_fix_at,
+        lastMessageAt: prev.last_message_at,
+        fixCount: prev.fix_count,
+        bestLat: prev.best_lat,
+        bestLon: prev.best_lon,
+        radiusM: prev.radius_m,
+        analyzedAt: prev.analyzed_at,
+      };
+    }
+    const { error: seenError } = await admin.from('tag_last_seen').upsert({
+      user_email: row.user_email,
+      ptt: row.ptt,
+      release_at: row.release_at,
+      first_data_at: when(a.firstDataAt),
+      last_fix_at: row.last_fix_at,
+      last_message_at: when(a.lastMessageAt),
+      fix_count: row.fix_count,
+      best_lat: row.best_lat,
+      best_lon: row.best_lon,
+      radius_m: row.primary_radius_m,
+      tag_state: row.tag_state,
+      analyzed_at: new Date().toISOString(),
+    });
+    if (seenError) console.error('tag_last_seen upsert failed:', seenError.message);
+  }
+
+  return NextResponse.json({ id: data.id, previous }, { headers: { 'Cache-Control': 'no-store' } });
 }
