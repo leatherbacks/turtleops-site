@@ -109,7 +109,14 @@ export default function SearchBriefPanel({
         <div className="prose prose-sm prose-invert max-w-none">
           {brief.split('\n\n').map((para, i) => (
             <p key={i} className="text-sm leading-relaxed mb-3 last:mb-0">
-              {para}
+              {/* The model writes **bold** for the headline and key numbers. */}
+              {para.split(/(\*\*[^*]+\*\*)/).map((part, j) =>
+                part.startsWith('**') && part.endsWith('**') && part.length > 4 ? (
+                  <strong key={j}>{part.slice(2, -2)}</strong>
+                ) : (
+                  part
+                )
+              )}
             </p>
           ))}
         </div>

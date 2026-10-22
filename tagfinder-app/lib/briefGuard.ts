@@ -129,7 +129,10 @@ ${rule}
 `;
 }
 
-const ASHORE_CLAIMS = /\b(afloat|at sea|open water|over (about |roughly )?\d+ ?m of water|drifting at the surface|riding the surface|search by boat|vessel search|still in (the )?water)\b/i;
+// "afloat" as a claim, not as a label for the float period: 33938's brief
+// (21 Oct) said "a third of its afloat rate (2.7 per pass against 7.7)" and
+// was flagged as calling the tag afloat.
+const ASHORE_CLAIMS = /\b((?<!\b(?:when|while|its|the|their|his|her)\s)afloat(?!\s+(?:rate|baseline|record|period|curves?|passes|days?|figures?|average|levels?|reception|yield|messages|readings?|temperatures?))|at sea|open water|over (about |roughly )?\d+ ?m of water|drifting at the surface|riding the surface|search by boat|vessel search|still in (the )?water)\b/i;
 const AFLOAT_CLAIMS = /\b(stranded|ashore|beached|washed up|on (the )?(beach|sand|land)|buried|indoors|on a windowsill)\b/i;
 
 /**

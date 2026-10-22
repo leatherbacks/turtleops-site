@@ -1,5 +1,5 @@
 import type { ArgosPass, SatCoverage, AnnotatedPass } from '@/lib/types';
-import type { SatellitePass } from './satPrediction';
+import type { SatellitePass, TrackPoint } from './satPrediction';
 
 /**
  * Match a received Argos pass to a predicted satellite pass.
@@ -65,6 +65,7 @@ export function normalizeSatName(name: string): string {
     MC: 'METOP-C',
     SR: 'SARAL',
     O3: 'OCEANSAT-3',
+    CS: 'OTB-3-GAZELLE',
   };
   if (map[n]) return map[n];
 
@@ -74,6 +75,7 @@ export function normalizeSatName(name: string): string {
   if (n.startsWith('NOAA')) return n.replace(' ', '-');
   if (n.startsWith('METOP')) return n.replace(' ', '-');
   if (n.startsWith('SARAL')) return 'SARAL';
+  if (n.startsWith('OTB-3') || n.includes('GAZELLE')) return 'OTB-3-GAZELLE';
   return n;
 }
 
@@ -118,9 +120,43 @@ const SAT_OUTLIER_SIGMA = 3;
 /** ...and the passes needed before that comparison is worth making. */
 const SAT_OUTLIER_MIN_PASSES = 8;
 
+/** A message this far outside a predicted pass's rise or set still belongs to it. */
+const MESSAGE_SLACK_MS = 60_000;
+
+/**
+ * Where in the sky the satellite was when it took a message: the pass's
+ * track, interpolated at the message time.
+ */
+function skyAt(track: TrackPoint[], t: number): { azimuth: number; elevation: number } | null {
+  if (track.length === 0) return null;
+  if (t <= track[0].time.getTime()) return { azimuth: track[0].azimuth, elevation: track[0].elevation };
+  for (let i = 1; i < track.length; i++) {
+    const a = track[i - 1], b = track[i];
+    const tb = b.time.getTime();
+    if (t > tb) continue;
+    const w = (t - a.time.getTime()) / (tb - a.time.getTime() || 1);
+    // Azimuth across north: 350° to 10° is 20° of travel, not 340°.
+    const dAz = ((b.azimuth - a.azimuth + 540) % 360) - 180;
+    return {
+      azimuth: (a.azimuth + w * dAz + 360) % 360,
+      elevation: a.elevation + w * (b.elevation - a.elevation),
+    };
+  }
+  const last = track[track.length - 1];
+  return { azimuth: last.azimuth, elevation: last.elevation };
+}
+
+/**
+ * @param messageTimes Every message's reception time and satellite, where the
+ *   export has them (WC RawArgos, CLS messages, DS). They place each heard
+ *   pass's messages on its arc, so the sky chart shows where in the sky the
+ *   tag got through, not just that it did: 33938 in a boat lockup was heard on
+ *   most passes, but only near the top of each.
+ */
 export function analyzeSatCoverage(
   predicted: SatellitePass[],
-  received: ArgosPass[]
+  received: ArgosPass[],
+  messageTimes: { date: Date; satellite: string }[] = []
 ): SatCoverage {
   if (predicted.length === 0) {
     return emptyCoverage('unknown', 'No predicted passes (TLE data missing)');
@@ -212,6 +248,27 @@ export function analyzeSatCoverage(
     rate, servingPerSat, ascPredicted, ascReceived, descPredicted, descReceived, nonServing
   );
 
+  // Messages by satellite, for placing each heard pass's messages on its arc.
+  const messagesBySat = new Map<string, number[]>();
+  for (const m of messageTimes) {
+    const t = m.date.getTime();
+    if (isNaN(t)) continue;
+    const key = normalizeSatName(m.satellite);
+    const list = messagesBySat.get(key);
+    if (list) list.push(t);
+    else messagesBySat.set(key, [t]);
+  }
+  const heardOn = (p: SatellitePass) => {
+    const times = messagesBySat.get(normalizeSatName(p.satelliteName)) ?? [];
+    const lo = p.riseTime.getTime() - MESSAGE_SLACK_MS;
+    const hi = p.setTime.getTime() + MESSAGE_SLACK_MS;
+    return times
+      .filter((t) => t >= lo && t <= hi)
+      .sort((a, b) => a - b)
+      .map((t) => skyAt(p.trackPoints, t))
+      .filter((x): x is { azimuth: number; elevation: number } => x !== null);
+  };
+
   // Build per-pass annotations for sky chart
   // Sky chart shows only satellites that were actually serving the tag; arcs
   // from a silent satellite are not "missed" and painting them red implies a
@@ -227,6 +284,7 @@ export function analyzeSatCoverage(
     direction: p.direction,
     received: matchedIds.has(i),
     ...(matchedIds.has(i) ? { messages: messagesById.get(i) } : {}),
+    ...(matchedIds.has(i) && messagesBySat.size > 0 ? { heardPoints: heardOn(p) } : {}),
     trackPoints: p.trackPoints.map((t) => ({
       azimuth: t.azimuth,
       elevation: t.elevation,

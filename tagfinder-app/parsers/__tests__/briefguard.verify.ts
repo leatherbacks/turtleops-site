@@ -49,6 +49,12 @@ chk('only the opening is judged', findContradiction('The tag is on land.\n\nSeco
 chk('unknown phase never contradicts', findContradiction(briefAsWritten, { tagState: { phase: 'unknown' } }), null);
 chk('missing tag state never contradicts', findContradiction(briefAsWritten, {}), null);
 chk('notice names the panels as authoritative', /authoritative/.test(contradictionNotice('x')), true);
+// 33938, 21 Oct: "afloat" as the name of the float period is not a claim.
+const recovered = { tagState: { phase: 'likely_recovered' } };
+chk('"its afloat rate" is not calling the tag afloat',
+  findContradiction('**Headline: OUT OF THE WATER.**\n\nIt is not afloat. Yield is a third of its afloat rate (2.7 per pass against 7.7).', recovered), null);
+chk('"heard when afloat" is not either', findContradiction('Ashore.\n\nOverhead passes carried 3.4 messages against 10.2 when afloat.', recovered), null);
+chk('"the tag is afloat" still is', findContradiction('The tag is afloat off the beach.\n\nMore.', recovered) !== null, true);
 
 console.log(`\n  ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

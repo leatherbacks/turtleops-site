@@ -816,6 +816,9 @@ export function useAnalysis(): UseAnalysisReturn {
           }
         : lightBase;
       const transmissionHealth = passes.length > 0 ? analyzeTransmissionHealth(passes, summary) : null;
+      const messageTimes =
+        argosMessages?.messageTimes ?? argosDS?.messageTimes ?? container?.messageTimes ??
+        (parsedData.raw_argos ? parseWCRawArgosTimes(parsedData.raw_argos) : []);
 
       // 12. Build result
       // For separated trackers, scope the map + fix table to the stationary
@@ -875,10 +878,8 @@ export function useAnalysis(): UseAnalysisReturn {
         // How often the tag transmits, measured from its own timestamps. The
         // number a field team needs to tell "wrong place" from "not yet", and
         // one that rarely appears in any manufacturer export.
-        repetitionRate: estimateRepetitionRate(
-          argosMessages?.messageTimes ?? argosDS?.messageTimes ?? container?.messageTimes ??
-            (parsedData.raw_argos ? parseWCRawArgosTimes(parsedData.raw_argos) : [])
-        ),
+        repetitionRate: estimateRepetitionRate(messageTimes),
+        messageTimes,
         lotekHealth: lotekHealth?.records ?? null,
         lotekHealthStatusChanged: lotekHealth?.statusChanged ?? false,
         burialDetection: null, // computed async in the page after environment fetch

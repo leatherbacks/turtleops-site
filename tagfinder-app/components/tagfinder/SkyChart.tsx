@@ -23,6 +23,10 @@ export default function SkyChart({ passes, exposure, windowLabel }: SkyChartProp
 
   const received = passes.filter((p) => p.received);
   const missed = passes.filter((p) => !p.received);
+  // With message times the heard stretch of each arc is drawn, not the whole
+  // arc: a tag under a roof is heard near the top of most passes, and a
+  // whole green arc reads as open sky.
+  const located = received.some((p) => (p.heardPoints?.length ?? 0) > 0);
 
   // Compute cone inner radius (in SVG units) from elevation cutoff.
   // Elevation 0° is at outer edge (r=RADIUS), 90° at center (r=0).
@@ -45,8 +49,11 @@ export default function SkyChart({ passes, exposure, windowLabel }: SkyChartProp
 
       <p className="text-xs text-muted mb-4">
         Each arc shows a satellite&apos;s path across the sky over the tag&apos;s
-        position. Green = signal received, red = signal missed. Directional
-        bias (e.g., all received from one side) suggests antenna obstruction.
+        position.{' '}
+        {located
+          ? 'Green marks where on the arc its messages came through; grey is the rest of a heard pass; red passes heard nothing.'
+          : 'Green = signal received, red = signal missed.'}{' '}
+        Directional bias (e.g., all received from one side) suggests antenna obstruction.
       </p>
 
       {exposure && exposure.pattern !== 'too_few_passes' && exposure.pattern !== 'unknown' && (
@@ -204,24 +211,61 @@ export default function SkyChart({ passes, exposure, windowLabel }: SkyChartProp
           ))}
 
           {/* Arcs for received passes (drawn on top) */}
-          {received.map((pass, i) => (
-            <PassArc key={`r-${i}`} pass={pass} color="#10b981" />
-          ))}
+          {received.map((pass, i) =>
+            located && (pass.heardPoints?.length ?? 0) > 0 ? (
+              <HeardArc key={`r-${i}`} pass={pass} />
+            ) : (
+              <PassArc key={`r-${i}`} pass={pass} color="#10b981" />
+            )
+          )}
         </svg>
       </div>
 
       {/* Legend */}
       <div className="flex justify-center gap-4 mt-3 text-xs text-muted">
         <span className="flex items-center gap-1.5">
-          <div className="w-3 h-0.5 bg-success" />
-          Received
+          <div className={`w-3 ${located ? 'h-1' : 'h-0.5'} bg-success`} />
+          {located ? 'Messages came through' : 'Received'}
         </span>
+        {located && (
+          <span className="flex items-center gap-1.5">
+            <div className="w-3 h-0.5 bg-gray-400" />
+            Rest of a heard pass
+          </span>
+        )}
         <span className="flex items-center gap-1.5">
           <div className="w-3 h-0.5 bg-error" />
           Missed
         </span>
       </div>
     </div>
+  );
+}
+
+/** Elevation 0 at the edge, 90 at the centre; N up. */
+function toXY(azimuth: number, elevation: number): [number, number] {
+  const r = RADIUS * (1 - elevation / 90);
+  const theta = ((azimuth - 90) * Math.PI) / 180;
+  return [CENTER + r * Math.cos(theta), CENTER + r * Math.sin(theta)];
+}
+
+/** A heard pass: the whole arc faint, the stretch where messages arrived bold, a dot per message. */
+function HeardArc({ pass }: { pass: AnnotatedPass }) {
+  if (pass.trackPoints.length < 2) return null;
+  const arc = pass.trackPoints.map((p) => toXY(p.azimuth, p.elevation));
+  const heard = (pass.heardPoints ?? []).map((p) => toXY(p.azimuth, p.elevation));
+  const d = (pts: [number, number][]) =>
+    pts.map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
+  return (
+    <g>
+      <path d={d(arc)} fill="none" stroke="#9ca3af" strokeWidth={1} strokeLinecap="round" opacity={0.45} />
+      {heard.length > 1 && (
+        <path d={d(heard)} fill="none" stroke="#10b981" strokeWidth={3.5} strokeLinecap="round" opacity={0.9} />
+      )}
+      {heard.map(([x, y], i) => (
+        <circle key={i} cx={x} cy={y} r={2.2} fill="#10b981" />
+      ))}
+    </g>
   );
 }
 

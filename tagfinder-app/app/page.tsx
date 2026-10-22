@@ -12,7 +12,7 @@ import { useAirMatch } from '@/hooks/useAirMatch';
 import { analyzeTagState } from '@/analysis/tagState';
 import { predictPassesInWindow } from '@/analysis/satPrediction';
 import { analyzePassGeometry } from '@/analysis/passGeometry';
-import { analyzeSatCoverage } from '@/analysis/satCoverage';
+import { analyzeSatCoverage, normalizeSatName } from '@/analysis/satCoverage';
 import { analyzeReceptionQuality } from '@/analysis/receptionQuality';
 import { analyzeAntennaExposure, overheadMessages } from '@/analysis/antennaExposure';
 import { restingSince as restingSinceOf, skyWindowEnd } from '@/analysis/restingPeriod';
@@ -152,11 +152,19 @@ export default function TagFinderPage() {
   const airMatch = useAirMatch(restingTemps, result?.bestLat ?? null, result?.bestLon ?? null);
 
   // Predict upcoming satellite passes over the tag's position (next 48h)
-  const upcoming = useUpcomingPasses({
+  const upcomingAll = useUpcomingPasses({
     lat: result?.bestLat ?? null,
     lon: result?.bestLon ?? null,
     hoursAhead: 48,
   });
+  // Only satellites that have heard this tag. A pass from one that never has
+  // is not a chance of a fix: 33938's report led with "next likely reception
+  // in 3 min, KINEIS-2B" for an account with no Kinéis service.
+  const heardSats = useMemo(() => new Set(passes.map((p) => normalizeSatName(p.satellite))), [passes]);
+  const upcoming = useMemo(() => {
+    if (heardSats.size === 0 || !upcomingAll.passes) return upcomingAll;
+    return { ...upcomingAll, passes: upcomingAll.passes.filter((p) => heardSats.has(normalizeSatName(p.satelliteName))) };
+  }, [upcomingAll, heardSats]);
 
   // How much sky the antenna can see, from the received passes alone. Unlike
   // satCoverage this needs no orbital elements, so it still works on a tag whose
@@ -252,7 +260,7 @@ export default function TagFinderPage() {
           earliest,
           latest
         );
-        const full = analyzeSatCoverage(predicted, passes);
+        const full = analyzeSatCoverage(predicted, passes, result.messageTimes);
         // The float window learns which satellites serve this tag; the
         // resting window is too short to tell a silent satellite from a
         // blocked one, so it inherits the roster.
@@ -263,8 +271,8 @@ export default function TagFinderPage() {
         const restingPredicted = stoppedAt
           ? predicted.filter((p) => p.riseTime.getTime() >= stoppedAt.getTime() && serving.has(p.satelliteName))
           : [];
-        const coverage = stoppedAt && afloatPredicted.length > 0 ? analyzeSatCoverage(afloatPredicted, passes) : full;
-        const resting = restingPredicted.length > 0 ? analyzeSatCoverage(restingPredicted, passes) : null;
+        const coverage = stoppedAt && afloatPredicted.length > 0 ? analyzeSatCoverage(afloatPredicted, passes, result.messageTimes) : full;
+        const resting = restingPredicted.length > 0 ? analyzeSatCoverage(restingPredicted, passes, result.messageTimes) : null;
         if (!cancelled) {
           setSatCoverage(coverage);
           setAntennaExposure(analyzeAntennaExposure(coverage.passes));
