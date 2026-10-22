@@ -47,6 +47,8 @@ import SkySection from '@/components/tagfinder/SkySection';
 import UpcomingPassesPanel from '@/components/tagfinder/UpcomingPassesPanel';
 import EmailGate from '@/components/tagfinder/EmailGate';
 import RadioPlanPanel from '@/components/tagfinder/RadioPlanPanel';
+import SinceLastBanner from '@/components/tagfinder/SinceLastBanner';
+import { sinceLast, type LastSeen, type SinceLast } from '@/analysis/sinceLast';
 import { planRadio } from '@/analysis/radioPlan';
 import { INHABITED_KINDS } from '@/lib/placeKind';
 import FeedbackWidget from '@/components/tagfinder/FeedbackWidget';
@@ -81,6 +83,8 @@ export default function TagFinderPage() {
   const [landfall, setLandfall] = useState<LandfallPrediction | null>(null);
   const [driftForcing, setDriftForcing] = useState<DriftForcing | null>(null);
   const [brief, setBrief] = useState<string | null>(null);
+  // What changed since this user last analysed the same PTT.
+  const [sinceLastResult, setSinceLastResult] = useState<SinceLast | null>(null);
   const [briefLoading, setBriefLoading] = useState(false);
   const [briefError, setBriefError] = useState<string | null>(null);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
@@ -642,6 +646,8 @@ export default function TagFinderPage() {
    */
   const recordAnalysis = async (r: NonNullable<typeof displayResult>): Promise<string | null> => {
     const lastFix = r.validFixes.length ? r.validFixes[r.validFixes.length - 1] : null;
+    const newestMessage = passes.reduce<Date | null>((m, p) => (!isNaN(p.date.getTime()) && (!m || p.date > m) ? p.date : m), null);
+    const firstFix = r.allFixes.reduce<Date | null>((m, f) => (!isNaN(f.date.getTime()) && (!m || f.date < m) ? f.date : m), null);
     const record = {
       ptt: r.ptt,
       manufacturer: detectedFiles.find((f) => f.manufacturer !== 'unknown')?.manufacturer ?? 'unknown',
@@ -661,6 +667,8 @@ export default function TagFinderPage() {
       primaryRadiusM: r.primaryRadiusM,
       tagState: r.tagState?.phase ?? null,
       searchRadiusBasis: r.searchRadiusBasis,
+      firstDataAt: firstFix ? firstFix.toISOString() : null,
+      lastMessageAt: newestMessage ? newestMessage.toISOString() : null,
     };
     try {
       const res = await fetch('/api/analyses', {
@@ -671,6 +679,15 @@ export default function TagFinderPage() {
       if (!res.ok) return null;
       const data = await res.json();
       lastRecordIdRef.current = typeof data.id === 'string' ? data.id : null;
+      setSinceLastResult(
+        sinceLast((data.previous as LastSeen | null) ?? null, {
+          releaseAt: r.summary?.releaseDate ?? null,
+          fixes: r.allFixes,
+          newestMessage,
+          bestLat: r.bestLat,
+          bestLon: r.bestLon,
+        })
+      );
       return lastRecordIdRef.current;
     } catch {
       return null;
@@ -697,6 +714,7 @@ export default function TagFinderPage() {
   const handleFiles = async (newFiles: File[]) => {
     // A tab opened before a deployment must not analyse with the old code.
     if (await reloadIfStale()) return;
+    setSinceLastResult(null);
     await analyze(newFiles);
   };
 
@@ -712,6 +730,7 @@ export default function TagFinderPage() {
     setSkyEnd(null);
     setBrief(null);
     setBriefError(null);
+    setSinceLastResult(null);
     setShareUrl(null);
     setShareId(null);
     setShareViews(null);
@@ -1062,6 +1081,8 @@ export default function TagFinderPage() {
                 </div>
               </div>
             )}
+
+            {sinceLastResult && sinceLastResult.items.length > 0 && <SinceLastBanner since={sinceLastResult} />}
 
             {/* Hero position — the single answer recovery teams come here for */}
             <PositionCard result={displayResult} hero />
