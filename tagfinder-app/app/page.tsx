@@ -39,6 +39,7 @@ import DiveProfilePanel from '@/components/tagfinder/DiveProfilePanel';
 import SearchBriefPanel from '@/components/tagfinder/SearchBriefPanel';
 import MirrorCheckPanel from '@/components/tagfinder/MirrorCheckPanel';
 import TransmissionHealthPanel from '@/components/tagfinder/TransmissionHealthPanel';
+import TransmitCounterPanel from '@/components/tagfinder/TransmitCounterPanel';
 import PayloadHealthPanel from '@/components/tagfinder/PayloadHealthPanel';
 import TidePhasePanel from '@/components/tagfinder/TidePhasePanel';
 import WaterMatchPanel from '@/components/tagfinder/WaterMatchPanel';
@@ -593,6 +594,9 @@ export default function TagFinderPage() {
         waterStation: waterMatch.station,
         waterStationDistanceKm: waterMatch.stationDistanceKm,
         repetitionRate: displayResult.repetitionRate,
+        transmitCounter: displayResult.transmitCounter
+          ? { ...displayResult.transmitCounter, windows: displayResult.transmitCounter.windows.slice(-8) }
+          : null,
         // Device cards are for the field team; the brief needs only the plan.
         radioPlan: displayResult.radioPlan ? { ...displayResult.radioPlan, gear: undefined } : null,
         passGeometry: passGeometry
@@ -1197,6 +1201,9 @@ export default function TagFinderPage() {
                 {displayResult.radioPlan && <RadioPlanPanel plan={displayResult.radioPlan} />}
                 {displayResult.mirrorCheck && (
                   <MirrorCheckPanel mirror={displayResult.mirrorCheck} />
+                )}
+                {displayResult.transmitCounter && (
+                  <TransmitCounterPanel counter={displayResult.transmitCounter} />
                 )}
                 {displayResult.transmissionHealth && (
                   <TransmissionHealthPanel health={displayResult.transmissionHealth} />

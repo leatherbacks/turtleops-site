@@ -855,6 +855,14 @@ ${JSON.stringify(a.trackerShed)}
 ## Transmission health trend (is the tag's signal degrading? Rising CRC rate, falling power, and rising frequency drift together diagnose a tag in trouble — e.g. buried, covered, overheating)
 ${JSON.stringify(a.transmissionHealth)}
 
+## Dry or wet, from the tag's own transmission counter (WC Status 'Transmits': made, not received)
+The tag transmits only when dry, once per period, so latest.dryFraction is the share of time out of the
+water since it stopped, whether or not satellites heard it. Near 1 with heardPerSent far below
+afloatHeardPerSent = dry and transmitting but covered (roof, lid, hull, vegetation), not wet. Low dryFraction
+= wet (awash, sunk, surf line, wet sand): its silence is water, not a dead battery or a blocked antenna.
+A clean tag floating free reads dry about 90–100% of the time.
+${JSON.stringify((a as Record<string, unknown>).transmitCounter)}
+
 ## Reception vs tide (does the tag get heard preferentially on a falling or rising tide?)
 ${JSON.stringify((a as Record<string, unknown>).tidePhase)}
 

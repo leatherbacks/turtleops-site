@@ -84,6 +84,11 @@ export interface TagStatus {
   wetDry: number | null;
   minWetDry: number | null;
   maxWetDry: number | null;
+  /**
+   * Transmissions the tag has made so far (WC `Transmits`): made, not received.
+   * The rise between messages is time spent dry — see analysis/transmitCounter.ts.
+   */
+  transmits?: number | null;
 }
 
 // ─── Time-Series Depth/Temp (Series.csv) ───
@@ -1056,6 +1061,8 @@ export interface AnalysisResult {
   lotekHealth: LotekHealthRecord[] | null;
   /** How often the tag transmits, measured from its own message timestamps. */
   repetitionRate: RepetitionRate | null;
+  /** Hours dry from the tag's own transmission counter (WC Status). */
+  transmitCounter: import('@/analysis/transmitCounter').TransmitCounter | null;
   /** Every message's reception time and satellite, where the export has them. */
   messageTimes: { date: Date; satellite: string }[];
   /** True if the health status byte ever changed — see LotekHealthRecord.wetFlag. */

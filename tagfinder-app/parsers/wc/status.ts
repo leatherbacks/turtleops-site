@@ -21,6 +21,7 @@ export function parseStatus(rows: Record<string, string>[]): TagStatus[] {
     const wetDry = parseFloat(row['WetDry'] || '');
     const minWetDry = parseFloat(row['MinWetDry'] || '');
     const maxWetDry = parseFloat(row['MaxWetDry'] || '');
+    const transmits = parseFloat(row['Transmits'] || '');
 
     statuses.push({
       date,
@@ -32,6 +33,7 @@ export function parseStatus(rows: Record<string, string>[]): TagStatus[] {
       wetDry: isNaN(wetDry) ? null : wetDry,
       minWetDry: isNaN(minWetDry) ? null : minWetDry,
       maxWetDry: isNaN(maxWetDry) ? null : maxWetDry,
+      transmits: isNaN(transmits) ? null : transmits,
     });
   }
 
