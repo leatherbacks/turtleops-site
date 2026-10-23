@@ -40,6 +40,7 @@ import SearchBriefPanel from '@/components/tagfinder/SearchBriefPanel';
 import MirrorCheckPanel from '@/components/tagfinder/MirrorCheckPanel';
 import TransmissionHealthPanel from '@/components/tagfinder/TransmissionHealthPanel';
 import TransmitCounterPanel from '@/components/tagfinder/TransmitCounterPanel';
+import UnderwaterAfterReleasePanel from '@/components/tagfinder/UnderwaterAfterReleasePanel';
 import PayloadHealthPanel from '@/components/tagfinder/PayloadHealthPanel';
 import TidePhasePanel from '@/components/tagfinder/TidePhasePanel';
 import WaterMatchPanel from '@/components/tagfinder/WaterMatchPanel';
@@ -594,6 +595,7 @@ export default function TagFinderPage() {
         waterStation: waterMatch.station,
         waterStationDistanceKm: waterMatch.stationDistanceKm,
         repetitionRate: displayResult.repetitionRate,
+        underwaterAfterRelease: displayResult.underwaterAfterRelease,
         transmitCounter: displayResult.transmitCounter
           ? { ...displayResult.transmitCounter, windows: displayResult.transmitCounter.windows.slice(-8) }
           : null,
@@ -1201,6 +1203,9 @@ export default function TagFinderPage() {
                 {displayResult.radioPlan && <RadioPlanPanel plan={displayResult.radioPlan} />}
                 {displayResult.mirrorCheck && (
                   <MirrorCheckPanel mirror={displayResult.mirrorCheck} />
+                )}
+                {displayResult.underwaterAfterRelease && (
+                  <UnderwaterAfterReleasePanel finding={displayResult.underwaterAfterRelease} />
                 )}
                 {displayResult.transmitCounter && (
                   <TransmitCounterPanel counter={displayResult.transmitCounter} />

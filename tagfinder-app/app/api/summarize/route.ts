@@ -855,6 +855,12 @@ ${JSON.stringify(a.trackerShed)}
 ## Transmission health trend (is the tag's signal degrading? Rising CRC rate, falling power, and rising frequency drift together diagnose a tag in trouble — e.g. buried, covered, overheating)
 ${JSON.stringify(a.transmissionHealth)}
 
+## Underwater after release (WC SST records taken metres down after release)
+An SST record is taken at the shallowest depth reached in its window; floating and beached tags record it at 0 m.
+If present, the tag had sunk or was held under at those times: say so plainly, explain that a sunk tag cannot
+transmit, and that it is most likely to come ashore after the next onshore wind. Null means no such record.
+${JSON.stringify((a as Record<string, unknown>).underwaterAfterRelease)}
+
 ## Dry or wet, from the tag's own transmission counter (WC Status 'Transmits': made, not received)
 The tag transmits only when dry, once per period, so latest.dryFraction is the share of time out of the
 water since it stopped, whether or not satellites heard it. Near 1 with heardPerSent far below

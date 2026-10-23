@@ -1063,6 +1063,8 @@ export interface AnalysisResult {
   repetitionRate: RepetitionRate | null;
   /** Hours dry from the tag's own transmission counter (WC Status). */
   transmitCounter: import('@/analysis/transmitCounter').TransmitCounter | null;
+  /** SST taken metres down after release: the tag had sunk. */
+  underwaterAfterRelease: import('@/analysis/underwaterAfterRelease').UnderwaterAfterRelease | null;
   /** Every message's reception time and satellite, where the export has them. */
   messageTimes: { date: Date; satellite: string }[];
   /** True if the health status byte ever changed — see LotekHealthRecord.wetFlag. */
