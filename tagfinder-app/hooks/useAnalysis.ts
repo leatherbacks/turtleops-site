@@ -140,6 +140,7 @@ import { analyzeLightLevel } from '@/analysis/lightLevel';
 import { detectTrackerShed } from '@/analysis/trackerShed';
 import { analyzeTransmissionHealth } from '@/analysis/transmissionHealth';
 import { estimateRepetitionRate } from '@/analysis/repetitionRate';
+import { analyzeTransmitCounter } from '@/analysis/transmitCounter';
 import { parseWCRawArgosTimes } from '@/parsers/wc/rawArgos';
 import { mergeFixes, mergePasses, mergeMessageTimes } from '@/analysis/mergeSources';
 import {
@@ -953,6 +954,7 @@ export function useAnalysis(): UseAnalysisReturn {
       // Post-release sensor data decoded from the raw payloads.
       const payloadHealth = activityPayload ? analyzePayloadHealth(activityPayload.daily) : null;
 
+      const repetitionRate = estimateRepetitionRate(messageTimes);
       setResult({
         summary,
         ptt: summary?.ptt || null,
@@ -1000,7 +1002,16 @@ export function useAnalysis(): UseAnalysisReturn {
         // How often the tag transmits, measured from its own timestamps. The
         // number a field team needs to tell "wrong place" from "not yet", and
         // one that rarely appears in any manufacturer export.
-        repetitionRate: estimateRepetitionRate(messageTimes),
+        repetitionRate,
+        // Dry or wet, from how many transmissions the tag made between Status
+        // messages — heard or not. Separates a wet tag from a covered one.
+        transmitCounter: analyzeTransmitCounter(
+          parsedStatuses,
+          messageTimes,
+          repetitionRate?.periodS ?? null,
+          restingSince(workingFixes),
+          summary?.releaseDate ?? null
+        ),
         messageTimes,
         lotekHealth: lotekHealth?.records ?? null,
         lotekHealthStatusChanged: lotekHealth?.statusChanged ?? false,
