@@ -1349,6 +1349,15 @@ export default function TagFinderPage() {
           >
             Hall &amp; James 2021, Endang. Species Res. 46:279&ndash;291
           </a>
+          ;{' '}
+          <a
+            href="https://static.wildlifecomputers.com/Location-Processing-UserGuide.pdf"
+            target="_blank"
+            rel="noopener"
+            className="hover:text-primary underline underline-offset-2"
+          >
+            Wildlife Computers Location Processing User Guide (v.202603)
+          </a>
           . Satellite passes: SGP4 via{' '}
           <a
             href="https://github.com/shashwatak/satellite-js"
@@ -1360,7 +1369,17 @@ export default function TagFinderPage() {
           </a>
           {' '}(Vallado et al. 2006, AIAA 2006-6753). Solar position: Astronomical
           Almanac low-precision algorithm. Tag configuration &amp; release logic:
-          Lotek PSAT+ User Manual rev. 02 (2026). Lotek binary log and Argos
+          Lotek PSAT+ User Manual rev. 02 (2026). Kinéis data alongside Wildlife
+          Computers exports:{' '}
+          <a
+            href="https://static.wildlifecomputers.com/Kineis-Data-Integration-Quick-Guide.pdf"
+            target="_blank"
+            rel="noopener"
+            className="hover:text-primary underline underline-offset-2"
+          >
+            Wildlife Computers Kinéis Data Integration Quick Guide
+          </a>
+          . Lotek binary log and Argos
           payload layouts reverse-engineered for this tool.
         </p>
         <p className="mt-1">
