@@ -117,6 +117,7 @@ import { parseLightLoc } from '@/parsers/wc/lightLoc';
 import { parseDailyData } from '@/parsers/wc/dailyData';
 import { parseHistos } from '@/parsers/wc/histos';
 import { parseWCArchive } from '@/parsers/wc/archive';
+import { parseWCVersion } from '@/parsers/wc/version';
 import { analyzeFateSignatures, detectWarmBody, describeWarmBody, type FateSignatures, type FateSample } from '@/analysis/fateSignatures';
 import { classifyDrift } from '@/analysis/drift';
 import { markOutliers } from '@/analysis/outliers';
@@ -201,6 +202,7 @@ export function useAnalysis(): UseAnalysisReturn {
       const portalLogs: LotekPortalLogResult[] = [];
       let portalPtt: number | null = null;
       const containers: LotekArgosContainerResult[] = [];
+      let exportedAt: Date | null = null;
 
       // A .zip is what the portal hands out and what a phone cannot open, so
       // it is expanded here into the files it holds; the Lotek workbook, also
@@ -303,6 +305,23 @@ export function useAnalysis(): UseAnalysisReturn {
         }
 
         const head = await file.slice(0, 64 * 1024).text();
+
+        // The portal's version.txt: the moment this export was built.
+        const version = parseWCVersion(head);
+        if (version) {
+          if (version.exportedAt && (!exportedAt || version.exportedAt > exportedAt)) exportedAt = version.exportedAt;
+          detected.push({
+            file,
+            manufacturer: 'wildlife_computers',
+            source: 'wildlife_computers',
+            fileType: 'wc_version',
+            note: version.exportedAt
+              ? `Export built ${version.exportedAt.toISOString().slice(0, 16).replace('T', ' ')} UTC` +
+                (version.dapVersion ? ` (DAP ${version.dapVersion})` : '')
+              : undefined,
+          });
+          continue;
+        }
 
         const asText = detectTextFile(file, head);
         if (asText) {
@@ -1006,6 +1025,7 @@ export function useAnalysis(): UseAnalysisReturn {
         repetitionRate,
         // Dry or wet, from how many transmissions the tag made between Status
         // messages — heard or not. Separates a wet tag from a covered one.
+        exportedAt,
         transmitCounter: analyzeTransmitCounter(
           parsedStatuses,
           messageTimes,

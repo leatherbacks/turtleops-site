@@ -1063,6 +1063,8 @@ export interface AnalysisResult {
   repetitionRate: RepetitionRate | null;
   /** Hours dry from the tag's own transmission counter (WC Status). */
   transmitCounter: import('@/analysis/transmitCounter').TransmitCounter | null;
+  /** When the Wildlife Computers portal built this export (version.txt); null when not uploaded. */
+  exportedAt: Date | null;
   /** SST taken metres down after release: the tag had sunk. */
   underwaterAfterRelease: import('@/analysis/underwaterAfterRelease').UnderwaterAfterRelease | null;
   /** Every message's reception time and satellite, where the export has them. */
@@ -1263,6 +1265,8 @@ export type FileType =
   | 'raw_argos'
   // Recovered tag's full archive (Time, Depth, Temperature, Light Level, …)
   | 'wc_archive'
+  // version.txt: when the portal built the export
+  | 'wc_version'
   // Lotek
   | 'lotek_daylog'
   | 'lotek_divelog'
@@ -1287,6 +1291,8 @@ export interface DetectedFile {
   fileType: FileType;
   /** Set when a file was recognised but could not be parsed safely. */
   warning?: string;
+  /** A neutral line about the file, shown under it (e.g. when an export was built). */
+  note?: string;
 }
 
 /**

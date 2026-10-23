@@ -229,7 +229,9 @@ export default function TagFinderPage() {
     // as missed; it used to end at the last fix, which hid exactly the passes
     // that showed a quiet tag was not seeing the sky. The record is split at
     // the moment the tag stopped: before is the float, after is the place.
-    const latest = skyWindowEnd(passes);
+    // A live file's window ends when the export was built, when version.txt
+    // says so: passes after that could not be in the file, so they are not missed.
+    const latest = skyWindowEnd(passes, result.exportedAt ?? new Date());
     const stoppedAt = restingSinceOf(result.allFixes);
     if (!earliest || !latest) {
       setSkySettledFor(result);
@@ -1052,6 +1054,12 @@ export default function TagFinderPage() {
                 {displayResult.ptt && (
                   <span>
                     <strong>PTT:</strong> {displayResult.ptt} &nbsp;·&nbsp;
+                  </span>
+                )}
+                {displayResult.exportedAt && (
+                  <span>
+                    <strong>Data exported:</strong>{' '}
+                    {displayResult.exportedAt.toISOString().slice(0, 16).replace('T', ' ')} UTC &nbsp;·&nbsp;
                   </span>
                 )}
                 <strong>Generated:</strong>{' '}
