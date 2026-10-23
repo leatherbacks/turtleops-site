@@ -141,6 +141,7 @@ import { detectTrackerShed } from '@/analysis/trackerShed';
 import { analyzeTransmissionHealth } from '@/analysis/transmissionHealth';
 import { estimateRepetitionRate } from '@/analysis/repetitionRate';
 import { analyzeTransmitCounter } from '@/analysis/transmitCounter';
+import { analyzeUnderwaterAfterRelease } from '@/analysis/underwaterAfterRelease';
 import { parseWCRawArgosTimes } from '@/parsers/wc/rawArgos';
 import { mergeFixes, mergePasses, mergeMessageTimes } from '@/analysis/mergeSources';
 import {
@@ -1012,6 +1013,7 @@ export function useAnalysis(): UseAnalysisReturn {
           restingSince(workingFixes),
           summary?.releaseDate ?? null
         ),
+        underwaterAfterRelease: analyzeUnderwaterAfterRelease(sstReadings, lightCurves, effectiveRelease(summary)),
         messageTimes,
         lotekHealth: lotekHealth?.records ?? null,
         lotekHealthStatusChanged: lotekHealth?.statusChanged ?? false,
