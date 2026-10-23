@@ -48,15 +48,23 @@ export default function ArchivePanels({ archive, standalone, fate = null, onRese
               'transmitted dive and day logs are below.'
             : standalone
             ? 'No Argos positions in this upload, so there is no search to plan — ' +
-              'position, drift and recovery analyses need a CLS export or raw Argos ' +
-              'file alongside. The archive itself is below.'
+              'position, drift and recovery analyses need the Argos positions alongside ' +
+              '(a Wildlife Computers Locations.csv, a CLS export or a raw Argos file). ' +
+              'The archive itself is below.'
             : 'Display only. The recovery analyses above run purely on the ' +
               'Argos-relayed data — the source that exists while there is still a ' +
               'tag to find — so their conclusions do not depend on the offload.'}
         </p>
       </div>
 
-      <DiveProfilePanel profile={archive.profile} />
+      <DiveProfilePanel
+        profile={archive.profile}
+        readingsLabel={
+          archive.totalReadings && archive.totalReadings !== archive.profile.totalReadings
+            ? `${archive.profile.totalReadings.toLocaleString()} plotted, one a minute`
+            : undefined
+        }
+      />
 
       {fate && <FatePanel fate={fate} />}
 

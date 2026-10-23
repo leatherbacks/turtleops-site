@@ -7,13 +7,15 @@ import { Activity } from 'lucide-react';
 interface DiveProfilePanelProps {
   profile: DiveProfile;
   releaseDate?: Date | null;
+  /** Replaces the reading count, when the profile was drawn from a thinned copy. */
+  readingsLabel?: string;
 }
 
 const WIDTH = 600;
 const HEIGHT = 200;
 const PADDING = 30;
 
-export default function DiveProfilePanel({ profile, releaseDate }: DiveProfilePanelProps) {
+export default function DiveProfilePanel({ profile, releaseDate, readingsLabel }: DiveProfilePanelProps) {
   const { svgPath, tempPath, maxDepth, yTicks, xTicks } = useMemo(() => {
     const depths = profile.displaySeries
       .filter((p) => p.depth !== null)
@@ -28,7 +30,9 @@ export default function DiveProfilePanel({ profile, releaseDate }: DiveProfilePa
 
     const tMin = depths[0].t;
     const tMax = depths[depths.length - 1].t;
-    const dMax = Math.max(...depths.map((p) => p.d));
+    // The display series is downsampled and can miss the deepest reading; the
+    // scale and its label follow the full profile, as the Max depth figure does.
+    const dMax = Math.max(...depths.map((p) => p.d), profile.maxDepth);
 
     const xScale = (t: number) =>
       PADDING + ((t - tMin) / (tMax - tMin)) * (WIDTH - 2 * PADDING);
@@ -79,7 +83,7 @@ export default function DiveProfilePanel({ profile, releaseDate }: DiveProfilePa
           </span>
         )}
         <span className="text-xs text-muted ml-auto">
-          {profile.totalReadings} readings
+          {readingsLabel ?? `${profile.totalReadings} readings`}
         </span>
       </div>
 
@@ -184,7 +188,7 @@ export default function DiveProfilePanel({ profile, releaseDate }: DiveProfilePa
               <div className="w-3 h-0.5 bg-warning" /> Temperature
             </span>
           )}
-          <span className="opacity-60">Max: {maxDepth.toFixed(0)}m</span>
+          <span className="opacity-60">Max: {maxDepth.toFixed(1)}m</span>
         </div>
       </div>
     </div>
