@@ -21,6 +21,8 @@ const FILE_TYPE_LABELS: Record<string, string> = {
   dailydata: 'Daily Summary',
   histos: 'Depth/Temp Histograms',
   raw_argos: 'Argos Messages',
+  wc_archive: 'Recovered Archive',
+  wc_version: 'Export Time',
   // Lotek
   lotek_daylog: 'Day Log',
   lotek_divelog: 'Dive Log',
@@ -73,6 +75,7 @@ export default function FileList({ files }: FileListProps) {
             {f.warning && (
               <p className="text-xs text-warning/90 ml-6 mt-0.5">{f.warning}</p>
             )}
+            {f.note && <p className="text-xs text-muted ml-6 mt-0.5">{f.note}</p>}
           </div>
         ))}
         {unrecognized.map((f) => (
