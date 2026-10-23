@@ -44,6 +44,7 @@ import TidePhasePanel from '@/components/tagfinder/TidePhasePanel';
 import WaterMatchPanel from '@/components/tagfinder/WaterMatchPanel';
 import ReceptionQualityPanel from '@/components/tagfinder/ReceptionQualityPanel';
 import ArchivePanels from '@/components/tagfinder/ArchivePanels';
+import FatePanel, { hasFateFindings } from '@/components/tagfinder/FatePanel';
 import SkySection from '@/components/tagfinder/SkySection';
 import UpcomingPassesPanel from '@/components/tagfinder/UpcomingPassesPanel';
 import EmailGate from '@/components/tagfinder/EmailGate';
@@ -68,7 +69,7 @@ const TagMap = dynamic(() => import('@/components/tagfinder/TagMap'), {
 });
 
 export default function TagFinderPage() {
-  const { detectedFiles, result, archive, statuses, series, passes, dailySummaries, histograms, error, analyzing, analyze, reset } = useAnalysis();
+  const { detectedFiles, result, archive, fate, statuses, series, passes, dailySummaries, histograms, error, analyzing, analyze, reset } = useAnalysis();
   const { session, email, loading: authLoading, authRequired, signOut } = useTagFinderAuth();
 
   const [satCoverage, setSatCoverage] = useState<SatCoverage | null>(null);
@@ -1019,7 +1020,7 @@ export default function TagFinderPage() {
         )}
 
         {archive && !result && (
-          <ArchivePanels archive={archive} standalone onReset={handleReset} />
+          <ArchivePanels archive={archive} fate={fate} standalone onReset={handleReset} />
         )}
 
         {/* Analyzing state */}
@@ -1250,7 +1251,12 @@ export default function TagFinderPage() {
             </div>
 
             {/* Recovered-tag archive — display only, beneath the analyses */}
-            {archive && <ArchivePanels archive={archive} standalone={false} />}
+            {archive && <ArchivePanels archive={archive} fate={fate} standalone={false} />}
+            {!archive && fate && hasFateFindings(fate) && (
+              <div className="mt-6">
+                <FatePanel fate={fate} />
+              </div>
+            )}
 
             {/* Print-only CTA footer — encourages the report's recipients to
              *  try the tool themselves. Goes on the last page of the PDF. */}

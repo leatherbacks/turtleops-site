@@ -1252,6 +1252,8 @@ export type FileType =
   | 'dailydata'
   | 'histos'
   | 'raw_argos'
+  // Recovered tag's full archive (Time, Depth, Temperature, Light Level, …)
+  | 'wc_archive'
   // Lotek
   | 'lotek_daylog'
   | 'lotek_divelog'

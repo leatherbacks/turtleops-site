@@ -1,7 +1,8 @@
 'use client';
 
-import type { ArchiveOnlyResult } from '@/hooks/useAnalysis';
+import type { ArchiveOnlyResult, FateResult } from '@/hooks/useAnalysis';
 import DiveProfilePanel from './DiveProfilePanel';
+import FatePanel from './FatePanel';
 
 interface ArchivePanelsProps {
   archive: ArchiveOnlyResult;
@@ -12,6 +13,8 @@ interface ArchivePanelsProps {
    * conclusions do not change based on whether the tag is already in hand.
    */
   standalone: boolean;
+  /** Swallowed / carried / seabed, read from the same record. */
+  fate?: FateResult | null;
   onReset?: () => void;
 }
 
@@ -20,7 +23,7 @@ const hm = (m: number | null) =>
     ? '—'
     : `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 
-export default function ArchivePanels({ archive, standalone, onReset }: ArchivePanelsProps) {
+export default function ArchivePanels({ archive, standalone, fate = null, onReset }: ArchivePanelsProps) {
   const portal = archive.source === 'portal';
   return (
     <div className={standalone ? 'max-w-3xl mx-auto space-y-4' : 'space-y-4 mt-6'}>
@@ -29,7 +32,7 @@ export default function ArchivePanels({ archive, standalone, onReset }: ArchiveP
           {portal ? 'Lotek transmitted logs' : 'Recovered-tag archive'}
         </h2>
         <p className="text-sm text-muted">
-          {archive.profile.totalReadings.toLocaleString()}{' '}
+          {(archive.totalReadings ?? archive.profile.totalReadings).toLocaleString()}{' '}
           {portal ? 'dive samples relayed by Argos' : 'archived readings'},{' '}
           {archive.from.toLocaleDateString()} &ndash; {archive.to.toLocaleDateString()}
           {archive.basicSamples > 0 &&
@@ -54,6 +57,8 @@ export default function ArchivePanels({ archive, standalone, onReset }: ArchiveP
       </div>
 
       <DiveProfilePanel profile={archive.profile} />
+
+      {fate && <FatePanel fate={fate} />}
 
       {archive.dayRecords.length > 0 && (
         <div className="bg-surface rounded-xl border border-border p-5">

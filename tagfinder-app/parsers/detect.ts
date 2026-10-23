@@ -29,6 +29,7 @@ const WC_BASE: { fileType: FileType; required: string[] }[] = [
   { fileType: 'raw_argos', required: ['PTT', 'Satellite', 'MsgDate', 'MsgTime'] },
   { fileType: 'status', required: ['DepthSensor', 'Instr', 'SW', 'RTC'] },
   { fileType: 'locations', required: ['Quality', 'Latitude', 'Longitude', 'Error radius'] },
+  { fileType: 'wc_archive', required: ['Time', 'Depth', 'Temperature', 'Light Level'] },
 ];
 
 const WC_PATTERNS: HeaderPattern[] = WC_BASE.map((p) => ({

@@ -58,6 +58,16 @@ export interface ArchiveOnlyResult {
   anchorMethod: 'exact' | 'day';
   from: Date;
   to: Date;
+  /** Readings in the file, when the profile was drawn from a thinned copy. */
+  totalReadings?: number;
+}
+/** Fate signatures with the record they were read from, for the panel. */
+export interface FateResult {
+  signatures: FateSignatures;
+  /** Which record: the panel says what it can and cannot test. */
+  source: 'wc_archive' | 'wc_series' | 'lotek_archive' | 'lotek_dive';
+  /** Whether the seabed test could run on this record (WC depth after release). */
+  seabedTested: boolean;
 }
 import { parseLotekDiveLog } from '@/parsers/lotek/diveLog';
 
@@ -69,6 +79,21 @@ function mergeByTime(a: SeriesReading[], b: SeriesReading[]): SeriesReading[] {
     if (!isNaN(k) && !seen.has(k)) seen.set(k, r);
   }
   return Array.from(seen.values()).sort((x, y) => x.date.getTime() - y.date.getTime());
+}
+
+/** Rows of a workbook whose first sheet is a Wildlife Computers archive, else null. */
+async function readArchiveWorkbook(file: File): Promise<Record<string, string>[] | null> {
+  try {
+    const sheets = await readXlsx(new Uint8Array(await file.arrayBuffer()));
+    for (const sheet of sheets) {
+      const [head, ...body] = sheet.rows;
+      if (!head || detectFile(file, head).fileType !== 'wc_archive') continue;
+      return body.map((r) => Object.fromEntries(head.map((h, i) => [h.trim(), r[i] ?? ''])));
+    }
+  } catch {
+    /* not a readable workbook */
+  }
+  return null;
 }
 
 /** The Lotek portal workbook, or null when this zip is not one (or unreadable). */
@@ -91,6 +116,8 @@ import { parseCorrupt } from '@/parsers/wc/corrupt';
 import { parseLightLoc } from '@/parsers/wc/lightLoc';
 import { parseDailyData } from '@/parsers/wc/dailyData';
 import { parseHistos } from '@/parsers/wc/histos';
+import { parseWCArchive } from '@/parsers/wc/archive';
+import { analyzeFateSignatures, detectWarmBody, describeWarmBody, type FateSignatures, type FateSample } from '@/analysis/fateSignatures';
 import { classifyDrift } from '@/analysis/drift';
 import { markOutliers } from '@/analysis/outliers';
 import { detectCarried } from '@/analysis/carried';
@@ -126,6 +153,8 @@ interface UseAnalysisReturn {
   result: AnalysisResult | null;
   /** Set instead of result for an offload-only upload — see ArchiveOnlyResult. */
   archive: ArchiveOnlyResult | null;
+  /** Swallowed / carried / seabed signatures in the depth-temperature record. */
+  fate: FateResult | null;
   statuses: import('@/lib/types').TagStatus[];
   series: import('@/lib/types').SeriesReading[];
   passes: import('@/lib/types').ArgosPass[];
@@ -141,6 +170,7 @@ export function useAnalysis(): UseAnalysisReturn {
   const [detectedFiles, setDetectedFiles] = useState<DetectedFile[]>([]);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [archive, setArchive] = useState<ArchiveOnlyResult | null>(null);
+  const [fate, setFate] = useState<FateResult | null>(null);
   const [statuses, setStatuses] = useState<import('@/lib/types').TagStatus[]>([]);
   const [series, setSeries] = useState<import('@/lib/types').SeriesReading[]>([]);
   const [passesState, setPassesState] = useState<import('@/lib/types').ArgosPass[]>([]);
@@ -154,6 +184,7 @@ export function useAnalysis(): UseAnalysisReturn {
     setError(null);
     setResult(null);
     setArchive(null);
+    setFate(null);
 
     try {
       // 1. Parse and detect all files.
@@ -210,6 +241,15 @@ export function useAnalysis(): UseAnalysisReturn {
                 : 'Recognised as a Lotek workbook, but no record in it passed its CRC.',
             });
             portalPtt = portalPtt ?? pttFromFilename(file.name);
+            continue;
+          }
+          // A recovered Wildlife Computers archive that has been through
+          // Excel (NOAA's 40996 arrived that way). Read when its header is
+          // the archive's; every other workbook still gets the CSV guidance.
+          const wcArchiveSheet = isZipMagic(magic) ? await readArchiveWorkbook(file) : null;
+          if (wcArchiveSheet) {
+            detected.push({ file, manufacturer: 'wildlife_computers', source: 'wildlife_computers', fileType: 'wc_archive' });
+            parsedData.wc_archive = (parsedData.wc_archive ?? []).concat(wcArchiveSheet);
             continue;
           }
           detected.push(spreadsheet);
@@ -439,6 +479,61 @@ export function useAnalysis(): UseAnalysisReturn {
               : undefined;
       }
 
+      // A recovered Wildlife Computers archive: like the Lotek offload, an
+      // exhibit beside the Argos analyses, never an input to them.
+      const wcArchive = parsedData.wc_archive ? parseWCArchive(parsedData.wc_archive) : [];
+      if (wcArchive.length > 0 && !archiveSeries?.length) {
+        // A minute apart is plenty for the profile; 3 s archives run to millions of rows.
+        const thinned: SeriesReading[] = [];
+        for (const a of wcArchive) {
+          const last = thinned[thinned.length - 1];
+          if (last && a.date.getTime() - last.date.getTime() < 60_000) continue;
+          thinned.push({ date: a.date, depth: a.depth, depthRange: null, temperature: a.temperature, temperatureRange: null });
+        }
+        const profile = buildDiveProfile(thinned);
+        if (profile) {
+          setArchive({
+            source: 'offload',
+            profile,
+            dayRecords: [],
+            basicSamples: 0,
+            anchorMethod: 'exact',
+            from: wcArchive[0].date,
+            to: wcArchive[wcArchive.length - 1].date,
+            totalReadings: wcArchive.length,
+          });
+        }
+      }
+
+      // Swallowed, carried or on the seabed. The fullest record wins. Lotek
+      // depth means nothing after the release burn, so a Lotek record gets the
+      // warm-body check only; a Wildlife Computers one gets both.
+      {
+        const wcRelease = parsedData.summary ? parseSummary(parsedData.summary)?.releaseDate ?? null : null;
+        const fromSeries = (xs: SeriesReading[]): FateSample[] =>
+          xs.map((r) => ({ date: r.date, depth: r.depth, temperature: r.temperature }));
+        const wcSeries = parsedData.series ? parseSeries(parsedData.series) : [];
+        let fateResult: FateResult | null = null;
+        if (wcArchive.length > 0) {
+          const sig = analyzeFateSignatures(wcArchive, wcRelease);
+          if (sig) fateResult = { signatures: sig, source: 'wc_archive', seabedTested: true };
+        } else if (wcSeries.length > 0) {
+          const sig = analyzeFateSignatures(fromSeries(wcSeries), wcRelease);
+          if (sig) fateResult = { signatures: sig, source: 'wc_series', seabedTested: true };
+        } else {
+          const lotek = archiveSeries?.length ? archiveSeries : diveReadings;
+          if (lotek.length >= 20) {
+            const warmBody = detectWarmBody(fromSeries(lotek));
+            fateResult = {
+              signatures: { warmBody, floatingFrom: null, submerged: [], summary: warmBody.map(describeWarmBody) },
+              source: archiveSeries?.length ? 'lotek_archive' : 'lotek_dive',
+              seabedTested: false,
+            };
+          }
+        }
+        setFate(fateResult);
+      }
+
       setDetectedFiles(detected);
 
       // 3. Positions can come from a Wildlife Computers Locations export or
@@ -446,7 +541,7 @@ export function useAnalysis(): UseAnalysisReturn {
       if (!parsedData.locations && !argosDS && !argosMessages && !argosPositions?.fixes.length && !container?.fixes.length) {
         // An offload-only upload is not an error — the tag is in hand and the
         // archive is the result. Position analyses simply have nothing to say.
-        if (archiveSeries && archiveSeries.length > 0) {
+        if ((archiveSeries && archiveSeries.length > 0) || wcArchive.length > 0) {
           setAnalyzing(false);
           return;
         }
@@ -922,6 +1017,7 @@ export function useAnalysis(): UseAnalysisReturn {
   const reset = useCallback(() => {
     setDetectedFiles([]);
     setResult(null);
+    setFate(null);
     setStatuses([]);
     setSeries([]);
     setPassesState([]);
@@ -935,6 +1031,7 @@ export function useAnalysis(): UseAnalysisReturn {
     detectedFiles,
     result,
     archive,
+    fate,
     statuses,
     series,
     passes: passesState,
